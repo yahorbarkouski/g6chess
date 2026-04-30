@@ -11,8 +11,10 @@ from g6explanation.context_engine.contracts import (
     MoveContextRequest,
     MoveSignificance,
     PlayerLevel,
+    VerificationIssue,
     VerificationResult,
 )
+from g6explanation.context_engine.evidence_verification import EvidenceVerifier
 from g6explanation.context_engine.exceptions import (
     AmbiguousRequestError,
     AnalysisError,
@@ -37,6 +39,7 @@ __all__ = [
     "ContextResult",
     "EngineAnalysisProvider",
     "EvidencePacket",
+    "EvidenceVerifier",
     "HumanMoveLikelihoodProvider",
     "InvalidRequestError",
     "KeyMoveContext",
@@ -49,5 +52,6 @@ __all__ = [
     "PlayerLevel",
     "RootMoveAnalysisProvider",
     "StockfishAnalysisProvider",
+    "VerificationIssue",
     "VerificationResult",
 ]

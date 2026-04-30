@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import shutil
+from pathlib import Path
 
 import pytest
 
@@ -8,8 +8,13 @@ from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
 from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
 
+STOCKFISH_BINARY = Path("/opt/homebrew/bin/stockfish")
 
-@pytest.mark.skipif(shutil.which("stockfish") is None, reason="stockfish binary is not installed")
+
+@pytest.mark.skipif(
+    not STOCKFISH_BINARY.exists(),
+    reason="/opt/homebrew/bin/stockfish is not installed",
+)
 def test_stockfish_provider_builds_smoke_context() -> None:
     request = MoveContextRequest(
         fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -20,9 +25,17 @@ def test_stockfish_provider_builds_smoke_context() -> None:
     )
 
     result = MoveContextBuilder(
-        StockfishAnalysisProvider(depth=4, multipv=2, threads=1, hash_mb=16, show_wdl=True)
+        StockfishAnalysisProvider(
+            binary_path=str(STOCKFISH_BINARY),
+            depth=4,
+            multipv=2,
+            threads=1,
+            hash_mb=16,
+            show_wdl=True,
+        )
     ).build(request)
 
+    assert result.verification.passed is True
     assert result.evidence.played.san == "e4"
     assert 1 <= len(result.evidence.engine.top_lines) <= 2
     assert result.evidence.candidates

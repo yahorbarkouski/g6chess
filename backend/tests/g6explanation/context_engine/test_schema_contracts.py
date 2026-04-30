@@ -13,6 +13,7 @@ from g6explanation.context_engine.contracts import (
     MoveQuality,
     PlayerLevel,
     Score,
+    VerificationIssue,
     VerificationResult,
 )
 
@@ -24,6 +25,7 @@ def test_context_models_export_json_schema() -> None:
         MoveQuality,
         MoveBeauty,
         CandidateMove,
+        VerificationIssue,
         VerificationResult,
     ]
     for model in models:

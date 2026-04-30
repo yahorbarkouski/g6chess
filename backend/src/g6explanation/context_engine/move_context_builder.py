@@ -20,6 +20,7 @@ from g6explanation.context_engine.contracts import (
     MoveContextRequest,
     VerificationResult,
 )
+from g6explanation.context_engine.evidence_verification import EvidenceVerifier
 from g6explanation.context_engine.exceptions import AnalysisError
 from g6explanation.context_engine.explanation_agenda import (
     build_allowed_claims,
@@ -45,15 +46,19 @@ class MoveContextBuilder:
         analysis_provider: EngineAnalysisProvider,
         human_likelihood_provider: HumanMoveLikelihoodProvider | None = None,
         human_candidate_limit: int = 3,
+        evidence_verifier: EvidenceVerifier | None = None,
     ) -> None:
         self._analysis_provider = analysis_provider
         self._human_likelihood_provider = human_likelihood_provider
         self._human_candidate_limit = human_candidate_limit
+        self._evidence_verifier = evidence_verifier or EvidenceVerifier()
 
     def build(self, request: MoveContextRequest) -> ContextResult:
         board, move, reconstructed = reconstruct_move_context(request)
         analysis = self._analysis_provider.analyze(board, move, request.player_color)
-        _validate_analysis(board, move, analysis)
+        _raise_verification_failure(
+            self._evidence_verifier.verify_engine_analysis(board, move, analysis)
+        )
         candidate_moves = _candidate_moves_from_analysis(
             board, analysis_move_uci=[line.move_uci for line in analysis.top_lines]
         )
@@ -122,11 +127,9 @@ class MoveContextBuilder:
             human_note=build_human_note(key_candidate, situation),
             allowed_claims=allowed_claims,
         )
-        return ContextResult(
-            evidence=evidence,
-            llm_context=llm_context,
-            verification=VerificationResult(verifier_version="context_builder.v1", passed=True),
-        )
+        verification = self._evidence_verifier.verify(evidence, llm_context)
+        _raise_verification_failure(verification)
+        return ContextResult(evidence=evidence, llm_context=llm_context, verification=verification)
 
     def _supplemental_human_lines(
         self,
@@ -164,41 +167,13 @@ class MoveContextBuilder:
         return lines
 
 
-def _validate_analysis(
-    board: chess.Board, played_move: chess.Move, analysis: EngineAnalysis
-) -> None:
-    if not analysis.top_lines:
-        raise AnalysisError("Engine analysis must include at least one top line.")
-    if analysis.played_line.move_uci != played_move.uci():
-        requested_move = played_move.uci()
-        raise AnalysisError(
-            f"Played line {analysis.played_line.move_uci} "
-            f"does not match requested move {requested_move}."
-        )
-    for line in [*analysis.top_lines, analysis.played_line]:
-        try:
-            move = chess.Move.from_uci(line.move_uci)
-        except ValueError as exc:
-            raise AnalysisError(f"Engine line move {line.move_uci} is not valid UCI.") from exc
-        if move not in board.legal_moves:
-            raise AnalysisError(
-                f"Engine line move {line.move_uci} is illegal before the played move."
-            )
-        _validate_line_pv(board, line)
-    if analysis.after_line is not None:
-        after_board = board.copy(stack=False)
-        after_board.push(played_move)
-        try:
-            after_move = chess.Move.from_uci(analysis.after_line.move_uci)
-        except ValueError as exc:
-            raise AnalysisError(
-                f"After-line move {analysis.after_line.move_uci} is not valid UCI."
-            ) from exc
-        if after_move not in after_board.legal_moves:
-            raise AnalysisError(
-                f"After-line move {analysis.after_line.move_uci} is illegal after the played move."
-            )
-        _validate_line_pv(after_board, analysis.after_line)
+def _raise_verification_failure(verification: VerificationResult) -> None:
+    if verification.passed:
+        return
+    first_failure = verification.failures[0]
+    raise AnalysisError(
+        f"Evidence verification failed: {first_failure.code}: {first_failure.message}"
+    )
 
 
 def _candidate_moves_from_analysis(

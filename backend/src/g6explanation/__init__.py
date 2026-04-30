@@ -3,6 +3,7 @@
 from g6explanation.context_engine import (
     ContextResult,
     EvidencePacket,
+    EvidenceVerifier,
     KeyMoveContext,
     LLMContext,
     Maia2MoveLikelihoodProvider,
@@ -12,12 +13,14 @@ from g6explanation.context_engine import (
     MoveSignificance,
     PlayerLevel,
     StockfishAnalysisProvider,
+    VerificationIssue,
     VerificationResult,
 )
 
 __all__ = [
     "ContextResult",
     "EvidencePacket",
+    "EvidenceVerifier",
     "KeyMoveContext",
     "LLMContext",
     "Maia2MoveLikelihoodProvider",
@@ -27,5 +30,6 @@ __all__ = [
     "MoveSignificance",
     "PlayerLevel",
     "StockfishAnalysisProvider",
+    "VerificationIssue",
     "VerificationResult",
 ]

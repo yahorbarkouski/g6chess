@@ -2,5 +2,6 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+maia2_models/
 *.py[cod]
 .DS_Store

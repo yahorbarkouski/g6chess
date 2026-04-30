@@ -466,7 +466,7 @@ def test_rejects_analyzer_that_returns_different_played_move() -> None:
 
     engine = MoveContextBuilder(StaticAnalysisProvider(engine_analysis))
 
-    with pytest.raises(AnalysisError, match="does not match requested move"):
+    with pytest.raises(AnalysisError, match="engine_played_line_mismatch"):
         engine.build(request)
 
 
@@ -503,5 +503,5 @@ def test_rejects_engine_line_with_illegal_pv_move() -> None:
 
     engine = MoveContextBuilder(StaticAnalysisProvider(engine_analysis))
 
-    with pytest.raises(AnalysisError, match="PV move e2e4 is illegal"):
+    with pytest.raises(AnalysisError, match="engine_pv_illegal"):
         engine.build(request)

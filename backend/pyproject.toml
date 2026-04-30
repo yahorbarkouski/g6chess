@@ -10,7 +10,16 @@ dependencies = [
 
 [project.optional-dependencies]
 maia = [
+  "einops>=0.8",
+  "gdown>=5",
   "maia2==0.9",
+  "numpy>=1.26",
+  "pandas>=2",
+  "pyyaml>=6",
+  "pyzstd>=0.16",
+  "requests>=2",
+  "torch>=2",
+  "tqdm>=4",
 ]
 
 [dependency-groups]

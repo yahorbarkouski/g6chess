@@ -70,7 +70,8 @@ changes:
 - `ConceptTags`: tactical, strategic, and behavioral tags with detector source.
 - `IncidentPacket`: complete evidence object for one explainable moment.
 - `Explanation`: one verified coach-quality string returned by the API.
-- `VerificationResult`: deterministic and model-based checks on an explanation.
+- `VerificationResult`: deterministic checks on evidence, LLM context, and later
+  explanation output.
 - `EvaluationRun`: frozen set results for comparing prompts/models.
 
 ## Evidence Boundaries

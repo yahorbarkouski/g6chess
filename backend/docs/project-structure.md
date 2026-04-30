@@ -20,9 +20,11 @@ empty folders for features that do not exist yet.
         __init__.py
         candidate_policy.py
         contracts.py
+        evidence_verification.py
         exceptions.py
         explanation_agenda.py
         maia_likelihood.py
+        move_beauty.py
         move_context_builder.py
         move_quality.py
         position_reconstruction.py
@@ -32,8 +34,10 @@ empty folders for features that do not exist yet.
     g6explanation/
       context_engine/
         helpers.py
+        test_evidence_verification.py
         test_golden_packet_fixtures.py
         test_maia_likelihood.py
+        test_move_beauty.py
         test_move_context_builder.py
         test_position_reconstruction.py
         test_real_game_significance_examples.py
