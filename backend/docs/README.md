@@ -29,11 +29,6 @@ durable decisions.
 - `adr/README.md`: ADR format and when to write one.
 - `adr/*.md`: accepted, superseded, proposed, or rejected decisions.
 
-## Compatibility Paths
-
-Top-level docs such as `end-goal.md` are short redirects for older ADR links and
-agent instructions. New work should use the foldered paths above.
-
 ## Maintenance Rules
 
 - Update product docs when product contracts or model behavior change.

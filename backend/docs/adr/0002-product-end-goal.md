@@ -17,7 +17,7 @@ judged against.
 
 ## Decision
 
-The product end goal is documented in `docs/end-goal.md`.
+The product end goal is documented in `docs/product/end-goal.md`.
 
 The implementation target is a chess improvement system that turns a player's
 own games into verified, rating-appropriate explanations, drills, weakness

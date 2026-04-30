@@ -154,6 +154,10 @@ explicitly approves a work-in-progress checkpoint.
 Documentation should be operational. Avoid speculative documents that do not help
 future implementation, review, testing, or product decisions.
 
+Put product scope, model behavior, context, and prompt guidance under
+`docs/product/`. Put workflow, testing, quality, and structure guidance under
+`docs/development/`. Do not recreate top-level guide documents under `docs/`.
+
 Accepted ADRs are immutable except for typo fixes. Supersede them with a new ADR
 when decisions change.
 

@@ -1,7 +1,8 @@
 # ADR 0011: Documentation Taxonomy And Prompt Guidance
 
 Date: 2026-04-30
-Status: Accepted
+Status: Superseded
+Superseded by: ADR 0012
 
 ## Context
 

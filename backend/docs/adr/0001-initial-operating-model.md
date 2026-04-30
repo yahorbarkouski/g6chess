@@ -20,9 +20,9 @@ lesson.
 We will create documentation and operating contracts before application code:
 
 - root `AGENTS.md`
-- `docs/product-understanding.md`
-- `docs/quality-gates.md`
-- `docs/testing-playbook.md`
+- `docs/product/product-understanding.md`
+- `docs/development/quality-gates.md`
+- `docs/development/testing-playbook.md`
 - `docs/adr/README.md`
 - accepted ADRs for durable decisions
 
