@@ -111,6 +111,7 @@ Keep in per-request context:
 - player level
 - time situation
 - played move quality
+- move significance
 - candidate move strength
 - candidate move findability
 - main explanation point
@@ -423,6 +424,71 @@ For each important alternative, derive a practicality category:
 
 This category should drive the explanation agenda.
 
+## Move Significance
+
+The context should include one strict significance field:
+
+```json
+{
+  "label": "high",
+  "score": 0.57
+}
+```
+
+Do not include a generated prose reason for significance. The formula is the
+reason, and the formula should be tested.
+
+Significance means:
+
+```text
+How much this exact move deserves emphasis, relative to the relevant alternative.
+```
+
+Use one unified metric instead of separate public concepts like "move impact"
+and "choice criticality".
+
+### Formula
+
+1. If the played move allows mate against the player, score is `1.0`.
+2. If the best move was a mate for the player and the played move missed it,
+   score is `1.0`.
+3. Otherwise choose the comparison line:
+   - if the played move is not the engine best move, compare played move to the
+     engine best move
+   - if the played move is the engine best move, compare it to the next distinct
+     engine line
+4. Compute centipawn component:
+
+```text
+cp_component = clamp(abs(cp(played) - cp(comparison)) / 300, 0, 1)
+```
+
+5. Compute WDL component when both lines have WDL:
+
+```text
+expected_score = win + 0.5 * draw
+wdl_component = clamp(abs(expected_score(played) - expected_score(comparison)) / 180, 0, 1)
+```
+
+6. Final score:
+
+```text
+significance.score = round(max(cp_component, wdl_component), 2)
+```
+
+7. Label:
+
+```text
+0.00 - 0.14 -> low
+0.15 - 0.34 -> moderate
+0.35 - 0.64 -> high
+0.65 - 1.00 -> critical
+```
+
+If there is no second line for a best move and no mate/WDL override, use
+`{"label": "low", "score": 0.0}` because the context does not have enough
+relative evidence to call the best move significant.
+
 ## Minimal Evidence Packet
 
 The evidence packet should be complete enough for verification.
@@ -456,6 +522,10 @@ KISS shape:
     "score_delta_cp_player_pov": -230,
     "wdl_delta_player_pov": {"win": -80, "draw": -360, "loss": 440},
     "severity_text": "the position changed from roughly equal to clearly better for Black"
+  },
+  "significance": {
+    "label": "critical",
+    "score": 0.77
   },
   "candidates": [
     {
@@ -500,6 +570,7 @@ KISS shape:
 {
   "played": "g4",
   "quality": "mistake",
+  "significance": {"label": "critical", "score": 0.77},
   "player_level": "1250",
   "time_situation": "blitz_normal",
   "severity": "from roughly equal to clearly better for Black",
