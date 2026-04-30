@@ -94,12 +94,13 @@ Move quality answers whether the move was good. Normalize all score deltas from
 the analyzed player's point of view. Represent mate separately from centipawns.
 
 Move significance answers how much this move deserves emphasis. It is one strict
-`label` plus `score`; do not add generated prose reasons. Follow
-`docs/adr/0007-unified-move-significance.md`.
+`label` plus `score`; do not add generated prose reasons. Labels are `low`,
+`moderate`, `high`, and `critical`. Mate transitions are always critical.
 
 Move beauty answers whether a sound move contains a non-obvious aesthetic idea.
-It is one strict `label` plus `score`; do not let the LLM judge beauty. Follow
-`docs/adr/0009-deterministic-move-beauty.md`.
+It is one strict `label` plus `score`; do not let the LLM judge beauty. Labels
+are `low`, `notable`, `beautiful`, and `brilliant`. Unsound moves do not get a
+beauty bonus.
 
 ## LLM Context Shape
 

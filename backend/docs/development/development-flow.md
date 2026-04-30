@@ -49,7 +49,7 @@ Preferred types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`.
 - Do not mix unrelated changes.
 - Do not commit generated caches or local environment files.
 - Keep docs, tests, and code together when they describe the same behavior.
-- Add or update an ADR when the change affects durable architecture, data,
+- Update the concise ADR set when the change affects durable architecture, data,
   schema, verifier, or model behavior.
 
 ## Before Starting Another Major Change

@@ -25,10 +25,11 @@ Before making implementation changes, read these files:
 9. `docs/development/testing-playbook.md`
 10. `docs/development/agent-capabilities.md`
 11. `docs/adr/README.md`
-12. Relevant accepted ADRs in `docs/adr/`
+12. The three concise ADRs in `docs/adr/`
 
 If a change affects architecture, data rights, model behavior, schema contracts,
-or verification policy, add or update an ADR before or with the implementation.
+or verification policy, update the concise ADR set before or with the
+implementation.
 
 ## Working Principles
 
@@ -158,8 +159,9 @@ Put product scope, model behavior, context, and prompt guidance under
 `docs/product/`. Put workflow, testing, quality, and structure guidance under
 `docs/development/`. Do not recreate top-level guide documents under `docs/`.
 
-Accepted ADRs are immutable except for typo fixes. Supersede them with a new ADR
-when decisions change.
+ADRs are concise current-state decision records, not historical logs. Keep them
+small, consolidate when possible, and put operational detail in product or
+development docs.
 
 ## Nested AGENTS.md Policy
 

@@ -4,9 +4,9 @@ Quality gates prevent fluent but unreliable chess explanations.
 
 ## Gate 0: Decision
 
-Write an ADR before changing data rights, schema contracts, Stockfish or Maia
-configuration, verifier policy, training data, model promotion criteria, or
-production explanation behavior.
+Update the concise ADR set before changing data rights, schema contracts,
+Stockfish or Maia configuration, verifier policy, training data, model promotion
+criteria, or production explanation behavior.
 
 ## Gate 1: Schema
 
@@ -84,7 +84,7 @@ requested move, supported better idea, or explanation clarity.
 
 ## Optional Maia Evaluation Gate
 
-Run the ADR 0010 gate only when work depends on real Maia behavior:
+Run this gate only when work depends on real Maia behavior:
 
 ```text
 G6EXPLANATION_RUN_MAIA2=1 uv run pytest tests/g6explanation/context_engine/test_real_game_maia_evaluation.py -q

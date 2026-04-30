@@ -11,7 +11,7 @@ Agents working here should be able to:
 - run deterministic chess verification
 - run unit, integration, golden, and regression tests
 - inspect data manifests and source rights
-- update ADRs when durable decisions change
+- update the concise ADR set when durable decisions change
 
 ## Pre-Implementation Checklist
 

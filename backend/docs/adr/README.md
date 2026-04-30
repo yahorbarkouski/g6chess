@@ -1,75 +1,20 @@
 # Architecture Decision Records
 
-ADRs capture decisions that future agents must not rediscover or silently
-reverse.
+ADRs are short current-state records for durable decisions. They are not a
+history log. Keep only decisions that an agent must know before changing product
+truth, schema contracts, verifier policy, data rights, model behavior, or core
+development standards.
 
-## Location
+## Current ADRs
 
-All ADRs live in `docs/adr/`.
+- `0001-product-truth-boundary.md`
+- `0002-context-contract-and-verification.md`
+- `0003-development-standards.md`
 
-## Numbering
+## Rules
 
-Use monotonically increasing four-digit numbers:
-
-```text
-0001-initial-operating-model.md
-0002-clean-data-policy.md
-0003-stockfish-analysis-budget.md
-```
-
-## Status Values
-
-Use one of:
-
-- `Proposed`
-- `Accepted`
-- `Superseded`
-- `Rejected`
-
-Accepted ADRs should not be edited except for typo fixes. If a decision changes,
-write a new ADR and mark the old one as superseded.
-
-## ADR Template
-
-```markdown
-# ADR NNNN: Title
-
-Date: YYYY-MM-DD
-Status: Proposed | Accepted | Superseded | Rejected
-
-## Context
-
-What problem or pressure requires a decision?
-
-## Decision
-
-What are we deciding?
-
-## Consequences
-
-What becomes easier, harder, safer, or more expensive?
-
-## Alternatives Considered
-
-Which credible options were rejected and why?
-
-## Validation
-
-How will we know this decision is working?
-```
-
-## When To Write An ADR
-
-Write an ADR when changing:
-
-- data source policy
-- training data eligibility
-- engine analysis depth/nodes
-- Stockfish options
-- Maia integration approach
-- schema contracts
-- verifier pass/fail rules
-- model family or serving stack
-- use of closed-model judges
-- model promotion criteria
-- production explanation shape
+- Prefer updating `docs/product/` or `docs/development/` for operational detail.
+- Add an ADR only when the decision is durable and cross-cutting.
+- Keep ADRs under 80 lines.
+- Consolidate or delete stale ADRs instead of accumulating logs.
+- Use `Status: Accepted`, `Superseded`, or `Rejected` only when useful.

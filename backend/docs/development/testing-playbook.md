@@ -54,7 +54,7 @@ Use integration tests for external binaries and model adapters:
 
 Keep normal CI budgets small. Deeper analysis belongs in offline evals.
 
-Real Maia evaluation is opt-in per ADR 0010:
+Real Maia evaluation is opt-in:
 
 ```text
 G6EXPLANATION_RUN_MAIA2=1 uv run pytest tests/g6explanation/context_engine/test_real_game_maia_evaluation.py -q

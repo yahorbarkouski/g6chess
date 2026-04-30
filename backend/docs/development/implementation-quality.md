@@ -53,8 +53,8 @@ that would make the coach lie:
 
 Use deterministic static providers for most tests. Use Stockfish only in small
 integration tests that can skip when the binary is unavailable. Use the opt-in
-real Maia gate from ADR 0010 only for integration/evaluation work that needs the
-actual optional runtime.
+real Maia gate only for integration/evaluation work that needs the actual
+optional runtime.
 
 ## Required Checks
 

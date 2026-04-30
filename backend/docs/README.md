@@ -26,13 +26,15 @@ durable decisions.
 
 ## ADRs
 
-- `adr/README.md`: ADR format and when to write one.
-- `adr/*.md`: accepted, superseded, proposed, or rejected decisions.
+- `adr/README.md`: current concise decision records.
+- `adr/0001-product-truth-boundary.md`: product and chess-truth boundary.
+- `adr/0002-context-contract-and-verification.md`: context contracts and gates.
+- `adr/0003-development-standards.md`: structure, docs, and workflow standards.
 
 ## Maintenance Rules
 
 - Update product docs when product contracts or model behavior change.
 - Update development docs when workflow, checks, structure, or testing changes.
-- Add an ADR for durable architecture, schema, data, verifier, model, or
-  production-behavior decisions.
+- Update the concise ADR set for durable architecture, schema, data, verifier,
+  model, or production-behavior decisions.
 - Keep docs operational: rules, contracts, checklists, and examples only.
