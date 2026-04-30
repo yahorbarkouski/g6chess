@@ -110,8 +110,8 @@ def test_real_game_significance_and_beauty_examples_with_stockfish() -> None:
                 "game": game,
                 "move": result.evidence.played.san,
                 "quality": result.evidence.quality.label,
-                "significance": result.evidence.significance.to_dict(),
-                "beauty": result.evidence.beauty.to_dict(),
+                "significance": result.evidence.significance.label,
+                "beauty": result.evidence.beauty.label,
             }
         )
         assert result.evidence.played.san == expected_san
@@ -121,21 +121,21 @@ def test_real_game_significance_and_beauty_examples_with_stockfish() -> None:
             "game": "Opera Game",
             "move": "Rd8#",
             "quality": "best",
-            "significance": {"label": "critical", "score": 1.0},
-            "beauty": {"label": "beautiful", "score": 0.68},
+            "significance": "critical",
+            "beauty": "beautiful",
         },
         {
             "game": "Game of the Century",
             "move": "Be6",
             "quality": "best",
-            "significance": {"label": "critical", "score": 1.0},
-            "beauty": {"label": "brilliant", "score": 0.87},
+            "significance": "critical",
+            "beauty": "brilliant",
         },
         {
             "game": "Kasparov's Immortal",
             "move": "Rxd4",
             "quality": "best",
-            "significance": {"label": "high", "score": 0.56},
-            "beauty": {"label": "beautiful", "score": 0.54},
+            "significance": "high",
+            "beauty": "beautiful",
         },
     ]

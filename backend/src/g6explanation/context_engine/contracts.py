@@ -55,6 +55,41 @@ RecommendationPolicy: TypeAlias = Literal[
 ]
 SignificanceLabel: TypeAlias = Literal["low", "moderate", "high", "critical"]
 BeautyLabel: TypeAlias = Literal["low", "notable", "beautiful", "brilliant"]
+VerificationIssueCode: TypeAlias = Literal[
+    "candidate_duplicate",
+    "candidate_hard_direct_recommendation",
+    "candidate_illegal",
+    "candidate_missing_engine_best",
+    "candidate_missing_played_move",
+    "candidate_missing_role",
+    "candidate_policy_inconsistent",
+    "candidate_san_mismatch",
+    "engine_after_line_unexpected",
+    "engine_after_line_missing",
+    "engine_line_illegal",
+    "engine_line_invalid_uci",
+    "engine_line_san_mismatch",
+    "engine_metadata_missing",
+    "engine_played_line_mismatch",
+    "engine_pv_illegal",
+    "engine_pv_invalid_uci",
+    "engine_pv_missing",
+    "engine_pv_root_mismatch",
+    "engine_pv_san_mismatch",
+    "engine_top_lines_empty",
+    "engine_wdl_missing",
+    "fen_after_invalid",
+    "fen_after_mismatch",
+    "fen_before_invalid",
+    "legal_moves_mismatch",
+    "llm_context_claim_not_allowed",
+    "llm_context_inconsistent",
+    "played_move_fact_mismatch",
+    "played_move_illegal",
+    "played_move_invalid_uci",
+    "request_fen_mismatch",
+    "side_to_move_mismatch",
+]
 TimeSituation: TypeAlias = Literal[
     "unknown",
     "classical_or_no_pressure",
@@ -321,13 +356,20 @@ class LLMContext(ContextContract):
     allowed_claims: list[str] = Field(default_factory=list[str])
 
 
+class VerificationIssue(ContextContract):
+    code: VerificationIssueCode
+    message: str
+    path: str
+
+
 class VerificationResult(ContextContract):
     verifier_version: str
     passed: bool
-    failures: list[str] = Field(default_factory=list[str])
-    warnings: list[str] = Field(default_factory=list[str])
+    failures: list[VerificationIssue] = Field(default_factory=list[VerificationIssue])
+    warnings: list[VerificationIssue] = Field(default_factory=list[VerificationIssue])
 
 
 class ContextResult(ContextContract):
     evidence: EvidencePacket
     llm_context: LLMContext
+    verification: VerificationResult

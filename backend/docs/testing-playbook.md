@@ -85,6 +85,13 @@ input PGN/FEN
 Do not assert exact free-form wording unless the wording is part of a product
 contract. Prefer checking structured fields and supported claims.
 
+For heuristic scalar fields such as `beauty.score`, scenario and golden tests
+should assert the enum label and broad threshold behavior, not exact float
+equality. Exact score equality is only appropriate for narrow pure-function
+formula tests where the formula itself is the contract. Engine-backed examples
+are especially sensitive to depth, engine version, PV choice, and calibration
+weights, so they should snapshot stable labels rather than decimal scores.
+
 ## Adversarial Tests
 
 Create adversarial fixtures for common failures:

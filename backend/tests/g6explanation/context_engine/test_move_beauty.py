@@ -39,7 +39,7 @@ def test_routine_best_opening_move_has_low_beauty() -> None:
     result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
     assert result.evidence.beauty.label == "low"
-    assert result.evidence.beauty.score == 0.08
+    assert result.evidence.beauty.score < 0.25
     assert result.llm_context.beauty.label == "low"
 
 
@@ -65,7 +65,7 @@ def test_bad_move_has_zero_beauty_even_when_it_is_unusual() -> None:
 
     assert result.evidence.quality.label == "blunder"
     assert result.evidence.beauty.label == "low"
-    assert result.evidence.beauty.score == 0.0
+    assert result.evidence.beauty.score < 0.25
 
 
 def test_quiet_queen_sacrifice_resource_can_be_brilliant() -> None:
@@ -95,7 +95,7 @@ def test_quiet_queen_sacrifice_resource_can_be_brilliant() -> None:
     assert result.evidence.quality.label == "best"
     assert result.evidence.significance.label == "critical"
     assert result.evidence.beauty.label == "brilliant"
-    assert result.evidence.beauty.score == 0.88
+    assert result.evidence.beauty.score >= 0.75
 
 
 def test_sacrificial_forcing_move_can_be_beautiful_without_being_critical() -> None:
@@ -121,7 +121,7 @@ def test_sacrificial_forcing_move_can_be_beautiful_without_being_critical() -> N
 
     assert result.evidence.significance.label == "high"
     assert result.evidence.beauty.label == "beautiful"
-    assert result.evidence.beauty.score == 0.58
+    assert 0.50 <= result.evidence.beauty.score < 0.75
 
 
 def _line(

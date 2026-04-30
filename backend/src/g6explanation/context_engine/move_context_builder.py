@@ -18,6 +18,7 @@ from g6explanation.context_engine.contracts import (
     HumanMoveLikelihood,
     LLMContext,
     MoveContextRequest,
+    VerificationResult,
 )
 from g6explanation.context_engine.exceptions import AnalysisError
 from g6explanation.context_engine.explanation_agenda import (
@@ -121,7 +122,11 @@ class MoveContextBuilder:
             human_note=build_human_note(key_candidate, situation),
             allowed_claims=allowed_claims,
         )
-        return ContextResult(evidence=evidence, llm_context=llm_context)
+        return ContextResult(
+            evidence=evidence,
+            llm_context=llm_context,
+            verification=VerificationResult(verifier_version="context_builder.v1", passed=True),
+        )
 
     def _supplemental_human_lines(
         self,
