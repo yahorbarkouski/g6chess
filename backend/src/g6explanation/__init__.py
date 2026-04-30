@@ -1,0 +1,21 @@
+"""Context engine for focused chess move explanations."""
+
+from g6explanation.context_engine import MoveContextEngine
+from g6explanation.context_engine.models import (
+    ContextResult,
+    EvidencePacket,
+    LLMContext,
+    MoveContextRequest,
+    PlayerLevel,
+)
+from g6explanation.context_engine.providers import StockfishAnalyzer
+
+__all__ = [
+    "ContextResult",
+    "EvidencePacket",
+    "LLMContext",
+    "MoveContextEngine",
+    "MoveContextRequest",
+    "PlayerLevel",
+    "StockfishAnalyzer",
+]
