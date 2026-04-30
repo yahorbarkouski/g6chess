@@ -33,6 +33,9 @@
   `docs/development/`.
 - Keep ADRs under `docs/adr/`.
 - Add top-level folders only for real implementation boundaries.
+- Keep `/Users/yahorbarkouski/g6explanation-frontend` as the companion local
+  React visualization app for inspecting verified context packets from the
+  Python API.
 
 ## Production Module Rules
 

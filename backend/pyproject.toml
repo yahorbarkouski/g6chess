@@ -5,7 +5,9 @@ description = "Evidence-grounded context engine for single-move chess explanatio
 requires-python = ">=3.11"
 dependencies = [
   "chess>=1.10,<2",
+  "fastapi>=0.115,<1",
   "pydantic>=2,<3",
+  "uvicorn[standard]>=0.30,<1",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,7 @@ maia = [
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28",
   "mypy>=1.15",
   "pyright>=1.1",
   "pytest>=8",
