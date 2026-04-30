@@ -4,7 +4,13 @@ version = "0.1.0"
 description = "Evidence-grounded context engine for single-move chess explanations."
 requires-python = ">=3.11"
 dependencies = [
-  "chess>=1.11",
+  "chess>=1.10,<2",
+  "pydantic>=2,<3",
+]
+
+[project.optional-dependencies]
+maia = [
+  "maia2==0.9",
 ]
 
 [dependency-groups]

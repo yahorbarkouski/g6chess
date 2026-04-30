@@ -19,9 +19,21 @@ def test_stockfish_provider_builds_smoke_context() -> None:
         time_control="rapid",
     )
 
-    result = MoveContextEngine(StockfishAnalyzer(depth=4, multipv=2)).build(request)
+    result = MoveContextEngine(
+        StockfishAnalyzer(depth=4, multipv=2, threads=1, hash_mb=16, show_wdl=True)
+    ).build(request)
 
     assert result.evidence.played.san == "e4"
-    assert result.evidence.engine.top_lines
+    assert 1 <= len(result.evidence.engine.top_lines) <= 2
     assert result.evidence.candidates
     assert result.llm_context.played == "e4"
+    assert result.evidence.engine.analysis_budget == {"kind": "depth", "value": 4, "multipv": 2}
+    assert result.evidence.engine.engine_options["UCI_ShowWDL"] is True
+    assert result.evidence.engine.engine_options["Threads"] == 1
+    assert result.evidence.engine.engine_options["Hash"] == 16
+    assert result.evidence.engine.played_line.move_uci == "e2e4"
+    assert result.evidence.engine.played_line.depth is not None
+    assert result.evidence.engine.played_line.nodes is not None
+    assert result.evidence.engine.top_lines[0].pv_uci
+    assert result.evidence.engine.played_line.pv_uci[0] == "e2e4"
+    assert any(line.wdl is not None for line in result.evidence.engine.top_lines)

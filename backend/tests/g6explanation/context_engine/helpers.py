@@ -10,10 +10,17 @@ from g6explanation.context_engine.models import (
     HumanMoveStats,
     MoveContextRequest,
     Score,
+    Wdl,
 )
 
 
-def engine_line(board: chess.Board, uci: str, cp: int, rank: int | None = None) -> EngineLine:
+def engine_line(
+    board: chess.Board,
+    uci: str,
+    cp: int,
+    rank: int | None = None,
+    wdl: Wdl | None = None,
+) -> EngineLine:
     move = chess.Move.from_uci(uci)
     assert move in board.legal_moves
     return EngineLine(
@@ -21,6 +28,7 @@ def engine_line(board: chess.Board, uci: str, cp: int, rank: int | None = None) 
         move_san=board.san(move),
         score=Score.cp(cp),
         rank=rank,
+        wdl=wdl,
         pv_uci=[uci],
         pv_san=[board.san(move)],
     )
