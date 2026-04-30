@@ -9,6 +9,7 @@ from g6explanation.context_engine.contracts import (
     EvidencePacket,
     KeyMoveContext,
     LLMContext,
+    MoveBeauty,
     MoveQuality,
     PlayerLevel,
     Score,
@@ -21,6 +22,7 @@ def test_context_models_export_json_schema() -> None:
         EvidencePacket,
         LLMContext,
         MoveQuality,
+        MoveBeauty,
         CandidateMove,
         VerificationResult,
     ]

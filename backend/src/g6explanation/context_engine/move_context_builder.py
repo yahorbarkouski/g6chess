@@ -26,6 +26,7 @@ from g6explanation.context_engine.explanation_agenda import (
     build_key_move_context,
     build_main_point,
 )
+from g6explanation.context_engine.move_beauty import calculate_beauty
 from g6explanation.context_engine.move_quality import calculate_significance, classify_quality
 from g6explanation.context_engine.position_reconstruction import reconstruct_move_context
 from g6explanation.context_engine.provider_protocols import (
@@ -73,6 +74,14 @@ class MoveContextBuilder:
         situation = time_situation(request)
         quality = classify_quality(analysis, reconstructed.played)
         significance = calculate_significance(analysis, reconstructed.played)
+        beauty = calculate_beauty(
+            board=board,
+            analysis=analysis,
+            played=reconstructed.played,
+            quality=quality,
+            significance=significance,
+            human_likelihoods=human_likelihoods,
+        )
         candidates = build_candidates(
             board=board,
             analysis=analysis,
@@ -94,6 +103,7 @@ class MoveContextBuilder:
             engine=analysis,
             quality=quality,
             significance=significance,
+            beauty=beauty,
             candidates=candidates,
             main_point=main_point,
             allowed_claims=allowed_claims,
@@ -102,6 +112,7 @@ class MoveContextBuilder:
             played=reconstructed.played.san,
             quality=quality.label,
             significance=significance,
+            beauty=beauty,
             player_level=request.player_level.label(),
             time_situation=situation,
             severity=quality.severity_text,

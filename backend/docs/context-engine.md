@@ -112,6 +112,7 @@ Keep in per-request context:
 - time situation
 - played move quality
 - move significance
+- move beauty
 - candidate move strength
 - candidate move findability
 - main explanation point
@@ -489,6 +490,90 @@ If there is no second line for a best move and no mate/WDL override, use
 `{"label": "low", "score": 0.0}` because the context does not have enough
 relative evidence to call the best move significant.
 
+## Move Beauty
+
+The context should include one strict beauty field:
+
+```json
+{
+  "label": "beautiful",
+  "score": 0.54
+}
+```
+
+Do not include a generated prose reason for beauty. Beauty is deterministic and
+should be explainable from the formula and tests.
+
+Beauty means:
+
+```text
+How aesthetically interesting a sound move is because it contains a non-obvious idea.
+```
+
+Beauty is not quality and not significance:
+
+- quality says whether the move was good
+- significance says how much the move mattered
+- beauty says whether the sound idea was surprising, sacrificial, forcing, or
+  elegant
+
+### Formula
+
+1. Compute soundness from quality:
+
+```text
+best/excellent -> 1.00
+good           -> 0.85
+neutral        -> 0.55
+bad labels     -> 0.00
+```
+
+Bad labels are `inaccuracy`, `mistake`, `blunder`, and `missed_win`.
+
+2. Compute idea components from deterministic evidence:
+
+```text
+surprise        = 1 - clamp(player_level_probability / 0.30, 0, 1)
+                  or 0.50 when no human-likelihood evidence exists
+sacrifice       = max(PV material investment, moved-piece capture risk)
+forcing         = forcing moves in first 6 PV plies / legal PV plies checked
+quiet_resource  = 1.0 only for quiet significant moves with sacrifice, forcing,
+                  surprise, or mate support
+uniqueness      = significance.score
+mate_pattern    = 1.0 for immediate mate, scaled for short forced mates
+```
+
+3. Compute idea quality:
+
+```text
+idea_quality =
+  0.18 * surprise +
+  0.24 * sacrifice +
+  0.22 * forcing +
+  0.16 * quiet_resource +
+  0.12 * uniqueness +
+  0.08 * mate_pattern
+```
+
+4. Compute final score:
+
+```text
+beauty.score = round(soundness * (0.65 * idea_quality + 0.35 * significance.score), 2)
+```
+
+5. Label:
+
+```text
+0.00 - 0.24 -> low
+0.25 - 0.49 -> notable
+0.50 - 0.74 -> beautiful
+0.75 - 1.00 -> brilliant
+```
+
+This keeps beauty grounded. A bad sacrifice is not beautiful, a routine best
+move remains low, and a sound sacrifice can score highly even when the engine PV
+does not choose the historical continuation.
+
 ## Minimal Evidence Packet
 
 The evidence packet should be complete enough for verification.
@@ -526,6 +611,10 @@ KISS shape:
   "significance": {
     "label": "critical",
     "score": 0.77
+  },
+  "beauty": {
+    "label": "beautiful",
+    "score": 0.54
   },
   "candidates": [
     {
@@ -571,6 +660,7 @@ KISS shape:
   "played": "g4",
   "quality": "mistake",
   "significance": {"label": "critical", "score": 0.77},
+  "beauty": {"label": "low", "score": 0.0},
   "player_level": "1250",
   "time_situation": "blitz_normal",
   "severity": "from roughly equal to clearly better for Black",

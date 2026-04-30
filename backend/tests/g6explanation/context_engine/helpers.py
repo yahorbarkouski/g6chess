@@ -22,17 +22,19 @@ def engine_line(
     cp: int,
     rank: int | None = None,
     wdl: Wdl | None = None,
+    pv_uci: list[str] | None = None,
 ) -> EngineLine:
     move = chess.Move.from_uci(uci)
     assert move in board.legal_moves
+    full_pv_uci = pv_uci or [uci]
     return EngineLine(
         move_uci=uci,
         move_san=board.san(move),
         score=Score.cp(cp),
         rank=rank,
         wdl=wdl,
-        pv_uci=[uci],
-        pv_san=[board.san(move)],
+        pv_uci=full_pv_uci,
+        pv_san=pv_san(board, full_pv_uci),
     )
 
 
@@ -42,6 +44,7 @@ def analysis(
     top_scores: list[tuple[str, int]],
     played_score: int,
     after_reply_uci: str | None = None,
+    played_pv_uci: list[str] | None = None,
 ) -> EngineAnalysis:
     played_move = chess.Move.from_uci(played_uci)
     after_board = board.copy(stack=False)
@@ -53,11 +56,22 @@ def analysis(
             engine_line(board, move_uci, score, rank=index + 1)
             for index, (move_uci, score) in enumerate(top_scores)
         ],
-        played_line=engine_line(board, played_uci, played_score, rank=None),
+        played_line=engine_line(board, played_uci, played_score, rank=None, pv_uci=played_pv_uci),
         after_line=engine_line(after_board, after_reply_uci, played_score, rank=1)
         if after_reply_uci
         else None,
     )
+
+
+def pv_san(board: chess.Board, pv_uci: list[str]) -> list[str]:
+    replay = board.copy(stack=False)
+    san_moves: list[str] = []
+    for uci in pv_uci:
+        move = chess.Move.from_uci(uci)
+        assert move in replay.legal_moves
+        san_moves.append(replay.san(move))
+        replay.push(move)
+    return san_moves
 
 
 @dataclass(frozen=True)

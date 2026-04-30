@@ -54,6 +54,7 @@ RecommendationPolicy: TypeAlias = Literal[
     "do_not_recommend",
 ]
 SignificanceLabel: TypeAlias = Literal["low", "moderate", "high", "critical"]
+BeautyLabel: TypeAlias = Literal["low", "notable", "beautiful", "brilliant"]
 TimeSituation: TypeAlias = Literal[
     "unknown",
     "classical_or_no_pressure",
@@ -254,6 +255,11 @@ class MoveSignificance(ContextContract):
     score: float = Field(ge=0, le=1)
 
 
+class MoveBeauty(ContextContract):
+    label: BeautyLabel
+    score: float = Field(ge=0, le=1)
+
+
 class CandidateMove(ContextContract):
     san: str
     uci: str
@@ -295,6 +301,7 @@ class EvidencePacket(ContextContract):
     engine: EngineAnalysis
     quality: MoveQuality
     significance: MoveSignificance
+    beauty: MoveBeauty
     candidates: list[CandidateMove] = Field(default_factory=list[CandidateMove])
     main_point: MainPoint
     allowed_claims: list[str] = Field(default_factory=list[str])
@@ -304,6 +311,7 @@ class LLMContext(ContextContract):
     played: str
     quality: MoveQualityLabel
     significance: MoveSignificance
+    beauty: MoveBeauty
     player_level: str
     time_situation: TimeSituation
     severity: str

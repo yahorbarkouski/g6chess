@@ -77,7 +77,7 @@ KASPAROV_TOPALOV = dedent(
 
 
 @pytest.mark.skipif(STOCKFISH is None, reason="stockfish binary is not installed")
-def test_real_game_significance_examples_with_stockfish() -> None:
+def test_real_game_significance_and_beauty_examples_with_stockfish() -> None:
     engine = MoveContextBuilder(
         StockfishAnalysisProvider(
             binary_path=STOCKFISH or "stockfish",
@@ -111,6 +111,7 @@ def test_real_game_significance_examples_with_stockfish() -> None:
                 "move": result.evidence.played.san,
                 "quality": result.evidence.quality.label,
                 "significance": result.evidence.significance.to_dict(),
+                "beauty": result.evidence.beauty.to_dict(),
             }
         )
         assert result.evidence.played.san == expected_san
@@ -121,17 +122,20 @@ def test_real_game_significance_examples_with_stockfish() -> None:
             "move": "Rd8#",
             "quality": "best",
             "significance": {"label": "critical", "score": 1.0},
+            "beauty": {"label": "beautiful", "score": 0.68},
         },
         {
             "game": "Game of the Century",
             "move": "Be6",
             "quality": "best",
             "significance": {"label": "critical", "score": 1.0},
+            "beauty": {"label": "brilliant", "score": 0.87},
         },
         {
             "game": "Kasparov's Immortal",
             "move": "Rxd4",
             "quality": "best",
             "significance": {"label": "high", "score": 0.56},
+            "beauty": {"label": "beautiful", "score": 0.54},
         },
     ]
