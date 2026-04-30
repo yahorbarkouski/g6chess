@@ -6,12 +6,16 @@ from dataclasses import dataclass, field
 
 import chess
 
+from g6explanation.context_engine.candidate_moves.findability import forcing_tier
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    CandidateRole,
     EngineAnalysis,
     EngineLine,
     EvidencePacket,
+    KeyMoveContext,
     LLMContext,
+    PracticalityCategory,
     VerificationIssue,
     VerificationIssueCode,
     VerificationResult,
@@ -472,7 +476,7 @@ def _verify_candidates(
             has_played = has_played or candidate.uci == evidence.played.uci
         if "engine_best" in candidate.roles:
             has_engine_best = has_engine_best or candidate.uci == engine_best_uci
-        _verify_candidate(candidate, board, issues, path)
+        _verify_candidate(candidate, board, evidence.position.previous_move_uci, issues, path)
 
     if evidence.candidates and not has_played:
         issues.fail(
@@ -491,6 +495,7 @@ def _verify_candidates(
 def _verify_candidate(
     candidate: CandidateMove,
     board: chess.Board,
+    previous_move_uci: str | None,
     issues: _IssueCollector,
     path: str,
 ) -> None:
@@ -518,6 +523,14 @@ def _verify_candidate(
             "candidate_san_mismatch",
             f"{path}.san",
             f"Candidate SAN {candidate.san!r} does not match {expected_san!r}.",
+        )
+    expected_forcing_tier = forcing_tier(board, move, previous_move_uci)
+    if candidate.forcing_tier != expected_forcing_tier:
+        issues.fail(
+            "candidate_forcing_tier_mismatch",
+            f"{path}.forcing_tier",
+            f"Candidate forcing tier {candidate.forcing_tier!r} does not match "
+            f"{expected_forcing_tier!r}.",
         )
     if (
         candidate.recommendation_policy == "recommend_directly"
@@ -606,44 +619,92 @@ def _verify_llm_context(
             f"LLM context includes unsupported claims: {unsupported_claims}.",
         )
 
-    if llm_context.best_or_key_move is None:
+    _verify_key_move_context(
+        evidence=evidence,
+        key_context=llm_context.best_or_key_move,
+        path="$.llm_context.best_or_key_move",
+        issues=issues,
+    )
+    _verify_key_move_context(
+        evidence=evidence,
+        key_context=llm_context.engine_best_move,
+        path="$.llm_context.engine_best_move",
+        issues=issues,
+        required_role="engine_best",
+    )
+    _verify_key_move_context(
+        evidence=evidence,
+        key_context=llm_context.practical_alternative,
+        path="$.llm_context.practical_alternative",
+        issues=issues,
+        required_practicality="practical_try",
+    )
+    _verify_key_move_context(
+        evidence=evidence,
+        key_context=llm_context.featured_move,
+        path="$.llm_context.featured_move",
+        issues=issues,
+    )
+
+
+def _verify_key_move_context(
+    evidence: EvidencePacket,
+    key_context: KeyMoveContext | None,
+    path: str,
+    issues: _IssueCollector,
+    required_role: CandidateRole | None = None,
+    required_practicality: PracticalityCategory | None = None,
+) -> None:
+    if key_context is None:
         return
 
     matching_candidate = next(
-        (
-            candidate
-            for candidate in evidence.candidates
-            if candidate.san == llm_context.best_or_key_move.move
-        ),
+        (candidate for candidate in evidence.candidates if candidate.san == key_context.move),
         None,
     )
     if matching_candidate is None:
         issues.fail(
             "llm_context_inconsistent",
-            "$.llm_context.best_or_key_move.move",
-            "LLM key move does not match any evidence candidate.",
+            f"{path}.move",
+            "LLM move context does not match any evidence candidate.",
         )
         return
 
+    if required_role is not None and required_role not in matching_candidate.roles:
+        issues.fail(
+            "llm_context_inconsistent",
+            f"{path}.move",
+            f"LLM move context must reference a candidate with role {required_role}.",
+        )
+    if (
+        required_practicality is not None
+        and matching_candidate.practicality != required_practicality
+    ):
+        issues.fail(
+            "llm_context_inconsistent",
+            f"{path}.practicality",
+            f"LLM move context must reference {required_practicality} practicality.",
+        )
+
     _fail_if_mismatch(
-        llm_context.best_or_key_move.practicality,
+        key_context.practicality,
         matching_candidate.practicality,
-        "$.llm_context.best_or_key_move.practicality",
-        "LLM key-move practicality does not match candidate evidence.",
+        f"{path}.practicality",
+        "LLM move-context practicality does not match candidate evidence.",
         issues,
     )
     _fail_if_mismatch(
-        llm_context.best_or_key_move.findability,
+        key_context.findability,
         matching_candidate.time_adjusted_findability,
-        "$.llm_context.best_or_key_move.findability",
-        "LLM key-move findability does not match candidate evidence.",
+        f"{path}.findability",
+        "LLM move-context findability does not match candidate evidence.",
         issues,
     )
     _fail_if_mismatch(
-        llm_context.best_or_key_move.recommendation_policy,
+        key_context.recommendation_policy,
         matching_candidate.recommendation_policy,
-        "$.llm_context.best_or_key_move.recommendation_policy",
-        "LLM key-move recommendation policy does not match candidate evidence.",
+        f"{path}.recommendation_policy",
+        "LLM move-context recommendation policy does not match candidate evidence.",
         issues,
     )
 

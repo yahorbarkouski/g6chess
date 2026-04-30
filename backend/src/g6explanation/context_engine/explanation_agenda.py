@@ -21,10 +21,21 @@ def build_main_point(
     played: PlayedMoveFacts,
     quality: MoveQuality,
     key_candidate: CandidateMove | None,
+    featured_candidate: CandidateMove | None,
     analysis: EngineAnalysis,
 ) -> MainPoint:
     quality_claim = build_quality_claim(played, quality)
+    if quality.label == "forced":
+        return MainPoint(
+            concept="forced move",
+            claim=f"{quality_claim}; the player had no legal alternative.",
+        )
     if key_candidate is None:
+        if quality.label == "best" and featured_candidate is not None:
+            return MainPoint(
+                concept=_featured_best_concept(played, analysis),
+                claim=_featured_best_claim(played, quality_claim, analysis),
+            )
         if quality.label == "best":
             return MainPoint(
                 concept="move quality",
@@ -70,6 +81,7 @@ def build_allowed_claims(
     played: PlayedMoveFacts,
     quality: MoveQuality,
     key_candidate: CandidateMove | None,
+    featured_candidate: CandidateMove | None,
     analysis: EngineAnalysis,
 ) -> list[str]:
     claims = [build_quality_claim(played, quality)]
@@ -81,6 +93,8 @@ def build_allowed_claims(
             claims.append(f"{key_candidate.san} becomes more common at stronger levels")
         if key_candidate.practicality == "practical_try":
             claims.append(f"{key_candidate.san} was a practical alternative")
+    if featured_candidate and not key_candidate:
+        claims.append(f"{featured_candidate.san} was the featured move")
     if analysis.after_line and quality.label in BAD_QUALITY_LABELS:
         claims.append(
             f"the opponent's key reply after {played.san} was {analysis.after_line.move_san}"
@@ -130,8 +144,12 @@ def build_key_move_context(candidate: CandidateMove | None) -> KeyMoveContext | 
 def build_quality_claim(played: PlayedMoveFacts, quality: MoveQuality) -> str:
     if quality.label == "best":
         return f"{played.san} was the best move"
+    if quality.label == "forced":
+        return f"{played.san} was forced"
     if quality.label == "missed_win":
         return f"{played.san} missed a winning move"
+    if quality.label in {"excellent", "good", "neutral"}:
+        return f"{played.san} was {quality.label}"
     return f"{played.san} was {article(quality.label)} {quality.label}"
 
 
@@ -140,6 +158,8 @@ def article(label: str) -> str:
 
 
 def _key_move_reason(candidate: CandidateMove) -> str:
+    if candidate.practicality == "only_move":
+        return "it is the only legal move"
     if candidate.practicality == "practical_try":
         return "it is close to the engine best move and more practical for the player"
     if candidate.recommendation_policy == "explain_as_hidden_resource":
@@ -149,3 +169,33 @@ def _key_move_reason(candidate: CandidateMove) -> str:
     if candidate.score_loss_vs_best_cp == 0:
         return "it is the engine's best move"
     return "it is a better practical move"
+
+
+def _featured_best_concept(played: PlayedMoveFacts, analysis: EngineAnalysis) -> str:
+    if (
+        analysis.played_line.score.kind == "mate"
+        and analysis.played_line.score.mate_for == "player"
+    ):
+        return "forced mate"
+    if played.is_check:
+        return "forcing move"
+    if played.is_capture:
+        return "capture"
+    return "critical best move"
+
+
+def _featured_best_claim(
+    played: PlayedMoveFacts, quality_claim: str, analysis: EngineAnalysis
+) -> str:
+    if (
+        analysis.played_line.score.kind == "mate"
+        and analysis.played_line.score.mate_for == "player"
+    ):
+        return f"{quality_claim}; it delivered forced mate."
+    if played.is_check:
+        return f"{quality_claim}; it gave check in a critical position."
+    if played.is_capture:
+        return f"{quality_claim}; it captured in a critical position."
+    if analysis.after_line is not None:
+        return f"{quality_claim}; this was the critical move before {analysis.after_line.move_san}."
+    return f"{quality_claim}; this was the critical move in the position."

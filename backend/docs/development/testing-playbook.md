@@ -20,6 +20,7 @@ Prioritize:
 - Stockfish output parsing
 - score normalization from player perspective
 - mate score representation
+- `forced` quality for exactly-one-legal-move positions
 - WDL and MultiPV parsing
 - played-move forced analysis
 - evidence, LLM context, explanation, and verifier schemas
@@ -51,6 +52,8 @@ Use integration tests for external binaries and model adapters:
 - MultiPV and WDL parsing at depth 16 or deeper
 - `searchmoves` forced played-move analysis at depth 16 or deeper
 - Maia inference returns legal move probabilities
+- Maia stronger-player comparison is unavailable when both ratings map to the
+  same public Maia bucket
 
 Keep normal CI budgets small by limiting the number of real-engine fixtures, not
 by lowering Stockfish below depth 16. Use static providers when a test does not

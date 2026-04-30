@@ -77,6 +77,8 @@ Every candidate exposed to the LLM must include:
 - score loss versus best when available
 - short PV only when useful and legal
 - findability or `unknown`
+- forcing tier, such as `check`, `recapture`, `ordinary_capture`, or `quiet`
+- Maia player and comparison buckets when Maia evidence is available
 - practicality category
 - recommendation policy
 
@@ -88,12 +90,17 @@ Recommendation policies:
 - `explain_as_hidden_resource`: critical because it was hard to see
 - `do_not_recommend`: useful internally, not for the explanation
 
-Findability changes wording, not objective move quality.
+Findability changes wording, not objective move quality. If Maia maps the player
+level and stronger comparison level into the same public rating bucket, the
+stronger comparison probability is unavailable rather than copied from the
+player-level probability.
 
 ## Core Signals
 
 Move quality answers whether the move was good. Normalize all score deltas from
 the analyzed player's point of view. Represent mate separately from centipawns.
+Use `forced` when the player had exactly one legal move; the position may still
+be winning or losing, but the move itself is not a mistake.
 
 Move significance answers how much this move deserves emphasis. It is one strict
 `label` plus `score`; do not add generated prose reasons. Labels are `low`,
@@ -109,10 +116,14 @@ beauty bonus.
 The compact context should include:
 
 - played move and quality
+- position facts, including previous move UCI when known
 - player level and time situation
 - severity from the player's point of view
 - significance and beauty signals
 - the main explanation point
+- objective engine best move
+- practical alternative when it differs from the engine best
+- featured move for the current explanation focus
 - the key move or idea
 - candidate practicality and findability
 - human note when backed by evidence

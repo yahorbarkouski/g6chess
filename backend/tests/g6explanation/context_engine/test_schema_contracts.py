@@ -59,6 +59,7 @@ def test_candidate_contract_rejects_unknown_role() -> None:
         "player_level_probability": None,
         "plus_400_probability": None,
         "time_adjusted_findability": "unknown",
+        "forcing_tier": "quiet",
         "findability_source": "unknown",
         "findability_confidence": "none",
         "teachable_skill_gap": False,

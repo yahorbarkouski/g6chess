@@ -11,6 +11,7 @@ PlayerLevelKind: TypeAlias = Literal["rating", "label"]
 ScoreKind: TypeAlias = Literal["cp", "mate"]
 MoveQualityLabel: TypeAlias = Literal[
     "best",
+    "forced",
     "excellent",
     "good",
     "neutral",
@@ -34,6 +35,7 @@ CandidateRole: TypeAlias = Literal[
     "practical_alternative",
     "human_common_move",
     "best_reply_after_played",
+    "only_legal_move",
     "only_saving_move",
     "only_winning_move",
     "tablebase_exact_move",
@@ -55,6 +57,15 @@ RecommendationPolicy: TypeAlias = Literal[
 ]
 SignificanceLabel: TypeAlias = Literal["low", "moderate", "high", "critical"]
 BeautyLabel: TypeAlias = Literal["low", "notable", "beautiful", "brilliant"]
+ForcingTier: TypeAlias = Literal[
+    "mate",
+    "check",
+    "forced_reply",
+    "recapture",
+    "promotion",
+    "ordinary_capture",
+    "quiet",
+]
 VerificationIssueCode: TypeAlias = Literal[
     "candidate_duplicate",
     "candidate_hard_direct_recommendation",
@@ -63,6 +74,7 @@ VerificationIssueCode: TypeAlias = Literal[
     "candidate_missing_played_move",
     "candidate_missing_role",
     "candidate_policy_inconsistent",
+    "candidate_forcing_tier_mismatch",
     "candidate_san_mismatch",
     "engine_after_line_unexpected",
     "engine_after_line_missing",
@@ -215,6 +227,7 @@ class PositionContext(ContextContract):
     ply: int
     phase: str
     legal_moves_uci: list[str] = Field(default_factory=list[str])
+    previous_move_uci: str | None = None
 
 
 class ReconstructedMoveContext(ContextContract):
@@ -262,6 +275,8 @@ class EngineAnalysis(ContextContract):
 class HumanMoveLikelihood(ContextContract):
     player_level_probability: float | None = None
     plus_400_probability: float | None = None
+    player_level_bucket: str | None = None
+    plus_400_level_bucket: str | None = None
     evidence_source: str | None = None
     model_type: str | None = None
     model_version: str | None = None
@@ -307,7 +322,10 @@ class CandidateMove(ContextContract):
     pv_short_san: list[str] = Field(default_factory=list[str])
     player_level_probability: float | None
     plus_400_probability: float | None
+    player_level_bucket: str | None = None
+    plus_400_level_bucket: str | None = None
     time_adjusted_findability: FindabilityLabel
+    forcing_tier: ForcingTier
     findability_source: str
     findability_confidence: str
     teachable_skill_gap: bool
@@ -352,6 +370,9 @@ class LLMContext(ContextContract):
     severity: str
     main_point: str
     best_or_key_move: KeyMoveContext | None
+    engine_best_move: KeyMoveContext | None = None
+    practical_alternative: KeyMoveContext | None = None
+    featured_move: KeyMoveContext | None = None
     human_note: str | None
     allowed_claims: list[str] = Field(default_factory=list[str])
 

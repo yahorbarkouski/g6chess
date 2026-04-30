@@ -22,24 +22,29 @@ BAD_QUALITY_LABELS: frozenset[MoveQualityLabel] = frozenset(
 )
 QUALITY_ORDER: dict[MoveQualityLabel, int] = {
     "best": 0,
-    "excellent": 1,
-    "good": 2,
-    "neutral": 3,
-    "inaccuracy": 4,
-    "mistake": 5,
-    "blunder": 6,
-    "missed_win": 6,
+    "forced": 1,
+    "excellent": 2,
+    "good": 3,
+    "neutral": 4,
+    "inaccuracy": 5,
+    "mistake": 6,
+    "blunder": 7,
+    "missed_win": 7,
 }
 
 
-def classify_quality(analysis: EngineAnalysis, played: PlayedMoveFacts) -> MoveQuality:
+def classify_quality(
+    analysis: EngineAnalysis, played: PlayedMoveFacts, legal_move_count: int | None = None
+) -> MoveQuality:
     best = analysis.top_lines[0]
     played_line = analysis.played_line
     cp_loss = score_loss_cp(best.score, played_line.score)
     wdl_loss = wdl_expected_score_loss(best.wdl, played_line.wdl)
 
-    if played_line.score.kind == "mate" and played_line.score.mate_for == "opponent":
-        label: MoveQualityLabel = "blunder"
+    if legal_move_count == 1:
+        label: MoveQualityLabel = "forced"
+    elif played_line.score.kind == "mate" and played_line.score.mate_for == "opponent":
+        label = "blunder"
     elif (
         best.score.kind == "mate"
         and best.score.mate_for == "player"
@@ -59,7 +64,7 @@ def classify_quality(analysis: EngineAnalysis, played: PlayedMoveFacts) -> MoveQ
         score_loss_vs_best_cp=cp_loss,
         wdl_delta_player_pov=wdl_delta(best.wdl, played_line.wdl),
         wdl_expected_score_loss=wdl_loss,
-        severity_text=_severity_text(best.score, played_line.score, cp_loss, wdl_loss),
+        severity_text=_severity_text(best.score, played_line.score, cp_loss, wdl_loss, label),
     )
 
 
@@ -70,7 +75,7 @@ def _label_from_cp_loss(loss: int | None) -> MoveQualityLabel:
         return "excellent"
     if loss <= 50:
         return "good"
-    if loss <= 90:
+    if loss <= 75:
         return "neutral"
     if loss <= 150:
         return "inaccuracy"
@@ -104,7 +109,12 @@ def _severity_text(
     played: Score,
     cp_loss: int | None,
     wdl_loss: int | None,
+    label: MoveQualityLabel,
 ) -> str:
+    if label == "forced":
+        if played.kind == "mate" and played.mate_for == "opponent":
+            return "the player had only one legal move; the position still allowed forced mate"
+        return "the player had only one legal move"
     if best.kind == "mate" or played.kind == "mate":
         if played.kind == "mate" and played.mate_for == "opponent":
             return "the move allowed a forced mate against the player"

@@ -35,6 +35,31 @@ def choose_key_candidate(
     return None
 
 
+def engine_best_candidate(candidates: list[CandidateMove]) -> CandidateMove | None:
+    for candidate in candidates:
+        if "engine_best" in candidate.roles:
+            return candidate
+    return None
+
+
+def choose_practical_alternative(candidates: list[CandidateMove]) -> CandidateMove | None:
+    practical = [
+        candidate
+        for candidate in candidates
+        if "played_move" not in candidate.roles and candidate.practicality == "practical_try"
+    ]
+    if practical:
+        return sorted(practical, key=recommendation_sort_key)[0]
+    return None
+
+
+def played_candidate(candidates: list[CandidateMove]) -> CandidateMove | None:
+    for candidate in candidates:
+        if "played_move" in candidate.roles:
+            return candidate
+    return None
+
+
 def candidate_sort_key(candidate: CandidateMove) -> tuple[int, int, int]:
     if "engine_best" in candidate.roles:
         role_rank = 0

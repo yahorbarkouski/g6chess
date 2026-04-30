@@ -26,7 +26,9 @@ The static prompt should say:
 - Use only the supplied context.
 - Return exactly one concise explanation string.
 - State move quality clearly.
-- Explain the main reason and key better move or idea when supplied.
+- Explain the main reason and featured move or idea when supplied.
+- Treat `engine_best_move` as objective truth and `practical_alternative` as a
+  coaching option; do not collapse the two when both are supplied.
 - Add a caveat when the context marks the key move as hard to find.
 - Match the player's level.
 - Do not include raw engine data unless the context explicitly asks for it.
@@ -40,7 +42,7 @@ Per-request context should provide:
 - played move, quality, and severity
 - player level and time situation
 - main point
-- key move or idea
+- engine best move, practical alternative, featured move, or key idea
 - candidate practicality and findability
 - allowed claims
 - forbidden claims when needed

@@ -13,6 +13,8 @@ from g6explanation.context_engine.contracts import (
 def practicality(
     roles: list[CandidateRole], score_loss: int | None, findability: FindabilityLabel
 ) -> PracticalityCategory:
+    if "only_legal_move" in roles:
+        return "only_move"
     if "played_move" in roles:
         return "unknown_practicality"
     if "engine_best" in roles and findability in {"hard", "very_hard", "engine_like"}:

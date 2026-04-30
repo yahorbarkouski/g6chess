@@ -23,6 +23,9 @@ InferenceEach = Callable[
     [object, object, str, int, int],
     tuple[Mapping[str, float], object],
 ]
+MAIA2_BUCKET_START = 1100
+MAIA2_BUCKET_END = 2000
+MAIA2_BUCKET_INTERVAL = 100
 
 
 @dataclass
@@ -52,13 +55,17 @@ class Maia2MoveLikelihoodProvider:
             _rating_or_default(request.opponent_level) if request.opponent_level else elo_self
         )
         plus_400 = elo_self + 400
+        player_bucket = maia2_rating_bucket(elo_self)
+        plus_400_bucket = maia2_rating_bucket(plus_400)
 
         move_probs, _ = self._inference_each(
             self._model, self._prepared, board.fen(), elo_self, elo_opponent
         )
-        plus_400_probs, _ = self._inference_each(
-            self._model, self._prepared, board.fen(), plus_400, elo_opponent
-        )
+        plus_400_probs: Mapping[str, float] = {}
+        if plus_400_bucket != player_bucket:
+            plus_400_probs, _ = self._inference_each(
+                self._model, self._prepared, board.fen(), plus_400, elo_opponent
+            )
         legal_uci = {move.uci() for move in board.legal_moves}
         ranked_uci = [uci for uci in move_probs if uci in legal_uci][: self.top_move_limit]
         candidate_uci = {move.uci() for move in candidate_moves}
@@ -69,7 +76,11 @@ class Maia2MoveLikelihoodProvider:
         return {
             uci: HumanMoveLikelihood(
                 player_level_probability=move_probs.get(uci),
-                plus_400_probability=plus_400_probs.get(uci),
+                plus_400_probability=plus_400_probs.get(uci)
+                if plus_400_bucket != player_bucket
+                else None,
+                player_level_bucket=player_bucket,
+                plus_400_level_bucket=plus_400_bucket,
                 evidence_source=f"maia2_{model_type}",
                 model_type=model_type,
                 model_version=package_version,
@@ -122,6 +133,18 @@ def _rating_or_default(level: PlayerLevel | None) -> int:
         if rating is not None:
             return rating
     return 1500
+
+
+def maia2_rating_bucket(rating: int) -> str:
+    if rating < MAIA2_BUCKET_START:
+        return f"<{MAIA2_BUCKET_START}"
+    if rating >= MAIA2_BUCKET_END:
+        return f">={MAIA2_BUCKET_END}"
+    lower = (
+        (rating - MAIA2_BUCKET_START) // MAIA2_BUCKET_INTERVAL
+    ) * MAIA2_BUCKET_INTERVAL + MAIA2_BUCKET_START
+    upper = lower + MAIA2_BUCKET_INTERVAL - 1
+    return f"{lower}-{upper}"
 
 
 def _package_version(package_name: str) -> str | None:

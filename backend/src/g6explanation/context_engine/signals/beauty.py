@@ -76,7 +76,7 @@ def _soundness(label: MoveQualityLabel) -> float:
         return 1.0
     if label == "good":
         return 0.85
-    if label == "neutral":
+    if label in {"forced", "neutral"}:
         return 0.55
     return 0.0
 

@@ -15,10 +15,10 @@ def score_as_cp(score: Score) -> int:
     return -100_000
 
 
-def line_score_loss(best_cp: int, line: EngineLine) -> int | None:
-    if line.score.kind == "mate":
+def line_score_loss(best: Score, line: EngineLine) -> int | None:
+    if best.kind == "mate" or line.score.kind == "mate":
         return None
-    return max(0, best_cp - score_as_cp(line.score))
+    return max(0, score_as_cp(best) - score_as_cp(line.score))
 
 
 def score_loss_cp(best: Score, played: Score) -> int | None:

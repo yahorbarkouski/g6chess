@@ -7,7 +7,18 @@ import chess
 import pytest
 
 from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
-from g6explanation.context_engine.maia_likelihood import Maia2MoveLikelihoodProvider
+from g6explanation.context_engine.maia_likelihood import (
+    Maia2MoveLikelihoodProvider,
+    maia2_rating_bucket,
+)
+
+
+def test_maia2_rating_bucket_matches_public_package_buckets() -> None:
+    assert maia2_rating_bucket(900) == "<1100"
+    assert maia2_rating_bucket(1200) == "1200-1299"
+    assert maia2_rating_bucket(1999) == "1900-1999"
+    assert maia2_rating_bucket(2000) == ">=2000"
+    assert maia2_rating_bucket(2800) == ">=2000"
 
 
 @pytest.mark.skipif(
@@ -33,4 +44,6 @@ def test_maia2_provider_returns_legal_move_likelihoods() -> None:
     assert "e2e4" in stats
     assert stats["e2e4"].player_level_probability is not None
     assert stats["e2e4"].plus_400_probability is not None
+    assert stats["e2e4"].player_level_bucket == "1200-1299"
+    assert stats["e2e4"].plus_400_level_bucket == "1600-1699"
     assert all(chess.Move.from_uci(uci) in board.legal_moves for uci in stats)

@@ -120,6 +120,58 @@ def test_low_significance_when_best_move_is_only_slightly_better() -> None:
     assert result.evidence.significance.score == 0.05
 
 
+def test_only_legal_move_is_forced_not_blunder() -> None:
+    board = chess.Board("1Q2kb1r/p2n1ppp/4q3/4p1B1/4P3/8/PPP2PPP/2KR4 b k - 1 16")
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="d7b8",
+                move_san="Nxb8",
+                score=Score.mate(mate_in=1, mate_for="opponent"),
+                rank=1,
+                pv_uci=["d7b8"],
+                pv_san=["Nxb8"],
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="d7b8",
+            move_san="Nxb8",
+            score=Score.mate(mate_in=1, mate_for="opponent"),
+            rank=None,
+            pv_uci=["d7b8"],
+            pv_san=["Nxb8"],
+        ),
+        after_line=EngineLine(
+            move_uci="d1d8",
+            move_san="Rd8#",
+            score=Score.mate(mate_in=1, mate_for="opponent"),
+            rank=1,
+            pv_uci=["d1d8"],
+            pv_san=["Rd8#"],
+        ),
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="d7b8",
+        player_color="black",
+        player_level=PlayerLevel.rating(2400),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+    played_candidate = next(
+        candidate for candidate in result.evidence.candidates if "played_move" in candidate.roles
+    )
+
+    assert result.evidence.quality.label == "forced"
+    assert result.llm_context.best_or_key_move is None
+    assert result.llm_context.featured_move is not None
+    assert result.llm_context.featured_move.move == "Nxb8"
+    assert "only_legal_move" in played_candidate.roles
+    assert played_candidate.practicality == "only_move"
+
+
 def test_critical_significance_when_best_move_is_much_better_than_second_best() -> None:
     board = chess.Board()
     engine_analysis = analysis(
@@ -141,6 +193,41 @@ def test_critical_significance_when_best_move_is_much_better_than_second_best() 
     assert result.evidence.quality.label == "best"
     assert result.evidence.significance.label == "critical"
     assert result.evidence.significance.score == 1.0
+    assert result.llm_context.featured_move is not None
+    assert result.llm_context.featured_move.move == "e4"
+
+
+def test_bad_move_context_separates_engine_best_from_practical_alternative() -> None:
+    board = chess.Board()
+    engine_analysis = analysis(
+        board,
+        played_uci="g2g4",
+        top_scores=[("e2e4", 40), ("g1f3", 25)],
+        played_score=-180,
+        after_reply_uci="e7e5",
+    )
+    human = StaticHumanLikelihoodProvider(
+        {
+            "e2e4": HumanMoveLikelihood(player_level_probability=0.02, plus_400_probability=0.12),
+            "g1f3": HumanMoveLikelihood(player_level_probability=0.32, plus_400_probability=0.40),
+            "g2g4": HumanMoveLikelihood(player_level_probability=0.25, plus_400_probability=0.08),
+        }
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="g2g4",
+        player_color="white",
+        player_level=PlayerLevel.rating(1250, "lichess"),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
+
+    assert result.llm_context.engine_best_move is not None
+    assert result.llm_context.engine_best_move.move == "e4"
+    assert result.llm_context.practical_alternative is not None
+    assert result.llm_context.practical_alternative.move == "Nf3"
+    assert result.llm_context.featured_move is not None
+    assert result.llm_context.featured_move.move == "Nf3"
 
 
 def test_human_probability_does_not_change_objective_quality() -> None:

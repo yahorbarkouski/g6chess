@@ -55,6 +55,8 @@ that would make the coach lie:
 - wrong side or score perspective
 - illegal move accepted
 - mate treated as centipawns
+- exactly-one-legal-move positions treated as ordinary mistakes instead of
+  `forced`
 - hard engine move presented as obvious
 - Maia probability treated as quality
 - unsupported tactic, material, or PV claim

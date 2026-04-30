@@ -7,9 +7,13 @@ import chess
 from g6explanation.context_engine.candidate_moves import (
     build_candidates,
     choose_key_candidate,
+    choose_practical_alternative,
+    engine_best_candidate,
+    played_candidate,
     time_situation,
 )
 from g6explanation.context_engine.contracts import (
+    CandidateMove,
     ColorName,
     ContextResult,
     EngineAnalysis,
@@ -18,6 +22,7 @@ from g6explanation.context_engine.contracts import (
     HumanMoveLikelihood,
     LLMContext,
     MoveContextRequest,
+    MoveQuality,
     VerificationResult,
 )
 from g6explanation.context_engine.evidence_verification import EvidenceVerifier
@@ -81,7 +86,11 @@ class MoveContextBuilder:
         )
 
         situation = time_situation(request)
-        quality = classify_quality(analysis, reconstructed.played)
+        quality = classify_quality(
+            analysis,
+            reconstructed.played,
+            legal_move_count=len(reconstructed.position.legal_moves_uci),
+        )
         significance = calculate_significance(analysis, reconstructed.played)
         beauty = calculate_beauty(
             board=board,
@@ -99,10 +108,25 @@ class MoveContextBuilder:
             time_situation=situation,
             supplemental_lines=supplemental_lines,
         )
+        engine_best = engine_best_candidate(candidates)
+        practical_alternative = choose_practical_alternative(candidates)
         key_candidate = choose_key_candidate(candidates, quality)
-        main_point = build_main_point(board, reconstructed.played, quality, key_candidate, analysis)
+        featured_candidate = _featured_candidate(
+            candidates=candidates,
+            quality=quality,
+            significance_label=significance.label,
+            key_candidate=key_candidate,
+        )
+        main_point = build_main_point(
+            board,
+            reconstructed.played,
+            quality,
+            key_candidate,
+            featured_candidate,
+            analysis,
+        )
         allowed_claims = build_allowed_claims(
-            reconstructed.played, quality, key_candidate, analysis
+            reconstructed.played, quality, key_candidate, featured_candidate, analysis
         )
         evidence = EvidencePacket(
             context_version="move_context.v1",
@@ -127,6 +151,9 @@ class MoveContextBuilder:
             severity=quality.severity_text,
             main_point=main_point.claim,
             best_or_key_move=build_key_move_context(key_candidate),
+            engine_best_move=build_key_move_context(engine_best),
+            practical_alternative=build_key_move_context(practical_alternative),
+            featured_move=build_key_move_context(featured_candidate),
             human_note=build_human_note(key_candidate, situation),
             allowed_claims=allowed_claims,
         )
@@ -188,6 +215,21 @@ def _candidate_moves_from_analysis(
         if move in board.legal_moves:
             moves.append(move)
     return moves
+
+
+def _featured_candidate(
+    candidates: list[CandidateMove],
+    quality: MoveQuality,
+    significance_label: str,
+    key_candidate: CandidateMove | None,
+) -> CandidateMove | None:
+    if key_candidate is not None:
+        return key_candidate
+    if quality.label == "forced":
+        return played_candidate(candidates)
+    if quality.label == "best" and significance_label in {"high", "critical"}:
+        return played_candidate(candidates)
+    return None
 
 
 def _validate_line_pv(board: chess.Board, line: EngineLine) -> None:

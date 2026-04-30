@@ -115,7 +115,9 @@ def test_real_game_context_uses_actual_maia_likelihoods() -> None:
         assert result.evidence.beauty.label == case.expected_beauty
         assert played.findability_source == "maia2_rapid"
         assert played.player_level_probability is not None
-        assert played.plus_400_probability is not None
+        assert played.player_level_bucket == ">=2000"
+        assert played.plus_400_level_bucket == ">=2000"
+        assert played.plus_400_probability is None
         assert played.time_adjusted_findability == case.expected_findability
         if case.probability_kind == "obvious":
             assert played.player_level_probability >= 0.30

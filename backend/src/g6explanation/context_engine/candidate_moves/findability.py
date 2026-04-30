@@ -6,6 +6,7 @@ import chess
 
 from g6explanation.context_engine.contracts import (
     FindabilityLabel,
+    ForcingTier,
     MoveContextRequest,
     TimeSituation,
 )
@@ -47,12 +48,13 @@ def assess_findability(
     board: chess.Board,
     move: chess.Move,
     situation: TimeSituation,
+    previous_move_uci: str | None = None,
 ) -> tuple[FindabilityLabel, str, str, bool]:
     if probability is None:
         return "unknown", evidence_source or "unknown", "none", False
 
     label = _base_findability(probability)
-    if move in board.legal_moves and _is_forcing_move(board, move):
+    if forcing_tier(board, move, previous_move_uci) in FINDABILITY_BOOSTING_TIERS:
         label = _improve_findability(label)
     if situation in {"low_time", "time_scramble"}:
         label = _worsen_findability(label)
@@ -74,8 +76,47 @@ def _base_findability(probability: float) -> FindabilityLabel:
     return "engine_like"
 
 
-def _is_forcing_move(board: chess.Board, move: chess.Move) -> bool:
-    return board.gives_check(move) or board.is_capture(move) or move.promotion is not None
+FINDABILITY_BOOSTING_TIERS: frozenset[ForcingTier] = frozenset(
+    {"mate", "check", "forced_reply", "recapture", "promotion"}
+)
+
+
+def forcing_tier(
+    board: chess.Board, move: chess.Move, previous_move_uci: str | None = None
+) -> ForcingTier:
+    if move not in board.legal_moves:
+        return "quiet"
+
+    after = board.copy(stack=False)
+    after.push(move)
+    if after.is_checkmate():
+        return "mate"
+    if board.gives_check(move):
+        return "check"
+    if _has_only_one_reply(after):
+        return "forced_reply"
+    if move.promotion is not None:
+        return "promotion"
+    if board.is_capture(move):
+        if _is_recapture(move, previous_move_uci):
+            return "recapture"
+        return "ordinary_capture"
+    return "quiet"
+
+
+def _has_only_one_reply(board_after_move: chess.Board) -> bool:
+    legal_moves = board_after_move.legal_moves
+    return legal_moves.count() == 1
+
+
+def _is_recapture(move: chess.Move, previous_move_uci: str | None) -> bool:
+    if previous_move_uci is None:
+        return False
+    try:
+        previous_move = chess.Move.from_uci(previous_move_uci)
+    except ValueError:
+        return False
+    return move.to_square == previous_move.to_square
 
 
 def _teachable_skill_gap(probability: float, plus_400_probability: float | None) -> bool:

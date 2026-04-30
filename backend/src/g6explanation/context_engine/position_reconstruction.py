@@ -70,6 +70,7 @@ def reconstruct_move_context(
         ply=board.ply(),
         phase=_phase(board),
         legal_moves_uci=[legal.uci() for legal in board.legal_moves],
+        previous_move_uci=board.peek().uci() if board.move_stack else None,
     )
     return board, move, ReconstructedMoveContext(position=position, played=played)
 

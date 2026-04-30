@@ -20,9 +20,16 @@ candidate, quality, and verifier objects.
 - Stockfish depth-limited analysis must use depth 16 or deeper for production,
   engine-backed integration tests, evaluations, and visualization packets.
 - Maia is optional human-likeness evidence; it affects findability, not move
-  quality.
+  quality. Stronger-player comparison probabilities are present only when the
+  Maia rating buckets differ; equal-bucket comparisons must be represented as
+  unavailable instead of duplicated.
 - Every recommended candidate must carry objective evidence and findability or
   `unknown`.
+- LLM context separates objective `engine_best_move`, optional
+  `practical_alternative`, and `featured_move`; `best_or_key_move` remains only
+  as a compatibility key for the main better-move focus.
+- Move quality includes `forced` for positions with exactly one legal move so
+  the context can describe the position outcome without assigning move blame.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.
