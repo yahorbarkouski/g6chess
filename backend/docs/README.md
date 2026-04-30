@@ -10,6 +10,7 @@ to guide implementation, not replace it.
 - `context-engine.md`: how to build the evidence and coach context for the LLM.
 - `implementation-quality.md`: code quality and testing bar for implementation.
 - `project-structure.md`: Python package and test folder structure strategy.
+- `development-flow.md`: local checks, commit checkpoints, and commit messages.
 - `product-understanding.md`: product thesis, domain boundaries, and core
   concepts.
 - `quality-gates.md`: required checks before code, datasets, explanations, or

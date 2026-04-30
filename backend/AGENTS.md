@@ -18,11 +18,12 @@ Before making implementation changes, read these files:
 2. `docs/context-engine.md`
 3. `docs/implementation-quality.md`
 4. `docs/project-structure.md`
-5. `docs/product-understanding.md`
-6. `docs/quality-gates.md`
-7. `docs/testing-playbook.md`
-8. `docs/adr/README.md`
-9. Relevant accepted ADRs in `docs/adr/`
+5. `docs/development-flow.md`
+6. `docs/product-understanding.md`
+7. `docs/quality-gates.md`
+8. `docs/testing-playbook.md`
+9. `docs/adr/README.md`
+10. Relevant accepted ADRs in `docs/adr/`
 
 If a change affects architecture, data rights, model behavior, schema contracts,
 or verification policy, add or update an ADR before or with the implementation.
@@ -51,6 +52,7 @@ When starting work:
 3. Identify the narrowest product slice being changed.
 4. Find existing tests and quality checks before editing.
 5. State assumptions if the codebase does not yet encode a decision.
+6. Check `git status --short` and avoid mixing unrelated changes.
 
 When reviewing or modifying code:
 
@@ -117,6 +119,23 @@ uv run pytest -q
 ```
 
 If a check cannot be run, report why and what risk remains.
+
+## Commit Checkpoints
+
+After every major coherent change, create a Git checkpoint commit with a clear
+conventional-style message, after the required checks pass.
+
+Examples:
+
+```text
+feat(context-engine): add candidate practicality scoring
+refactor(context-engine): mirror tests by package path
+docs(flow): require commit checkpoints after major changes
+```
+
+Keep commits atomic. Do not mix unrelated changes, generated caches, or local
+environment files. If checks cannot run or fail, do not commit unless the user
+explicitly approves a work-in-progress checkpoint.
 
 ## Documentation Discipline
 

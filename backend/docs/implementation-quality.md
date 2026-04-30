@@ -107,6 +107,9 @@ Use `uv run ruff format .` to apply formatting when the format check fails.
 Do not mark code work complete until Ruff and tests pass. If a check cannot run,
 record the reason and residual risk in the completion note.
 
+After major coherent changes, follow `docs/development-flow.md` and create a
+checkpoint commit with a clear conventional-style message.
+
 ## Dependency Rules
 
 - Add runtime dependencies under `[project].dependencies`.
