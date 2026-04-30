@@ -34,8 +34,9 @@
 - Keep ADRs under `docs/adr/`.
 - Add top-level folders only for real implementation boundaries.
 - Keep `/Users/yahorbarkouski/g6explanation-frontend` as the companion local
-  React visualization app for inspecting verified context packets from the
-  Python API.
+  React visualization app for inspecting context packets from the Python API.
+  It should use real-game experiment metadata and request fresh per-ply context
+  packets from the API rather than relying on cached/static example packets.
 
 ## Production Module Rules
 

@@ -8,7 +8,8 @@ Status: Accepted
 Use a conservative Python `src/` layout with the current bounded context under
 `g6explanation.context_engine`. The local React visualization app lives in the
 companion `/Users/yahorbarkouski/g6explanation-frontend` folder and consumes a narrow
-`g6explanation.visualization` HTTP API for verified example packets. Keep
+`g6explanation.visualization` HTTP API for real-game experiment metadata and
+fresh per-ply verified context packets. Keep
 documentation split by purpose:
 
 - `docs/product/` for product scope, context, model behavior, and prompts
@@ -24,6 +25,9 @@ documentation split by purpose:
   `helpers`, `models`, `providers`, or `heuristics`.
 - Keep external integrations behind provider protocols.
 - Keep visualization API transport separate from context-engine truth building.
+- Do not cache visualization context output in the catalog; manual inspection
+  should exercise the current production context-building path on each context
+  request.
 - Keep tests mirrored to package paths when it improves navigation.
 - Do not recreate top-level guide documents under `docs/`.
 - Keep ADRs concise; update product/development docs for operational detail.

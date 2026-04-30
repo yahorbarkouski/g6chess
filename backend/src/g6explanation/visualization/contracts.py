@@ -35,7 +35,7 @@ class VisualizationExampleSummary(ContextContract):
 
     id: str
     title: str
-    source_test: str
+    source: str
     initial_fen: str
     orientation: ColorName
     move_count: int
@@ -49,7 +49,7 @@ class VisualizationExample(ContextContract):
     id: str
     title: str
     summary: str
-    source_test: str
+    source: str
     initial_fen: str
     orientation: ColorName
     player_level: str
@@ -61,11 +61,11 @@ class VisualizationExample(ContextContract):
         return VisualizationExampleSummary(
             id=self.id,
             title=self.title,
-            source_test=self.source_test,
+            source=self.source,
             initial_fen=self.initial_fen,
             orientation=self.orientation,
             move_count=len(self.moves),
-            context_plies=[context.ply for context in self.contexts],
+            context_plies=[move.ply for move in self.moves if move.has_context],
             tags=self.tags,
         )
 

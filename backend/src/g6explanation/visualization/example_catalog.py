@@ -1,216 +1,196 @@
-"""Test-derived examples for the context visualization API."""
+"""Real-game experiments for the context visualization API."""
 
 from __future__ import annotations
 
+import importlib.util
+import io
+import os
+import shutil
 from dataclasses import dataclass
-from functools import lru_cache
+from textwrap import dedent
+from typing import Literal, cast
 
 import chess
+import chess.pgn
 
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
     ColorName,
-    ContextResult,
-    EngineAnalysis,
-    EngineAnalysisBudget,
-    EngineLine,
-    HumanMoveLikelihood,
     MoveContextRequest,
     PlayerLevel,
-    Score,
-    Wdl,
 )
+from g6explanation.context_engine.maia_likelihood import Maia2MoveLikelihoodProvider, MaiaModelType
+from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
 from g6explanation.visualization.contracts import (
     VisualizationExample,
     VisualizationMove,
     VisualizationMoveContext,
 )
 
+OPERA_GAME = dedent(
+    """
+    [Event "Casual Game"]
+    [Site "Paris FRA"]
+    [Date "1858.??.??"]
+    [Round "?"]
+    [White "Paul Morphy"]
+    [Black "Duke Karl / Count Isouard"]
+    [Result "1-0"]
+
+    1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5
+    6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5
+    11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6
+    15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0
+    """
+).strip()
+
+BYRNE_FISCHER = dedent(
+    """
+    [Event "Third Rosenwald Trophy"]
+    [Site "New York, NY USA"]
+    [Date "1956.10.17"]
+    [Round "8"]
+    [White "Donald Byrne"]
+    [Black "Robert James Fischer"]
+    [Result "0-1"]
+
+    1. Nf3 Nf6 2. c4 g6 3. Nc3 Bg7 4. d4 O-O 5. Bf4 d5
+    6. Qb3 dxc4 7. Qxc4 c6 8. e4 Nbd7 9. Rd1 Nb6 10. Qc5 Bg4
+    11. Bg5 Na4 12. Qa3 Nxc3 13. bxc3 Nxe4 14. Bxe7 Qb6
+    15. Bc4 Nxc3 16. Bc5 Rfe8+ 17. Kf1 Be6 18. Bxb6 Bxc4+
+    19. Kg1 Ne2+ 20. Kf1 Nxd4+ 21. Kg1 Ne2+ 22. Kf1 Nc3+
+    23. Kg1 axb6 24. Qb4 Ra4 25. Qxb6 Nxd1 26. h3 Rxa2
+    27. Kh2 Nxf2 28. Re1 Rxe1 29. Qd8+ Bf8 30. Nxe1 Bd5
+    31. Nf3 Ne4 32. Qb8 b5 33. h4 h5 34. Ne5 Kg7 35. Kg1 Bc5+
+    36. Kf1 Ng3+ 37. Ke1 Bb4+ 38. Kd1 Bb3+ 39. Kc1 Ne2+
+    40. Kb1 Nc3+ 41. Kc1 Rc2# 0-1
+    """
+).strip()
+
+KASPAROV_TOPALOV = dedent(
+    """
+    [Event "Hoogovens Group A"]
+    [Site "Wijk aan Zee NED"]
+    [Date "1999.01.20"]
+    [Round "4"]
+    [White "Garry Kasparov"]
+    [Black "Veselin Topalov"]
+    [Result "1-0"]
+
+    1. e4 d6 2. d4 Nf6 3. Nc3 g6 4. Be3 Bg7 5. Qd2 c6
+    6. f3 b5 7. Nge2 Nbd7 8. Bh6 Bxh6 9. Qxh6 Bb7
+    10. a3 e5 11. O-O-O Qe7 12. Kb1 a6 13. Nc1 O-O-O
+    14. Nb3 exd4 15. Rxd4 c5 16. Rd1 Nb6 17. g3 Kb8
+    18. Na5 Ba8 19. Bh3 d5 20. Qf4+ Ka7 21. Rhe1 d4
+    22. Nd5 Nbxd5 23. exd5 Qd6 24. Rxd4 cxd4 25. Re7+ Kb6
+    26. Qxd4+ Kxa5 27. b4+ Ka4 28. Qc3 Qxd5 29. Ra7 Bb7
+    30. Rxb7 Qc4 31. Qxf6 Kxa3 32. Qxa6+ Kxb4 33. c3+ Kxc3
+    34. Qa1+ Kd2 35. Qb2+ Kd1 36. Bf1 Rd2 37. Rd7 Rxd7
+    38. Bxc4 bxc4 39. Qxh8 Rd3 40. Qa8 c3 41. Qa4+ Ke1
+    42. f4 f5 43. Kc1 Rd2 44. Qa7 1-0
+    """
+).strip()
+
+
+class VisualizationSetupError(RuntimeError):
+    """Raised when the local production analysis stack is unavailable."""
+
+
+@dataclass(frozen=True)
+class RealGameExperiment:
+    id: str
+    title: str
+    summary: str
+    source: str
+    pgn: str
+    orientation: ColorName
+    player_level: PlayerLevel
+    time_control: str
+    tags: tuple[str, ...]
+
+
+EXPERIMENTS: tuple[RealGameExperiment, ...] = (
+    RealGameExperiment(
+        id="morphy-opera-1858",
+        title="Morphy Opera Game, 1858",
+        summary="Full-game context inspection for Paul Morphy's famous attacking game.",
+        source="PGN: Paul Morphy vs Duke Karl / Count Isouard, Paris 1858",
+        pgn=OPERA_GAME,
+        orientation="white",
+        player_level=PlayerLevel.rating(2400, "historical-demo"),
+        time_control="classical",
+        tags=("real game", "famous", "attack"),
+    ),
+    RealGameExperiment(
+        id="byrne-fischer-1956",
+        title="Byrne-Fischer Game of the Century, 1956",
+        summary="Full-game context inspection for Fischer's tactical win over Donald Byrne.",
+        source="PGN: Donald Byrne vs Robert James Fischer, New York 1956",
+        pgn=BYRNE_FISCHER,
+        orientation="black",
+        player_level=PlayerLevel.rating(2400, "historical-demo"),
+        time_control="classical",
+        tags=("real game", "famous", "tactics"),
+    ),
+    RealGameExperiment(
+        id="kasparov-topalov-1999",
+        title="Kasparov-Topalov, Wijk aan Zee 1999",
+        summary="Full-game context inspection for Kasparov's celebrated rook sacrifice game.",
+        source="PGN: Garry Kasparov vs Veselin Topalov, Wijk aan Zee 1999",
+        pgn=KASPAROV_TOPALOV,
+        orientation="white",
+        player_level=PlayerLevel.rating(2700, "historical-demo"),
+        time_control="classical",
+        tags=("real game", "famous", "sacrifice"),
+    ),
+)
+
 
 def visualization_examples() -> list[VisualizationExample]:
-    """Return the frozen set of examples used by the visualization frontend."""
+    """Return real-game experiment metadata without precomputed context packets."""
 
-    return list(_examples())
+    return [_build_example_metadata(experiment) for experiment in EXPERIMENTS]
 
 
 def find_visualization_example(example_id: str) -> VisualizationExample | None:
-    """Find one visualization example by ID."""
+    """Find one real-game experiment by ID without building context packets."""
 
-    return next((example for example in _examples() if example.id == example_id), None)
-
-
-@lru_cache(maxsize=1)
-def _examples() -> tuple[VisualizationExample, ...]:
-    return (
-        _practical_alternative_example(),
-        _hard_resource_example(),
-        _quiet_queen_sacrifice_example(),
-    )
+    experiment = _find_experiment(example_id)
+    if experiment is None:
+        return None
+    return _build_example_metadata(experiment)
 
 
-def _practical_alternative_example() -> VisualizationExample:
-    board = chess.Board()
-    engine_analysis = _analysis(
-        board,
-        played_uci="g2g4",
-        top_scores=[("e2e4", 40), ("g1f3", 25)],
-        played_score=-180,
-        after_reply_uci="e7e5",
+def build_visualization_context(example_id: str, ply: int) -> VisualizationMoveContext | None:
+    """Build a fresh production context packet for one real-game ply."""
+
+    experiment = _find_experiment(example_id)
+    if experiment is None:
+        return None
+    moves = _mainline_moves(experiment.pgn)
+    if ply < 1 or ply > len(moves):
+        return None
+
+    board = _board_before_ply(experiment.pgn, ply)
+    request = MoveContextRequest(
+        pgn=experiment.pgn,
+        ply=ply,
+        player_color=_color_name(board.turn),
+        player_level=experiment.player_level,
+        time_control=experiment.time_control,
     )
-    human = _StaticHumanLikelihoodProvider(
-        {
-            "e2e4": HumanMoveLikelihood(player_level_probability=0.02, plus_400_probability=0.12),
-            "g1f3": HumanMoveLikelihood(player_level_probability=0.32, plus_400_probability=0.40),
-            "g2g4": HumanMoveLikelihood(player_level_probability=0.25, plus_400_probability=0.08),
-        }
-    )
-    first_context = MoveContextBuilder(_StaticAnalysisProvider(engine_analysis), human).build(
-        MoveContextRequest(
-            fen_before=board.fen(),
-            played_move="g2g4",
-            player_color="white",
-            player_level=PlayerLevel.rating(1250, "lichess"),
-            time_control="blitz",
-            clock_before_seconds=80,
-        )
-    )
-    reply_board = board.copy(stack=False)
-    reply_board.push(chess.Move.from_uci("g2g4"))
-    contexts = {
-        1: first_context,
-        2: _routine_context(reply_board, "e7e5", "black", PlayerLevel.rating(1250, "lichess")),
-    }
-    return _build_example(
-        example_id="practical-alternative-g4",
-        title="Practical alternative after 1.g4",
-        summary=(
-            "The test case where the engine best move is not the most teachable recommendation."
-        ),
-        source_test="test_uses_practical_alternative_when_engine_best_is_hard_and_close",
-        initial_fen=board.fen(),
-        line_uci=["g2g4", "e7e5"],
-        orientation="white",
-        player_level="1250 lichess",
-        tags=["mistake", "findability", "practical alternative"],
-        contexts=contexts,
-    )
+    return VisualizationMoveContext(ply=ply, result=_production_builder().build(request))
 
 
-def _hard_resource_example() -> VisualizationExample:
-    board = chess.Board()
-    engine_analysis = _analysis(
-        board,
-        played_uci="a2a3",
-        top_scores=[("e2e4", 300), ("d2d4", 210)],
-        played_score=-60,
-        after_reply_uci="e7e5",
-    )
-    human = _StaticHumanLikelihoodProvider(
-        {
-            "e2e4": HumanMoveLikelihood(player_level_probability=0.015, plus_400_probability=0.10),
-            "a2a3": HumanMoveLikelihood(player_level_probability=0.20, plus_400_probability=0.02),
-        }
-    )
-    first_context = MoveContextBuilder(_StaticAnalysisProvider(engine_analysis), human).build(
-        MoveContextRequest(
-            fen_before=board.fen(),
-            played_move="a2a3",
-            player_color="white",
-            player_level=PlayerLevel.rating(900, "lichess"),
-            time_control="blitz",
-            clock_before_seconds=20,
-        )
-    )
-    reply_board = board.copy(stack=False)
-    reply_board.push(chess.Move.from_uci("a2a3"))
-    contexts = {
-        1: first_context,
-        2: _routine_context(reply_board, "e7e5", "black", PlayerLevel.rating(900, "lichess")),
-    }
-    return _build_example(
-        example_id="hard-resource-a3",
-        title="Hard resource after 1.a3",
-        summary="The test case that caveats a strong engine move instead of calling it obvious.",
-        source_test="test_caveats_hard_engine_best_instead_of_presenting_it_as_obvious",
-        initial_fen=board.fen(),
-        line_uci=["a2a3", "e7e5"],
-        orientation="white",
-        player_level="900 lichess",
-        tags=["blunder", "hidden resource", "low time"],
-        contexts=contexts,
-    )
+def _find_experiment(example_id: str) -> RealGameExperiment | None:
+    return next((experiment for experiment in EXPERIMENTS if experiment.id == example_id), None)
 
 
-def _quiet_queen_sacrifice_example() -> VisualizationExample:
-    board = chess.Board("r3r1k1/pp3pbp/1qp3p1/2B5/2BP2b1/Q1n2N2/P4PPP/3R1K1R b - - 3 17")
-    played_pv = ["g4e6", "c5b6", "e6c4", "f1g1", "c3e2"]
-    engine_analysis = EngineAnalysis(
-        engine_version="static-test-engine",
-        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=2),
-        top_lines=[
-            _line(board, "g4e6", Score.cp(225), rank=1, pv_uci=played_pv),
-            _line(board, "c3b5", Score.cp(-101), rank=2),
-        ],
-        played_line=_line(board, "g4e6", Score.cp(229), rank=None, pv_uci=played_pv),
-    )
-    human = _StaticHumanLikelihoodProvider(
-        {"g4e6": HumanMoveLikelihood(player_level_probability=0.02)}
-    )
-    first_context = MoveContextBuilder(_StaticAnalysisProvider(engine_analysis), human).build(
-        MoveContextRequest(
-            fen_before=board.fen(),
-            played_move="g4e6",
-            player_color="black",
-            player_level=PlayerLevel.rating(2400),
-            time_control="classical",
-        )
-    )
-
-    contexts: dict[int, ContextResult] = {1: first_context}
-    replay = board.copy(stack=False)
-    for ply, move_uci in enumerate(played_pv, start=1):
-        if ply > 1:
-            contexts[ply] = _routine_context(
-                replay,
-                move_uci,
-                _color_name(replay.turn),
-                PlayerLevel.rating(2400),
-            )
-        replay.push(chess.Move.from_uci(move_uci))
-
-    return _build_example(
-        example_id="quiet-queen-sacrifice",
-        title="Quiet queen sacrifice resource",
-        summary="The beauty test case where a sound, hard-to-find resource becomes brilliant.",
-        source_test="test_quiet_queen_sacrifice_resource_can_be_brilliant",
-        initial_fen=board.fen(),
-        line_uci=played_pv,
-        orientation="black",
-        player_level="2400",
-        tags=["best", "brilliant", "sacrifice"],
-        contexts=contexts,
-    )
-
-
-def _build_example(
-    *,
-    example_id: str,
-    title: str,
-    summary: str,
-    source_test: str,
-    initial_fen: str,
-    line_uci: list[str],
-    orientation: ColorName,
-    player_level: str,
-    tags: list[str],
-    contexts: dict[int, ContextResult],
-) -> VisualizationExample:
-    board = chess.Board(initial_fen)
+def _build_example_metadata(experiment: RealGameExperiment) -> VisualizationExample:
+    game = _read_game(experiment.pgn)
+    board = game.board()
     moves: list[VisualizationMove] = []
-    for ply, move_uci in enumerate(line_uci, start=1):
-        move = chess.Move.from_uci(move_uci)
-        if move not in board.legal_moves:
-            raise ValueError(f"Visualization line move {move_uci} is illegal at ply {ply}.")
+    for ply, move in enumerate(game.mainline_moves(), start=1):
         fen_before = board.fen()
         san = board.san(move)
         player_color = _color_name(board.turn)
@@ -218,161 +198,99 @@ def _build_example(
         moves.append(
             VisualizationMove(
                 ply=ply,
-                uci=move_uci,
+                uci=move.uci(),
                 san=san,
                 fen_before=fen_before,
                 fen_after=board.fen(),
                 player_color=player_color,
-                has_context=ply in contexts,
+                has_context=True,
             )
         )
 
     return VisualizationExample(
-        id=example_id,
-        title=title,
-        summary=summary,
-        source_test=source_test,
-        initial_fen=initial_fen,
-        orientation=orientation,
-        player_level=player_level,
-        tags=tags,
+        id=experiment.id,
+        title=experiment.title,
+        summary=experiment.summary,
+        source=experiment.source,
+        initial_fen=game.board().fen(),
+        orientation=experiment.orientation,
+        player_level=experiment.player_level.label(),
+        tags=list(experiment.tags),
         moves=moves,
-        contexts=[
-            VisualizationMoveContext(ply=ply, result=result)
-            for ply, result in sorted(contexts.items())
-        ],
+        contexts=[],
     )
 
 
-def _routine_context(
-    board: chess.Board,
-    played_uci: str,
-    player_color: ColorName,
-    player_level: PlayerLevel,
-) -> ContextResult:
-    top_scores = [(played_uci, 60)]
-    alternative = _first_legal_uci_except(board, played_uci)
-    if alternative is not None:
-        top_scores.append((alternative, 30))
-    after_reply = _first_legal_after(board, played_uci)
-    engine_analysis = _analysis(
-        board,
-        played_uci=played_uci,
-        top_scores=top_scores,
-        played_score=60,
-        after_reply_uci=after_reply,
-    )
-    return MoveContextBuilder(_StaticAnalysisProvider(engine_analysis)).build(
-        MoveContextRequest(
-            fen_before=board.fen(),
-            played_move=played_uci,
-            player_color=player_color,
-            player_level=player_level,
+def _production_builder() -> MoveContextBuilder:
+    stockfish_binary = os.getenv("G6_VISUALIZATION_STOCKFISH_BINARY") or shutil.which("stockfish")
+    if stockfish_binary is None:
+        raise VisualizationSetupError(
+            "Stockfish is required for visualization context generation. "
+            "Install stockfish or set G6_VISUALIZATION_STOCKFISH_BINARY."
         )
+
+    analysis = StockfishAnalysisProvider(
+        binary_path=stockfish_binary,
+        depth=_int_env("G6_VISUALIZATION_STOCKFISH_DEPTH", 12),
+        multipv=_int_env("G6_VISUALIZATION_STOCKFISH_MULTIPV", 5),
+        threads=_optional_int_env("G6_VISUALIZATION_STOCKFISH_THREADS"),
+        hash_mb=_optional_int_env("G6_VISUALIZATION_STOCKFISH_HASH_MB"),
+        show_wdl=True,
+    )
+    return MoveContextBuilder(analysis, _maia_provider())
+
+
+def _maia_provider() -> Maia2MoveLikelihoodProvider:
+    if importlib.util.find_spec("maia2") is None:
+        raise VisualizationSetupError(
+            "Maia-2 is required for production visualization context generation. "
+            "Install the project with the maia extra."
+        )
+    model_type = os.getenv("G6_VISUALIZATION_MAIA2_MODEL", "auto")
+    if model_type not in {"auto", "rapid", "blitz"}:
+        raise VisualizationSetupError(
+            "G6_VISUALIZATION_MAIA2_MODEL must be one of: auto, rapid, blitz."
+        )
+    device = os.getenv("G6_VISUALIZATION_MAIA2_DEVICE", "cpu")
+    if device not in {"cpu", "gpu"}:
+        raise VisualizationSetupError("G6_VISUALIZATION_MAIA2_DEVICE must be cpu or gpu.")
+    return Maia2MoveLikelihoodProvider(
+        model_type=cast(MaiaModelType, model_type),
+        device=cast("Literal['cpu', 'gpu']", device),
+        save_root=os.getenv("MAIA2_MODEL_ROOT", "./maia2_models"),
+        top_move_limit=_int_env("G6_VISUALIZATION_MAIA2_TOP_MOVES", 5),
     )
 
 
-def _analysis(
-    board: chess.Board,
-    played_uci: str,
-    top_scores: list[tuple[str, int]],
-    played_score: int,
-    after_reply_uci: str | None = None,
-    played_pv_uci: list[str] | None = None,
-) -> EngineAnalysis:
-    played_move = chess.Move.from_uci(played_uci)
-    after_board = board.copy(stack=False)
-    after_board.push(played_move)
-    return EngineAnalysis(
-        engine_version="static-test-engine",
-        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=len(top_scores)),
-        top_lines=[
-            _line(board, move_uci, Score.cp(score), rank=index + 1)
-            for index, (move_uci, score) in enumerate(top_scores)
-        ],
-        played_line=_line(
-            board,
-            played_uci,
-            Score.cp(played_score),
-            rank=None,
-            pv_uci=played_pv_uci,
-        ),
-        after_line=_line(after_board, after_reply_uci, Score.cp(played_score), rank=1)
-        if after_reply_uci
-        else None,
-    )
+def _int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    return default if value is None else int(value)
 
 
-def _line(
-    board: chess.Board,
-    uci: str,
-    score: Score,
-    rank: int | None,
-    pv_uci: list[str] | None = None,
-) -> EngineLine:
-    move = chess.Move.from_uci(uci)
-    if move not in board.legal_moves:
-        raise ValueError(f"Engine line move {uci} is illegal in {board.fen()}.")
-    full_pv_uci = pv_uci or [uci]
-    return EngineLine(
-        move_uci=uci,
-        move_san=board.san(move),
-        score=score,
-        rank=rank,
-        wdl=Wdl(win=500, draw=400, loss=100),
-        pv_uci=full_pv_uci,
-        pv_san=_pv_san(board, full_pv_uci),
-    )
+def _optional_int_env(name: str) -> int | None:
+    value = os.getenv(name)
+    return None if value is None else int(value)
 
 
-def _pv_san(board: chess.Board, pv_uci: list[str]) -> list[str]:
-    replay = board.copy(stack=False)
-    san_moves: list[str] = []
-    for uci in pv_uci:
-        move = chess.Move.from_uci(uci)
-        if move not in replay.legal_moves:
-            raise ValueError(f"PV move {uci} is illegal in {replay.fen()}.")
-        san_moves.append(replay.san(move))
-        replay.push(move)
-    return san_moves
+def _read_game(pgn: str) -> chess.pgn.Game:
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    if game is None:
+        raise ValueError("Visualization PGN could not be parsed.")
+    return game
 
 
-def _first_legal_uci_except(board: chess.Board, skipped_uci: str) -> str | None:
-    return next((move.uci() for move in board.legal_moves if move.uci() != skipped_uci), None)
+def _mainline_moves(pgn: str) -> list[chess.Move]:
+    return list(_read_game(pgn).mainline_moves())
 
 
-def _first_legal_after(board: chess.Board, played_uci: str) -> str | None:
-    after_board = board.copy(stack=False)
-    after_board.push(chess.Move.from_uci(played_uci))
-    return next((move.uci() for move in after_board.legal_moves), None)
+def _board_before_ply(pgn: str, ply: int) -> chess.Board:
+    game = _read_game(pgn)
+    moves = list(game.mainline_moves())
+    board = game.board()
+    for move in moves[: ply - 1]:
+        board.push(move)
+    return board
 
 
 def _color_name(color: chess.Color) -> ColorName:
     return "white" if color == chess.WHITE else "black"
-
-
-@dataclass(frozen=True)
-class _StaticAnalysisProvider:
-    engine_analysis: EngineAnalysis
-
-    def analyze(
-        self, board: chess.Board, played_move: chess.Move, player_color: ColorName
-    ) -> EngineAnalysis:
-        return self.engine_analysis
-
-
-@dataclass(frozen=True)
-class _StaticHumanLikelihoodProvider:
-    stats: dict[str, HumanMoveLikelihood]
-
-    def likelihoods(
-        self,
-        board: chess.Board,
-        candidate_moves: list[chess.Move],
-        request: MoveContextRequest,
-    ) -> dict[str, HumanMoveLikelihood]:
-        return {
-            move.uci(): self.stats[move.uci()]
-            for move in candidate_moves
-            if move.uci() in self.stats
-        }
