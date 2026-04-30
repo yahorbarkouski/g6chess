@@ -26,6 +26,8 @@ documentation split by purpose:
 - Keep external integrations behind provider protocols.
 - Keep deterministic move signals under `context_engine/signals/` and candidate
   move policy under `context_engine/candidate_moves/`.
+- Do not keep compatibility wrappers for internal package refactors; update
+  imports to canonical paths and remove obsolete modules in the same change.
 - Keep visualization API transport separate from context-engine truth building.
 - Do not cache visualization context output in the catalog; manual inspection
   should exercise the current production context-building path on each context

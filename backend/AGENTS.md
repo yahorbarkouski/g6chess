@@ -45,6 +45,9 @@ implementation.
 - Split a module when it has multiple reasons to change, especially when chess
   truth, recommendation policy, provider I/O, and LLM-facing agenda construction
   start living together.
+- Do not keep compatibility wrapper modules after internal package refactors.
+  Update imports to the canonical module path and delete the obsolete module in
+  the same change. Compatibility belongs only to documented public exports.
 - Add deterministic checks before relying on model judgment.
 - Keep source/data licenses explicit and traceable.
 - Never train global models on user-imported games unless rights are explicit.

@@ -42,6 +42,9 @@ scaffolding until a concrete vertical slice requires it.
 - Keep deterministic move-evaluation signals under `context_engine/signals/`.
 - Keep candidate assembly, findability, practicality, and recommendation
   policy under `context_engine/candidate_moves/`.
+- Do not keep compatibility wrapper modules after internal package refactors.
+  Update callers to the canonical module path and delete the obsolete module in
+  the same change.
 - Keep test helpers inside the relevant test package.
 
 ## Testing Rules

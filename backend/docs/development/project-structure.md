@@ -45,13 +45,16 @@
 - Use domain names, not generic names.
 - Avoid production modules named `utils`, `common`, `helpers`, `models`,
   `providers`, or `heuristics`.
-- Name modules after the reason they change, such as `move_quality.py`,
-  `candidate_policy.py`, `position_reconstruction.py`, or
-  `stockfish_analysis.py`.
+- Name modules after the reason they change, such as
+  `signals/quality.py`, `candidate_moves/findability.py`,
+  `position_reconstruction.py`, or `stockfish_analysis.py`.
 - Use `context_engine/signals/` for deterministic signal policies such as
   quality, significance, and beauty.
 - Use `context_engine/candidate_moves/` for candidate assembly, findability,
   practicality, recommendation policy, and key-candidate selection.
+- Delete obsolete internal modules during package refactors instead of leaving
+  compatibility wrappers. Only documented public exports may preserve backward
+  compatibility.
 - Keep external integrations behind explicit provider protocols and concrete
   adapter modules.
 
