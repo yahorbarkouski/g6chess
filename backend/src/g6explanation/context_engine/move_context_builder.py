@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import chess
 
-from g6explanation.context_engine.candidate_policy import (
+from g6explanation.context_engine.candidate_moves import (
     build_candidates,
     choose_key_candidate,
     time_situation,
@@ -28,13 +28,16 @@ from g6explanation.context_engine.explanation_agenda import (
     build_key_move_context,
     build_main_point,
 )
-from g6explanation.context_engine.move_beauty import calculate_beauty
-from g6explanation.context_engine.move_quality import calculate_significance, classify_quality
 from g6explanation.context_engine.position_reconstruction import reconstruct_move_context
 from g6explanation.context_engine.provider_protocols import (
     EngineAnalysisProvider,
     HumanMoveLikelihoodProvider,
     RootMoveAnalysisProvider,
+)
+from g6explanation.context_engine.signals import (
+    calculate_beauty,
+    calculate_significance,
+    classify_quality,
 )
 
 

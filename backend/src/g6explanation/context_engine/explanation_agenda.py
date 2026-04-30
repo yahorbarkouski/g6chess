@@ -13,7 +13,7 @@ from g6explanation.context_engine.contracts import (
     PlayedMoveFacts,
     TimeSituation,
 )
-from g6explanation.context_engine.move_quality import BAD_QUALITY_LABELS
+from g6explanation.context_engine.signals.quality import BAD_QUALITY_LABELS
 
 
 def build_main_point(

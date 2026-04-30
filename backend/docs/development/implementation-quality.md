@@ -20,6 +20,8 @@ src/g6explanation/
   __init__.py
   py.typed
   context_engine/
+    candidate_moves/
+    signals/
 
 tests/g6explanation/context_engine/
 ```
@@ -37,6 +39,9 @@ scaffolding until a concrete vertical slice requires it.
 - Keep `g6explanation.__init__` limited to stable public exports.
 - Keep schema contracts in `contracts.py`; treat JSON shapes as product
   contracts.
+- Keep deterministic move-evaluation signals under `context_engine/signals/`.
+- Keep candidate assembly, findability, practicality, and recommendation
+  policy under `context_engine/candidate_moves/`.
 - Keep test helpers inside the relevant test package.
 
 ## Testing Rules

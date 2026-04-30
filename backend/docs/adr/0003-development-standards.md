@@ -24,6 +24,8 @@ documentation split by purpose:
 - Do not create production catch-all modules named `utils`, `common`,
   `helpers`, `models`, `providers`, or `heuristics`.
 - Keep external integrations behind provider protocols.
+- Keep deterministic move signals under `context_engine/signals/` and candidate
+  move policy under `context_engine/candidate_moves/`.
 - Keep visualization API transport separate from context-engine truth building.
 - Do not cache visualization context output in the catalog; manual inspection
   should exercise the current production context-building path on each context

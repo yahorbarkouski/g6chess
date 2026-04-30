@@ -16,7 +16,7 @@ from g6explanation.context_engine.contracts import (
     Wdl,
 )
 from g6explanation.context_engine.exceptions import AnalysisError
-from g6explanation.context_engine.move_quality import calculate_significance, classify_quality
+from g6explanation.context_engine.signals import calculate_significance, classify_quality
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     StaticHumanLikelihoodProvider,

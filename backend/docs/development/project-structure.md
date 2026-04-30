@@ -17,6 +17,8 @@
       __init__.py
       py.typed
       context_engine/
+        candidate_moves/
+        signals/
   tests/
     g6explanation/
       context_engine/
@@ -46,6 +48,10 @@
 - Name modules after the reason they change, such as `move_quality.py`,
   `candidate_policy.py`, `position_reconstruction.py`, or
   `stockfish_analysis.py`.
+- Use `context_engine/signals/` for deterministic signal policies such as
+  quality, significance, and beauty.
+- Use `context_engine/candidate_moves/` for candidate assembly, findability,
+  practicality, recommendation policy, and key-candidate selection.
 - Keep external integrations behind explicit provider protocols and concrete
   adapter modules.
 
