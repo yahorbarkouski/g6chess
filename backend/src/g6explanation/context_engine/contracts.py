@@ -1,14 +1,15 @@
-"""Data contracts for the move context engine."""
+"""Schema contracts for the move context engine."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-ColorName = Literal["white", "black"]
-ScoreKind = Literal["cp", "mate"]
-MoveQualityLabel = Literal[
+ColorName: TypeAlias = Literal["white", "black"]
+PlayerLevelKind: TypeAlias = Literal["rating", "label"]
+ScoreKind: TypeAlias = Literal["cp", "mate"]
+MoveQualityLabel: TypeAlias = Literal[
     "best",
     "excellent",
     "good",
@@ -18,8 +19,26 @@ MoveQualityLabel = Literal[
     "blunder",
     "missed_win",
 ]
-FindabilityLabel = Literal["obvious", "findable", "hard", "very_hard", "engine_like", "unknown"]
-PracticalityCategory = Literal[
+FindabilityLabel: TypeAlias = Literal[
+    "obvious",
+    "findable",
+    "hard",
+    "very_hard",
+    "engine_like",
+    "unknown",
+]
+CandidateRole: TypeAlias = Literal[
+    "played_move",
+    "engine_best",
+    "close_engine_alternative",
+    "practical_alternative",
+    "human_common_move",
+    "best_reply_after_played",
+    "only_saving_move",
+    "only_winning_move",
+    "tablebase_exact_move",
+]
+PracticalityCategory: TypeAlias = Literal[
     "clear_recommendation",
     "practical_try",
     "hard_but_important",
@@ -27,18 +46,28 @@ PracticalityCategory = Literal[
     "only_move",
     "unknown_practicality",
 ]
-RecommendationPolicy = Literal[
+RecommendationPolicy: TypeAlias = Literal[
     "recommend_directly",
     "mention_with_caveat",
     "use_as_practical_alternative",
     "explain_as_hidden_resource",
     "do_not_recommend",
 ]
-SignificanceLabel = Literal["low", "moderate", "high", "critical"]
+SignificanceLabel: TypeAlias = Literal["low", "moderate", "high", "critical"]
+TimeSituation: TypeAlias = Literal[
+    "unknown",
+    "classical_or_no_pressure",
+    "rapid_normal",
+    "blitz_normal",
+    "low_time",
+    "time_scramble",
+]
+AnalysisBudgetKind: TypeAlias = Literal["depth", "nodes", "static"]
+EngineOptionValue: TypeAlias = int | str | bool | None
 
 
-class ContextModel(BaseModel):
-    """Base model for versioned context contracts."""
+class ContextContract(BaseModel):
+    """Base model for frozen, versioned context contracts."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -50,14 +79,26 @@ class ContextModel(BaseModel):
         return cls.model_json_schema()
 
 
-class PlayerLevel(ContextModel):
-    kind: str
+class PlayerLevel(ContextContract):
+    kind: PlayerLevelKind
     value: int | str
     system: str | None = None
 
     @classmethod
     def rating(cls, value: int, system: str | None = None) -> PlayerLevel:
         return cls(kind="rating", value=value, system=system)
+
+    @classmethod
+    def label_value(cls, value: str, system: str | None = None) -> PlayerLevel:
+        return cls(kind="label", value=value, system=system)
+
+    @model_validator(mode="after")
+    def _validate_level_shape(self) -> PlayerLevel:
+        if self.kind == "rating" and not isinstance(self.value, int):
+            raise ValueError("Rating player levels require an integer value.")
+        if self.kind == "label" and not isinstance(self.value, str):
+            raise ValueError("Label player levels require a string value.")
+        return self
 
     def label(self) -> str:
         if self.kind == "rating":
@@ -71,7 +112,7 @@ class PlayerLevel(ContextModel):
         return None
 
 
-class MoveContextRequest(ContextModel):
+class MoveContextRequest(ContextContract):
     player_color: ColorName
     player_level: PlayerLevel
     played_move: str | None = None
@@ -84,7 +125,7 @@ class MoveContextRequest(ContextModel):
     opponent_level: PlayerLevel | None = None
 
 
-class Score(ContextModel):
+class Score(ContextContract):
     kind: ScoreKind
     value: int | None = None
     mate_in: int | None = None
@@ -115,13 +156,13 @@ class Score(ContextModel):
         return self
 
 
-class Wdl(ContextModel):
+class Wdl(ContextContract):
     win: int
     draw: int
     loss: int
 
 
-class MoveFacts(ContextModel):
+class PlayedMoveFacts(ContextContract):
     uci: str
     san: str
     legal: bool
@@ -130,29 +171,35 @@ class MoveFacts(ContextModel):
     promotion: str | None = None
 
 
-class PositionContext(ContextModel):
+class PositionContext(ContextContract):
     fen_before: str
     fen_after: str
     side_to_move: ColorName
     move_number: int
     ply: int
     phase: str
-    legal_moves_uci: list[str] = Field(default_factory=list)
+    legal_moves_uci: list[str] = Field(default_factory=list[str])
 
 
-class BoardContext(ContextModel):
+class ReconstructedMoveContext(ContextContract):
     position: PositionContext
-    played: MoveFacts
+    played: PlayedMoveFacts
 
 
-class EngineLine(ContextModel):
+class EngineAnalysisBudget(ContextContract):
+    kind: AnalysisBudgetKind
+    value: int | str | None
+    multipv: int | None = None
+
+
+class EngineLine(ContextContract):
     move_uci: str
     move_san: str
     score: Score
     rank: int | None = None
     wdl: Wdl | None = None
-    pv_uci: list[str] = Field(default_factory=list)
-    pv_san: list[str] = Field(default_factory=list)
+    pv_uci: list[str] = Field(default_factory=list[str])
+    pv_san: list[str] = Field(default_factory=list[str])
     depth: int | None = None
     seldepth: int | None = None
     nodes: int | None = None
@@ -160,11 +207,11 @@ class EngineLine(ContextModel):
     tbhits: int | None = None
 
 
-class EngineAnalysis(ContextModel):
+class EngineAnalysis(ContextContract):
     engine_version: str
-    analysis_budget: dict[str, int | str | bool | None] = Field(default_factory=dict)
-    engine_options: dict[str, int | str | bool | None] = Field(default_factory=dict)
-    top_lines: list[EngineLine] = Field(default_factory=list)
+    analysis_budget: EngineAnalysisBudget
+    engine_options: dict[str, EngineOptionValue] = Field(default_factory=dict)
+    top_lines: list[EngineLine] = Field(default_factory=list[EngineLine])
     played_line: EngineLine
     after_line: EngineLine | None = None
 
@@ -176,7 +223,7 @@ class EngineAnalysis(ContextModel):
         return value
 
 
-class HumanMoveStats(ContextModel):
+class HumanMoveLikelihood(ContextContract):
     player_level_probability: float | None = None
     plus_400_probability: float | None = None
     evidence_source: str | None = None
@@ -193,7 +240,7 @@ class HumanMoveStats(ContextModel):
         return value
 
 
-class MoveQuality(ContextModel):
+class MoveQuality(ContextContract):
     label: MoveQualityLabel
     score_delta_cp_player_pov: int | None
     score_loss_vs_best_cp: int | None
@@ -202,21 +249,21 @@ class MoveQuality(ContextModel):
     severity_text: str
 
 
-class MoveSignificance(ContextModel):
+class MoveSignificance(ContextContract):
     label: SignificanceLabel
     score: float = Field(ge=0, le=1)
 
 
-class CandidateMove(ContextModel):
+class CandidateMove(ContextContract):
     san: str
     uci: str
-    roles: list[str] = Field(default_factory=list)
+    roles: list[CandidateRole] = Field(default_factory=list[CandidateRole])
     engine_rank: int | None
     human_rank: int | None = None
     score: Score
     score_loss_vs_best_cp: int | None
     wdl: Wdl | None = None
-    pv_short_san: list[str] = Field(default_factory=list)
+    pv_short_san: list[str] = Field(default_factory=list[str])
     player_level_probability: float | None
     plus_400_probability: float | None
     time_adjusted_findability: FindabilityLabel
@@ -227,44 +274,52 @@ class CandidateMove(ContextModel):
     recommendation_policy: RecommendationPolicy
 
 
-class MainPoint(ContextModel):
+class MainPoint(ContextContract):
     concept: str
     claim: str
 
 
-class EvidencePacket(ContextModel):
+class KeyMoveContext(ContextContract):
+    move: str
+    practicality: PracticalityCategory
+    findability: FindabilityLabel
+    reason: str
+    recommendation_policy: RecommendationPolicy
+
+
+class EvidencePacket(ContextContract):
     context_version: str
     request: MoveContextRequest
     position: PositionContext
-    played: MoveFacts
+    played: PlayedMoveFacts
     engine: EngineAnalysis
     quality: MoveQuality
     significance: MoveSignificance
-    candidates: list[CandidateMove] = Field(default_factory=list)
+    candidates: list[CandidateMove] = Field(default_factory=list[CandidateMove])
     main_point: MainPoint
-    allowed_claims: list[str] = Field(default_factory=list)
+    allowed_claims: list[str] = Field(default_factory=list[str])
 
 
-class LLMContext(ContextModel):
+class LLMContext(ContextContract):
     played: str
-    quality: str
+    quality: MoveQualityLabel
     significance: MoveSignificance
     player_level: str
-    time_situation: str
+    time_situation: TimeSituation
     severity: str
     main_point: str
-    best_or_key_move: dict[str, str] | None
+    best_or_key_move: KeyMoveContext | None
     human_note: str | None
-    allowed_claims: list[str] = Field(default_factory=list)
+    allowed_claims: list[str] = Field(default_factory=list[str])
 
 
-class VerificationResult(ContextModel):
+class VerificationResult(ContextContract):
     verifier_version: str
     passed: bool
-    failures: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    failures: list[str] = Field(default_factory=list[str])
+    warnings: list[str] = Field(default_factory=list[str])
 
 
-class ContextResult(ContextModel):
+class ContextResult(ContextContract):
     evidence: EvidencePacket
     llm_context: LLMContext

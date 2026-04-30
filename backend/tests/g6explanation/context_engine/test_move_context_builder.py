@@ -3,22 +3,23 @@ from __future__ import annotations
 import chess
 import pytest
 
-from g6explanation.context_engine import MoveContextEngine
-from g6explanation.context_engine.exceptions import AnalysisError
-from g6explanation.context_engine.heuristics import calculate_significance, classify_quality
-from g6explanation.context_engine.models import (
+from g6explanation.context_engine import MoveContextBuilder
+from g6explanation.context_engine.contracts import (
     EngineAnalysis,
+    EngineAnalysisBudget,
     EngineLine,
-    HumanMoveStats,
+    HumanMoveLikelihood,
     MoveContextRequest,
-    MoveFacts,
+    PlayedMoveFacts,
     PlayerLevel,
     Score,
     Wdl,
 )
+from g6explanation.context_engine.exceptions import AnalysisError
+from g6explanation.context_engine.move_quality import calculate_significance, classify_quality
 from tests.g6explanation.context_engine.helpers import (
-    StaticAnalyzer,
-    StaticHumanProvider,
+    StaticAnalysisProvider,
+    StaticHumanLikelihoodProvider,
     analysis,
 )
 
@@ -32,11 +33,11 @@ def test_uses_practical_alternative_when_engine_best_is_hard_and_close() -> None
         played_score=-180,
         after_reply_uci="e7e5",
     )
-    human = StaticHumanProvider(
+    human = StaticHumanLikelihoodProvider(
         {
-            "e2e4": HumanMoveStats(player_level_probability=0.02, plus_400_probability=0.12),
-            "g1f3": HumanMoveStats(player_level_probability=0.32, plus_400_probability=0.40),
-            "g2g4": HumanMoveStats(player_level_probability=0.25, plus_400_probability=0.08),
+            "e2e4": HumanMoveLikelihood(player_level_probability=0.02, plus_400_probability=0.12),
+            "g1f3": HumanMoveLikelihood(player_level_probability=0.32, plus_400_probability=0.40),
+            "g2g4": HumanMoveLikelihood(player_level_probability=0.25, plus_400_probability=0.08),
         }
     )
     request = MoveContextRequest(
@@ -48,18 +49,17 @@ def test_uses_practical_alternative_when_engine_best_is_hard_and_close() -> None
         clock_before_seconds=80,
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
 
     assert result.evidence.quality.label == "mistake"
     assert result.evidence.significance.label == "critical"
     assert result.evidence.significance.score == 0.73
     assert result.llm_context.significance.label == "critical"
     assert result.llm_context.best_or_key_move is not None
-    assert result.llm_context.best_or_key_move["move"] == "Nf3"
-    assert result.llm_context.best_or_key_move["practicality"] == "practical_try"
+    assert result.llm_context.best_or_key_move.move == "Nf3"
+    assert result.llm_context.best_or_key_move.practicality == "practical_try"
     assert (
-        result.llm_context.best_or_key_move["recommendation_policy"]
-        == "use_as_practical_alternative"
+        result.llm_context.best_or_key_move.recommendation_policy == "use_as_practical_alternative"
     )
 
 
@@ -72,10 +72,10 @@ def test_caveats_hard_engine_best_instead_of_presenting_it_as_obvious() -> None:
         played_score=-60,
         after_reply_uci="e7e5",
     )
-    human = StaticHumanProvider(
+    human = StaticHumanLikelihoodProvider(
         {
-            "e2e4": HumanMoveStats(player_level_probability=0.015, plus_400_probability=0.10),
-            "a2a3": HumanMoveStats(player_level_probability=0.20, plus_400_probability=0.02),
+            "e2e4": HumanMoveLikelihood(player_level_probability=0.015, plus_400_probability=0.10),
+            "a2a3": HumanMoveLikelihood(player_level_probability=0.20, plus_400_probability=0.02),
         }
     )
     request = MoveContextRequest(
@@ -87,15 +87,13 @@ def test_caveats_hard_engine_best_instead_of_presenting_it_as_obvious() -> None:
         clock_before_seconds=20,
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
 
     assert result.evidence.quality.label == "blunder"
     assert result.llm_context.best_or_key_move is not None
-    assert result.llm_context.best_or_key_move["move"] == "e4"
-    assert (
-        result.llm_context.best_or_key_move["recommendation_policy"] == "explain_as_hidden_resource"
-    )
-    assert result.llm_context.best_or_key_move["findability"] in {"very_hard", "engine_like"}
+    assert result.llm_context.best_or_key_move.move == "e4"
+    assert result.llm_context.best_or_key_move.recommendation_policy == "explain_as_hidden_resource"
+    assert result.llm_context.best_or_key_move.findability in {"very_hard", "engine_like"}
     assert result.llm_context.human_note is not None
 
 
@@ -115,7 +113,7 @@ def test_low_significance_when_best_move_is_only_slightly_better() -> None:
         player_level=PlayerLevel.rating(1200),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis)).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
     assert result.evidence.quality.label == "best"
     assert result.evidence.significance.label == "low"
@@ -138,7 +136,7 @@ def test_critical_significance_when_best_move_is_much_better_than_second_best() 
         player_level=PlayerLevel.rating(1200),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis)).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
     assert result.evidence.quality.label == "best"
     assert result.evidence.significance.label == "critical"
@@ -154,10 +152,10 @@ def test_human_probability_does_not_change_objective_quality() -> None:
         played_score=-140,
         after_reply_uci="e7e5",
     )
-    human = StaticHumanProvider(
+    human = StaticHumanLikelihoodProvider(
         {
-            "g2g4": HumanMoveStats(player_level_probability=0.45),
-            "e2e4": HumanMoveStats(player_level_probability=0.08),
+            "g2g4": HumanMoveLikelihood(player_level_probability=0.45),
+            "e2e4": HumanMoveLikelihood(player_level_probability=0.08),
         }
     )
     request = MoveContextRequest(
@@ -167,7 +165,7 @@ def test_human_probability_does_not_change_objective_quality() -> None:
         player_level=PlayerLevel.rating(1000),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
     played_candidate = next(
         candidate for candidate in result.evidence.candidates if "played_move" in candidate.roles
     )
@@ -192,7 +190,7 @@ def test_normalizes_black_player_scores_from_black_perspective() -> None:
         player_level=PlayerLevel.rating(1300),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis)).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
     assert result.evidence.position.side_to_move == "black"
     assert result.evidence.quality.label == "mistake"
@@ -202,7 +200,7 @@ def test_normalizes_black_player_scores_from_black_perspective() -> None:
 def test_mate_scores_are_classified_without_centipawn_delta() -> None:
     analysis_with_mate = EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
         top_lines=[
             EngineLine(
                 move_uci="e2e4",
@@ -220,7 +218,7 @@ def test_mate_scores_are_classified_without_centipawn_delta() -> None:
     )
     quality = classify_quality(
         analysis_with_mate,
-        MoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
+        PlayedMoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
     )
 
     assert quality.label == "missed_win"
@@ -231,7 +229,7 @@ def test_mate_scores_are_classified_without_centipawn_delta() -> None:
 def test_mate_transition_sets_significance_to_critical() -> None:
     analysis_with_mate = EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
         top_lines=[
             EngineLine(
                 move_uci="e2e4",
@@ -250,7 +248,7 @@ def test_mate_transition_sets_significance_to_critical() -> None:
 
     significance = calculate_significance(
         analysis_with_mate,
-        MoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
+        PlayedMoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
     )
 
     assert significance.label == "critical"
@@ -260,7 +258,7 @@ def test_mate_transition_sets_significance_to_critical() -> None:
 def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
     engine_analysis = EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
         top_lines=[
             EngineLine(
                 move_uci="e2e4",
@@ -285,7 +283,7 @@ def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
 
     quality = classify_quality(
         engine_analysis,
-        MoveFacts(uci="d2d4", san="d4", legal=True, is_check=False, is_capture=False),
+        PlayedMoveFacts(uci="d2d4", san="d4", legal=True, is_check=False, is_capture=False),
     )
 
     assert quality.score_loss_vs_best_cp == 10
@@ -297,7 +295,7 @@ def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
 def test_wdl_gap_can_make_significance_critical_without_centipawn_gap() -> None:
     engine_analysis = EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
         top_lines=[
             EngineLine(
                 move_uci="e2e4",
@@ -322,7 +320,7 @@ def test_wdl_gap_can_make_significance_critical_without_centipawn_gap() -> None:
 
     significance = calculate_significance(
         engine_analysis,
-        MoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
+        PlayedMoveFacts(uci="a2a3", san="a3", legal=True, is_check=False, is_capture=False),
     )
 
     assert significance.label == "critical"
@@ -347,7 +345,9 @@ def test_findability_probability_thresholds(probability: float, expected: str) -
         top_scores=[("e2e4", 100)],
         played_score=-100,
     )
-    human = StaticHumanProvider({"e2e4": HumanMoveStats(player_level_probability=probability)})
+    human = StaticHumanLikelihoodProvider(
+        {"e2e4": HumanMoveLikelihood(player_level_probability=probability)}
+    )
     request = MoveContextRequest(
         fen_before=board.fen(),
         played_move="g2g4",
@@ -355,7 +355,7 @@ def test_findability_probability_thresholds(probability: float, expected: str) -
         player_level=PlayerLevel.rating(1000),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
     candidate = next(
         candidate for candidate in result.evidence.candidates if candidate.uci == "e2e4"
     )
@@ -371,7 +371,9 @@ def test_low_time_worsens_findability_without_changing_quality() -> None:
         top_scores=[("e2e4", 100)],
         played_score=-100,
     )
-    human = StaticHumanProvider({"e2e4": HumanMoveStats(player_level_probability=0.12)})
+    human = StaticHumanLikelihoodProvider(
+        {"e2e4": HumanMoveLikelihood(player_level_probability=0.12)}
+    )
     request = MoveContextRequest(
         fen_before=board.fen(),
         played_move="g2g4",
@@ -380,7 +382,7 @@ def test_low_time_worsens_findability_without_changing_quality() -> None:
         clock_before_seconds=20,
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
     candidate = next(
         candidate for candidate in result.evidence.candidates if candidate.uci == "e2e4"
     )
@@ -397,9 +399,9 @@ def test_plus_400_probability_marks_teachable_skill_gap() -> None:
         top_scores=[("e2e4", 100)],
         played_score=-100,
     )
-    human = StaticHumanProvider(
+    human = StaticHumanLikelihoodProvider(
         {
-            "e2e4": HumanMoveStats(
+            "e2e4": HumanMoveLikelihood(
                 player_level_probability=0.03,
                 plus_400_probability=0.20,
             )
@@ -412,7 +414,7 @@ def test_plus_400_probability_marks_teachable_skill_gap() -> None:
         player_level=PlayerLevel.rating(1000),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis), human).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
     candidate = next(
         candidate for candidate in result.evidence.candidates if candidate.uci == "e2e4"
     )
@@ -437,7 +439,7 @@ def test_unknown_human_evidence_stays_unknown_findability() -> None:
         player_level=PlayerLevel.rating(1000),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis)).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
     candidate = next(
         candidate for candidate in result.evidence.candidates if candidate.uci == "e2e4"
     )
@@ -462,7 +464,7 @@ def test_rejects_analyzer_that_returns_different_played_move() -> None:
         player_level=PlayerLevel.rating(1200),
     )
 
-    engine = MoveContextEngine(StaticAnalyzer(engine_analysis))
+    engine = MoveContextBuilder(StaticAnalysisProvider(engine_analysis))
 
     with pytest.raises(AnalysisError, match="does not match requested move"):
         engine.build(request)
@@ -472,7 +474,7 @@ def test_rejects_engine_line_with_illegal_pv_move() -> None:
     board = chess.Board()
     engine_analysis = EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
         top_lines=[
             EngineLine(
                 move_uci="e2e4",
@@ -499,7 +501,7 @@ def test_rejects_engine_line_with_illegal_pv_move() -> None:
         player_level=PlayerLevel.rating(1200),
     )
 
-    engine = MoveContextEngine(StaticAnalyzer(engine_analysis))
+    engine = MoveContextBuilder(StaticAnalysisProvider(engine_analysis))
 
     with pytest.raises(AnalysisError, match="PV move e2e4 is illegal"):
         engine.build(request)

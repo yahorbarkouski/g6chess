@@ -18,19 +18,27 @@ empty folders for features that do not exist yet.
       py.typed
       context_engine/
         __init__.py
-        board.py
-        engine.py
+        candidate_policy.py
+        contracts.py
         exceptions.py
-        heuristics.py
-        models.py
-        providers.py
+        explanation_agenda.py
+        maia_likelihood.py
+        move_context_builder.py
+        move_quality.py
+        position_reconstruction.py
+        provider_protocols.py
+        stockfish_analysis.py
   tests/
     g6explanation/
       context_engine/
         helpers.py
-        test_board_reconstruction.py
-        test_context_engine.py
-        test_stockfish_provider.py
+        test_golden_packet_fixtures.py
+        test_maia_likelihood.py
+        test_move_context_builder.py
+        test_position_reconstruction.py
+        test_real_game_significance_examples.py
+        test_schema_contracts.py
+        test_stockfish_analysis.py
 ```
 
 ## Strategy
@@ -51,9 +59,19 @@ empty folders for features that do not exist yet.
 ## Module Naming Rules
 
 - Use domain names, not generic names.
-- Avoid `utils.py`, `common.py`, and `helpers.py` in production code.
+- Avoid `utils.py`, `common.py`, `helpers.py`, `models.py`, `providers.py`, and
+  `heuristics.py` in production code.
+- Name modules after the responsibility that would make them change, such as
+  `move_quality.py`, `candidate_policy.py`, `position_reconstruction.py`, or
+  `stockfish_analysis.py`.
+- Prefer public class names that describe responsibility, such as
+  `MoveContextBuilder`, `EngineAnalysisProvider`,
+  `HumanMoveLikelihoodProvider`, and `ContextContract`.
+- Keep schema contracts in `contracts.py`; treat those names and JSON shapes as
+  product contracts.
 - Keep test-only helpers inside the relevant test package.
-- Keep external integrations behind provider modules or classes.
+- Keep external integrations behind explicitly named provider protocols and
+  concrete adapter modules.
 
 ## When To Add A New Package
 

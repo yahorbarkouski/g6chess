@@ -1,26 +1,29 @@
 """Context engine for focused chess move explanations."""
 
-from g6explanation.context_engine import MoveContextEngine
-from g6explanation.context_engine.models import (
+from g6explanation.context_engine import (
     ContextResult,
     EvidencePacket,
+    KeyMoveContext,
     LLMContext,
+    Maia2MoveLikelihoodProvider,
+    MoveContextBuilder,
     MoveContextRequest,
     MoveSignificance,
     PlayerLevel,
+    StockfishAnalysisProvider,
     VerificationResult,
 )
-from g6explanation.context_engine.providers import Maia2ProbabilityProvider, StockfishAnalyzer
 
 __all__ = [
     "ContextResult",
     "EvidencePacket",
+    "KeyMoveContext",
     "LLMContext",
-    "Maia2ProbabilityProvider",
-    "MoveContextEngine",
+    "Maia2MoveLikelihoodProvider",
+    "MoveContextBuilder",
     "MoveContextRequest",
     "MoveSignificance",
     "PlayerLevel",
-    "StockfishAnalyzer",
+    "StockfishAnalysisProvider",
     "VerificationResult",
 ]

@@ -3,9 +3,9 @@ from __future__ import annotations
 import chess
 import pytest
 
-from g6explanation.context_engine import MoveContextEngine
-from g6explanation.context_engine.models import MoveContextRequest, PlayerLevel
-from tests.g6explanation.context_engine.helpers import StaticAnalyzer, analysis
+from g6explanation.context_engine import MoveContextBuilder
+from g6explanation.context_engine.contracts import ColorName, MoveContextRequest, PlayerLevel
+from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 
 
 @pytest.mark.parametrize(
@@ -35,7 +35,7 @@ from tests.g6explanation.context_engine.helpers import StaticAnalyzer, analysis
 def test_golden_packet_fixtures_cover_chess_state_edges(
     fen: str,
     played_uci: str,
-    player_color: str,
+    player_color: ColorName,
 ) -> None:
     board = chess.Board(fen)
     engine_analysis = analysis(
@@ -51,7 +51,7 @@ def test_golden_packet_fixtures_cover_chess_state_edges(
         player_level=PlayerLevel.rating(1200),
     )
 
-    result = MoveContextEngine(StaticAnalyzer(engine_analysis)).build(request)
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
     board_after = board.copy(stack=False)
     board_after.push(chess.Move.from_uci(played_uci))
 

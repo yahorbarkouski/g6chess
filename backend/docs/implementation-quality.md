@@ -29,18 +29,26 @@ src/g6explanation/
   py.typed
   context_engine/
     __init__.py
-    board.py
-    engine.py
+    candidate_policy.py
+    contracts.py
     exceptions.py
-    heuristics.py
-    models.py
-    providers.py
+    explanation_agenda.py
+    maia_likelihood.py
+    move_context_builder.py
+    move_quality.py
+    position_reconstruction.py
+    provider_protocols.py
+    stockfish_analysis.py
 
 tests/g6explanation/context_engine/
   helpers.py
-  test_board_reconstruction.py
-  test_context_engine.py
-  test_stockfish_provider.py
+  test_golden_packet_fixtures.py
+  test_maia_likelihood.py
+  test_move_context_builder.py
+  test_position_reconstruction.py
+  test_real_game_significance_examples.py
+  test_schema_contracts.py
+  test_stockfish_analysis.py
 ```
 
 The first code implements:
@@ -49,7 +57,7 @@ The first code implements:
 MoveContextRequest
   -> board reconstruction
   -> engine analysis provider
-  -> candidate practicality heuristics
+  -> candidate recommendation policy
   -> evidence packet
   -> compact LLM context
 ```
@@ -66,6 +74,9 @@ The first code should not implement:
 
 - Use `src/` layout so tests exercise the package import shape.
 - Keep domain modules near the bounded context they serve.
+- Use specific module names that describe the domain responsibility. Do not add
+  production catch-all modules named `models`, `providers`, `heuristics`,
+  `utils`, or `common`.
 - Mirror test folders to the package path under test when it improves
   navigation, such as `tests/g6explanation/context_engine/` for
   `src/g6explanation/context_engine/`.
@@ -99,13 +110,15 @@ After every major code change, run:
 ```text
 uv run ruff format --check .
 uv run ruff check .
+uv run mypy src tests
+uv run pyright
 uv run pytest -q
 ```
 
 Use `uv run ruff format .` to apply formatting when the format check fails.
 
-Do not mark code work complete until Ruff and tests pass. If a check cannot run,
-record the reason and residual risk in the completion note.
+Do not mark code work complete until Ruff, mypy, Pyright, and tests pass. If a
+check cannot run, record the reason and residual risk in the completion note.
 
 After major coherent changes, follow `docs/development-flow.md` and create a
 checkpoint commit with a clear conventional-style message.

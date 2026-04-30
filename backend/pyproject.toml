@@ -15,6 +15,8 @@ maia = [
 
 [dependency-groups]
 dev = [
+  "mypy>=1.15",
+  "pyright>=1.1",
   "pytest>=8",
   "ruff>=0.8",
 ]
@@ -26,6 +28,22 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests/g6explanation"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unreachable = true
+show_error_codes = true
+
+[tool.pydantic-mypy]
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
 
 [tool.ruff]
 line-length = 100

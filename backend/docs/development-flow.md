@@ -23,6 +23,8 @@ Run:
 ```text
 uv run ruff format --check .
 uv run ruff check .
+uv run mypy src tests
+uv run pyright
 uv run pytest -q
 ```
 
@@ -96,6 +98,8 @@ Checks:
 - Do not mix unrelated changes in one commit.
 - Do not commit generated caches or local environment files.
 - Do not include broad scaffolding unless the implemented slice requires it.
+- Do not introduce production catch-all modules or vague class names; use the
+  domain taxonomy from `docs/adr/0008-python-module-taxonomy-and-type-safety.md`.
 - Keep docs, tests, and code together when they describe the same behavior.
 - If a change affects an ADR-level decision, include the ADR update in the same
   checkpoint or in an immediately adjacent docs commit.

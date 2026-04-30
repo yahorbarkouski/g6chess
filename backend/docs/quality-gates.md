@@ -70,6 +70,11 @@ as final.
 
 Code changes must include tests at the level where the risk lives.
 
+Static type checks are part of this gate for Python code:
+
+- `uv run mypy src tests`
+- `uv run pyright`
+
 Expected test types:
 
 - Unit tests for parsers, score normalization, classification, and detectors.

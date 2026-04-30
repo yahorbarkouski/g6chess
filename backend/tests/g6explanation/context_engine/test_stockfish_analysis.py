@@ -4,9 +4,9 @@ import shutil
 
 import pytest
 
-from g6explanation.context_engine import MoveContextEngine
-from g6explanation.context_engine.models import MoveContextRequest, PlayerLevel
-from g6explanation.context_engine.providers import StockfishAnalyzer
+from g6explanation.context_engine import MoveContextBuilder
+from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
+from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
 
 
 @pytest.mark.skipif(shutil.which("stockfish") is None, reason="stockfish binary is not installed")
@@ -19,15 +19,19 @@ def test_stockfish_provider_builds_smoke_context() -> None:
         time_control="rapid",
     )
 
-    result = MoveContextEngine(
-        StockfishAnalyzer(depth=4, multipv=2, threads=1, hash_mb=16, show_wdl=True)
+    result = MoveContextBuilder(
+        StockfishAnalysisProvider(depth=4, multipv=2, threads=1, hash_mb=16, show_wdl=True)
     ).build(request)
 
     assert result.evidence.played.san == "e4"
     assert 1 <= len(result.evidence.engine.top_lines) <= 2
     assert result.evidence.candidates
     assert result.llm_context.played == "e4"
-    assert result.evidence.engine.analysis_budget == {"kind": "depth", "value": 4, "multipv": 2}
+    assert result.evidence.engine.analysis_budget.to_dict() == {
+        "kind": "depth",
+        "value": 4,
+        "multipv": 2,
+    }
     assert result.evidence.engine.engine_options["UCI_ShowWDL"] is True
     assert result.evidence.engine.engine_options["Threads"] == 1
     assert result.evidence.engine.engine_options["Hash"] == 16

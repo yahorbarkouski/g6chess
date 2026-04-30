@@ -36,6 +36,12 @@ or verification policy, add or update an ADR before or with the implementation.
 - Keep chess truth outside the LLM.
 - Treat structured schemas as product contracts, not implementation details.
 - Make illegal states hard to represent.
+- Name production modules and classes after concrete domain responsibilities.
+  Avoid catch-all names such as `heuristics`, `models`, `providers`, `utils`,
+  and `common`.
+- Split a module when it has multiple reasons to change, especially when chess
+  truth, recommendation policy, provider I/O, and LLM-facing agenda construction
+  start living together.
 - Add deterministic checks before relying on model judgment.
 - Keep source/data licenses explicit and traceable.
 - Never train global models on user-imported games unless rights are explicit.
@@ -104,6 +110,8 @@ A change is not complete until:
 - Relevant tests pass.
 - `uv run ruff format --check .` passes, or formatting is applied and rechecked.
 - `uv run ruff check .` passes.
+- `uv run mypy src tests` passes.
+- `uv run pyright` passes.
 - `uv run pytest -q` passes.
 - New behavior has tests or a written reason tests are not applicable.
 - Schemas, ADRs, or docs are updated when contracts change.
@@ -115,6 +123,8 @@ After every major code change, run the full local check set:
 ```text
 uv run ruff format --check .
 uv run ruff check .
+uv run mypy src tests
+uv run pyright
 uv run pytest -q
 ```
 

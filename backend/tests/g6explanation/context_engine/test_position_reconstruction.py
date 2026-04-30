@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from g6explanation.context_engine.board import reconstruct_board_context
+from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
 from g6explanation.context_engine.exceptions import AmbiguousRequestError, InvalidRequestError
-from g6explanation.context_engine.models import MoveContextRequest, PlayerLevel
+from g6explanation.context_engine.position_reconstruction import reconstruct_move_context
 
 
 def test_reconstructs_fen_and_played_move() -> None:
@@ -15,7 +15,7 @@ def test_reconstructs_fen_and_played_move() -> None:
         player_level=PlayerLevel.rating(1200),
     )
 
-    _, _, context = reconstruct_board_context(request)
+    _, _, context = reconstruct_move_context(request)
 
     assert context.played.uci == "e2e4"
     assert context.played.san == "e4"
@@ -32,7 +32,7 @@ def test_rejects_player_color_that_does_not_match_side_to_move() -> None:
     )
 
     with pytest.raises(InvalidRequestError):
-        reconstruct_board_context(request)
+        reconstruct_move_context(request)
 
 
 def test_requires_ply_for_pgn_input() -> None:
@@ -44,7 +44,7 @@ def test_requires_ply_for_pgn_input() -> None:
     )
 
     with pytest.raises(AmbiguousRequestError):
-        reconstruct_board_context(request)
+        reconstruct_move_context(request)
 
 
 def test_reconstructs_pgn_move_by_ply() -> None:
@@ -56,7 +56,7 @@ def test_reconstructs_pgn_move_by_ply() -> None:
         player_level=PlayerLevel.rating(1200),
     )
 
-    board, move, context = reconstruct_board_context(request)
+    board, move, context = reconstruct_move_context(request)
 
     assert board.fen().startswith("rnbqkbnr/pppppppp/8/8/4P3")
     assert move.uci() == "e7e5"

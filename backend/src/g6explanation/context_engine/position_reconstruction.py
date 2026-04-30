@@ -1,4 +1,4 @@
-"""Board reconstruction for a single move."""
+"""Position reconstruction for a single move."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ import io
 import chess
 import chess.pgn
 
-from g6explanation.context_engine.exceptions import AmbiguousRequestError, InvalidRequestError
-from g6explanation.context_engine.models import (
-    BoardContext,
+from g6explanation.context_engine.contracts import (
     ColorName,
     MoveContextRequest,
-    MoveFacts,
+    PlayedMoveFacts,
     PositionContext,
+    ReconstructedMoveContext,
 )
+from g6explanation.context_engine.exceptions import AmbiguousRequestError, InvalidRequestError
 
 
 def color_name(color: chess.Color) -> ColorName:
@@ -25,10 +25,10 @@ def chess_color(name: ColorName) -> chess.Color:
     return chess.WHITE if name == "white" else chess.BLACK
 
 
-def reconstruct_board_context(
+def reconstruct_move_context(
     request: MoveContextRequest,
-) -> tuple[chess.Board, chess.Move, BoardContext]:
-    """Return board before the move, parsed move, and serializable board context."""
+) -> tuple[chess.Board, chess.Move, ReconstructedMoveContext]:
+    """Return board before the move, parsed move, and serializable move context."""
 
     if request.fen_before and request.pgn:
         raise InvalidRequestError("Provide either fen_before or pgn, not both.")
@@ -54,7 +54,7 @@ def reconstruct_board_context(
     board_after = board.copy(stack=False)
     board_after.push(move)
 
-    played = MoveFacts(
+    played = PlayedMoveFacts(
         uci=move.uci(),
         san=san,
         legal=True,
@@ -71,7 +71,7 @@ def reconstruct_board_context(
         phase=_phase(board),
         legal_moves_uci=[legal.uci() for legal in board.legal_moves],
     )
-    return board, move, BoardContext(position=position, played=played)
+    return board, move, ReconstructedMoveContext(position=position, played=played)
 
 
 def _board_from_fen(fen: str) -> chess.Board:

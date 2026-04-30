@@ -4,10 +4,12 @@ from dataclasses import dataclass
 
 import chess
 
-from g6explanation.context_engine.models import (
+from g6explanation.context_engine.contracts import (
+    ColorName,
     EngineAnalysis,
+    EngineAnalysisBudget,
     EngineLine,
-    HumanMoveStats,
+    HumanMoveLikelihood,
     MoveContextRequest,
     Score,
     Wdl,
@@ -46,7 +48,7 @@ def analysis(
     after_board.push(played_move)
     return EngineAnalysis(
         engine_version="static-test-engine",
-        analysis_budget={"kind": "static", "value": 1, "multipv": len(top_scores)},
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=len(top_scores)),
         top_lines=[
             engine_line(board, move_uci, score, rank=index + 1)
             for index, (move_uci, score) in enumerate(top_scores)
@@ -59,25 +61,25 @@ def analysis(
 
 
 @dataclass(frozen=True)
-class StaticAnalyzer:
+class StaticAnalysisProvider:
     engine_analysis: EngineAnalysis
 
     def analyze(
-        self, board: chess.Board, played_move: chess.Move, player_color: str
+        self, board: chess.Board, played_move: chess.Move, player_color: ColorName
     ) -> EngineAnalysis:
         return self.engine_analysis
 
 
 @dataclass(frozen=True)
-class StaticHumanProvider:
-    stats: dict[str, HumanMoveStats]
+class StaticHumanLikelihoodProvider:
+    stats: dict[str, HumanMoveLikelihood]
 
-    def probabilities(
+    def likelihoods(
         self,
         board: chess.Board,
         candidate_moves: list[chess.Move],
         request: MoveContextRequest,
-    ) -> dict[str, HumanMoveStats]:
+    ) -> dict[str, HumanMoveLikelihood]:
         return {
             move.uci(): self.stats[move.uci()]
             for move in candidate_moves

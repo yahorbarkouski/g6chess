@@ -34,8 +34,15 @@ model eval smoke test
 data-source manifest validation
 ```
 
-These should eventually be exposed through a single documented command, but only
-after the actual stack is chosen.
+The current Python typecheck commands are:
+
+```text
+uv run mypy src tests
+uv run pyright
+```
+
+Broader schema, verifier, eval, and data checks should be exposed through a
+single documented command only after those stacks exist.
 
 ## Pre-Implementation Checklist
 
