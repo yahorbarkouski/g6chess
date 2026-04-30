@@ -1,57 +1,43 @@
 # Documentation Index
 
-These documents are the initial operating base for the project. They are meant
-to guide implementation, not replace it.
+Docs are split by decision type. Product docs define what the system must do.
+Development docs define how agents should build and verify it. ADRs record
+durable decisions.
 
-## Start Here
+## Product Docs
 
-- `../AGENTS.md`: required operating instructions for agents.
-- `end-goal.md`: end-state product target for actual implementation.
-- `context-engine.md`: how to build the evidence and coach context for the LLM.
-- `implementation-quality.md`: code quality and testing bar for implementation.
-- `project-structure.md`: Python package and test folder structure strategy.
-- `development-flow.md`: local checks, commit checkpoints, and commit messages.
-- `product-understanding.md`: product thesis, domain boundaries, and core
-  concepts.
-- `quality-gates.md`: required checks before code, datasets, explanations, or
-  models are promoted.
-- `testing-playbook.md`: how to create tests once implementation begins.
-- `agent-capabilities.md`: future agent capabilities, checks, and review
-  checklists.
-- `adr/README.md`: how to record durable decisions.
+- `product/end-goal.md`: product scope and API contract.
+- `product/context-engine.md`: evidence packet, LLM context, and candidate
+  policy.
+- `product/product-understanding.md`: domain boundaries and failure modes.
+- `product/prompt-guidelines.md`: prompt rules, claim limits, and verification
+  loop.
 
-## Current State
+## Development Docs
 
-The repository intentionally has no application scaffold yet. The first code
-should be created for a concrete vertical slice, not for a guessed architecture.
+- `development/implementation-quality.md`: code quality and package rules.
+- `development/project-structure.md`: repo layout and naming rules.
+- `development/development-flow.md`: checks, commits, and work sequencing.
+- `development/quality-gates.md`: schema, chess, explanation, dataset, and
+  model gates.
+- `development/testing-playbook.md`: unit, integration, golden, adversarial, and
+  eval test guidance.
+- `development/agent-capabilities.md`: agent checklists and review priorities.
 
-The first expected implementation slice is:
+## ADRs
 
-```text
-single PGN/FEN game context
-  -> one analyzed move
-  -> Stockfish evidence
-  -> normalized incident packet
-  -> deterministic checks
-  -> prompted explanation string
-  -> verified API response
-```
+- `adr/README.md`: ADR format and when to write one.
+- `adr/*.md`: accepted, superseded, proposed, or rejected decisions.
+
+## Compatibility Paths
+
+Top-level docs such as `end-goal.md` are short redirects for older ADR links and
+agent instructions. New work should use the foldered paths above.
 
 ## Maintenance Rules
 
-- Update docs when implementation changes a contract.
-- Add an ADR when a decision should persist beyond the current task.
-- Do not add broad placeholder docs. Every document should help implementation,
-  testing, review, product quality, or model governance.
-- Keep examples small and executable once code exists.
-
-## Local Checks
-
-Use `uv` for local development:
-
-```text
-uv sync --all-groups
-uv run ruff format --check .
-uv run ruff check .
-uv run pytest -q
-```
+- Update product docs when product contracts or model behavior change.
+- Update development docs when workflow, checks, structure, or testing changes.
+- Add an ADR for durable architecture, schema, data, verifier, model, or
+  production-behavior decisions.
+- Keep docs operational: rules, contracts, checklists, and examples only.

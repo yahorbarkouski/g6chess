@@ -14,16 +14,18 @@ Every agent must preserve that separation.
 
 Before making implementation changes, read these files:
 
-1. `docs/end-goal.md`
-2. `docs/context-engine.md`
-3. `docs/implementation-quality.md`
-4. `docs/project-structure.md`
-5. `docs/development-flow.md`
-6. `docs/product-understanding.md`
-7. `docs/quality-gates.md`
-8. `docs/testing-playbook.md`
-9. `docs/adr/README.md`
-10. Relevant accepted ADRs in `docs/adr/`
+1. `docs/product/end-goal.md`
+2. `docs/product/context-engine.md`
+3. `docs/product/product-understanding.md`
+4. `docs/product/prompt-guidelines.md`
+5. `docs/development/implementation-quality.md`
+6. `docs/development/project-structure.md`
+7. `docs/development/development-flow.md`
+8. `docs/development/quality-gates.md`
+9. `docs/development/testing-playbook.md`
+10. `docs/development/agent-capabilities.md`
+11. `docs/adr/README.md`
+12. Relevant accepted ADRs in `docs/adr/`
 
 If a change affects architecture, data rights, model behavior, schema contracts,
 or verification policy, add or update an ADR before or with the implementation.
