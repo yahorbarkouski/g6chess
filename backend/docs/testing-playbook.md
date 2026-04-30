@@ -71,6 +71,17 @@ Use integration tests for external binaries and models:
 
 Keep engine budgets tiny in normal CI. Deeper analysis belongs in offline evals.
 
+Real Maia evaluation is opt-in because it depends on the optional runtime and
+local model files:
+
+```text
+G6EXPLANATION_RUN_MAIA2=1 uv run pytest tests/g6explanation/context_engine/test_real_game_maia_evaluation.py -q
+```
+
+Use actual Maia in integration/evaluation tests, not ordinary unit tests. Static
+human-likelihood providers should remain the default for deterministic policy
+tests; the real Maia gate verifies calibration on representative positions.
+
 ## Golden Tests
 
 Golden tests should cover stable examples:
