@@ -17,6 +17,8 @@ candidate, quality, and verifier objects.
 ## Rules
 
 - Stockfish is the required objective-strength source for production context.
+- Stockfish depth-limited analysis must use depth 16 or deeper for production,
+  engine-backed integration tests, evaluations, and visualization packets.
 - Maia is optional human-likeness evidence; it affects findability, not move
   quality.
 - Every recommended candidate must carry objective evidence and findability or

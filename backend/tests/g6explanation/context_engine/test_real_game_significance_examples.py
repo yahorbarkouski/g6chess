@@ -7,7 +7,10 @@ import pytest
 
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import ColorName, MoveContextRequest, PlayerLevel
-from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
+from g6explanation.context_engine.stockfish_analysis import (
+    MIN_STOCKFISH_DEPTH,
+    StockfishAnalysisProvider,
+)
 
 STOCKFISH = shutil.which("stockfish")
 
@@ -81,7 +84,7 @@ def test_real_game_significance_and_beauty_examples_with_stockfish() -> None:
     engine = MoveContextBuilder(
         StockfishAnalysisProvider(
             binary_path=STOCKFISH or "stockfish",
-            depth=10,
+            depth=MIN_STOCKFISH_DEPTH,
             multipv=3,
             threads=1,
             hash_mb=64,
@@ -135,7 +138,7 @@ def test_real_game_significance_and_beauty_examples_with_stockfish() -> None:
             "game": "Kasparov's Immortal",
             "move": "Rxd4",
             "quality": "best",
-            "significance": "high",
+            "significance": "critical",
             "beauty": "beautiful",
         },
     ]

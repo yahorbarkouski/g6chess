@@ -5,7 +5,7 @@
 Agents working here should be able to:
 
 - parse and replay chess games deterministically
-- call Stockfish through UCI and parse results
+- call Stockfish through UCI at depth 16 or deeper and parse results
 - call optional Maia or replacement human-likeness providers
 - validate JSON schemas
 - run deterministic chess verification

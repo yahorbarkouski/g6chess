@@ -20,7 +20,10 @@ from g6explanation.context_engine.contracts import (
     PlayerLevel,
 )
 from g6explanation.context_engine.maia_likelihood import Maia2MoveLikelihoodProvider, MaiaModelType
-from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
+from g6explanation.context_engine.stockfish_analysis import (
+    MIN_STOCKFISH_DEPTH,
+    StockfishAnalysisProvider,
+)
 from g6explanation.visualization.contracts import (
     VisualizationExample,
     VisualizationMove,
@@ -231,7 +234,7 @@ def _production_builder() -> MoveContextBuilder:
 
     analysis = StockfishAnalysisProvider(
         binary_path=stockfish_binary,
-        depth=_int_env("G6_VISUALIZATION_STOCKFISH_DEPTH", 12),
+        depth=_int_env("G6_VISUALIZATION_STOCKFISH_DEPTH", MIN_STOCKFISH_DEPTH),
         multipv=_int_env("G6_VISUALIZATION_STOCKFISH_MULTIPV", 5),
         threads=_optional_int_env("G6_VISUALIZATION_STOCKFISH_THREADS"),
         hash_mb=_optional_int_env("G6_VISUALIZATION_STOCKFISH_HASH_MB"),

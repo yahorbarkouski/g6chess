@@ -47,12 +47,14 @@ Each fixed bug leaves a regression test.
 
 Use integration tests for external binaries and model adapters:
 
-- Stockfish startup and readiness
-- MultiPV and WDL parsing
-- `searchmoves` forced played-move analysis
+- Stockfish startup and readiness at depth 16 or deeper
+- MultiPV and WDL parsing at depth 16 or deeper
+- `searchmoves` forced played-move analysis at depth 16 or deeper
 - Maia inference returns legal move probabilities
 
-Keep normal CI budgets small. Deeper analysis belongs in offline evals.
+Keep normal CI budgets small by limiting the number of real-engine fixtures, not
+by lowering Stockfish below depth 16. Use static providers when a test does not
+need real engine behavior. Deeper stability analysis belongs in offline evals.
 
 Real Maia evaluation is opt-in:
 

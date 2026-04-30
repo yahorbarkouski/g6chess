@@ -57,9 +57,12 @@ that would make the coach lie:
 - unsupported tactic, material, or PV claim
 
 Use deterministic static providers for most tests. Use Stockfish only in small
-integration tests that can skip when the binary is unavailable. Use the opt-in
-real Maia gate only for integration/evaluation work that needs the actual
-optional runtime.
+integration tests that can skip when the binary is unavailable, and keep every
+depth-limited Stockfish integration/evaluation/visualization context at depth 16
+or deeper. Do not reduce real Stockfish depth for speed; replace the test with a
+static provider when the expensive engine call is not the behavior under test.
+Use the opt-in real Maia gate only for integration/evaluation work that needs
+the actual optional runtime.
 
 ## Required Checks
 

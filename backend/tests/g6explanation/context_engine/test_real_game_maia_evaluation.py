@@ -10,7 +10,10 @@ import pytest
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import ColorName, MoveContextRequest, PlayerLevel
 from g6explanation.context_engine.maia_likelihood import Maia2MoveLikelihoodProvider
-from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
+from g6explanation.context_engine.stockfish_analysis import (
+    MIN_STOCKFISH_DEPTH,
+    StockfishAnalysisProvider,
+)
 from tests.g6explanation.context_engine.test_real_game_significance_examples import (
     BYRNE_FISCHER,
     KASPAROV_TOPALOV,
@@ -79,7 +82,7 @@ def test_real_game_context_uses_actual_maia_likelihoods() -> None:
     builder = MoveContextBuilder(
         StockfishAnalysisProvider(
             binary_path=STOCKFISH or "stockfish",
-            depth=10,
+            depth=MIN_STOCKFISH_DEPTH,
             multipv=3,
             threads=1,
             hash_mb=64,

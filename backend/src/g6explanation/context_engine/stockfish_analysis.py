@@ -20,11 +20,13 @@ from g6explanation.context_engine.contracts import (
 from g6explanation.context_engine.exceptions import AnalysisError
 from g6explanation.context_engine.position_reconstruction import chess_color
 
+MIN_STOCKFISH_DEPTH = 16
+
 
 @dataclass(frozen=True)
 class StockfishAnalysisProvider:
     binary_path: str = "stockfish"
-    depth: int | None = 12
+    depth: int | None = MIN_STOCKFISH_DEPTH
     nodes: int | None = None
     multipv: int = 5
     threads: int | None = None
@@ -37,6 +39,10 @@ class StockfishAnalysisProvider:
             raise ValueError("StockfishAnalysisProvider requires either depth or nodes.")
         if self.depth is not None and self.nodes is not None:
             raise ValueError("StockfishAnalysisProvider accepts depth or nodes, not both.")
+        if self.depth is not None and self.depth < MIN_STOCKFISH_DEPTH:
+            raise ValueError(
+                f"StockfishAnalysisProvider depth must be at least {MIN_STOCKFISH_DEPTH} plies."
+            )
         if self.multipv < 1:
             raise ValueError("multipv must be at least 1.")
 

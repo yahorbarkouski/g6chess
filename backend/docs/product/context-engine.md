@@ -60,6 +60,8 @@ Stockfish is mandatory for production-quality explanations:
 - centipawn or mate score
 - WDL when available
 - engine version, options, depth/nodes, and MultiPV metadata
+- depth 16 or deeper for every depth-limited production, evaluation,
+  visualization, or integration-test context
 
 Maia, empirical frequencies, Syzygy, and concept detectors are optional. They
 may improve wording, but they must not override deterministic legality,

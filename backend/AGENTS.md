@@ -75,6 +75,9 @@ When reviewing or modifying code:
 
 - Normalize engine scores from the analyzed player's point of view at the system
   boundary where incidents are created.
+- Use Stockfish depth 16 or deeper for every real Stockfish-backed context,
+  integration test, evaluation, and visualization packet. Do not lower depth for
+  speed; use static providers for cheap deterministic tests instead.
 - Represent mate scores separately from centipawns.
 - Store UCI moves for computation and SAN only for display/explanation.
 - Verify that all model-mentioned moves are legal or present in supplied engine

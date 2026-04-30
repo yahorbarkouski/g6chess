@@ -30,7 +30,8 @@ Before explanation, verify:
 - correct `fen_after`
 - side-to-move, player color, and perspective consistency
 - separate centipawn and mate representations
-- Stockfish version, options, budget, and MultiPV metadata
+- Stockfish version, options, budget, and MultiPV metadata, with depth-limited
+  real-engine analysis at depth 16 or deeper
 - legal PV replay
 
 ## Gate 3: Explanation

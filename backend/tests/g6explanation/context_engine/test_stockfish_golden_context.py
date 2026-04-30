@@ -12,7 +12,10 @@ from g6explanation.context_engine.contracts import (
     MoveContextRequest,
     PlayerLevel,
 )
-from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
+from g6explanation.context_engine.stockfish_analysis import (
+    MIN_STOCKFISH_DEPTH,
+    StockfishAnalysisProvider,
+)
 
 STOCKFISH_BINARY = Path("/opt/homebrew/bin/stockfish")
 
@@ -23,7 +26,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_stockfish_golden_opening_context_records_metadata_and_wdl() -> None:
-    result = _stockfish_builder(depth=4, multipv=2).build(
+    result = _stockfish_builder(depth=MIN_STOCKFISH_DEPTH, multipv=2).build(
         MoveContextRequest(
             fen_before=chess.STARTING_FEN,
             played_move="e2e4",
@@ -46,7 +49,7 @@ def test_stockfish_golden_opening_context_records_metadata_and_wdl() -> None:
 
 
 def test_stockfish_golden_black_to_move_keeps_player_perspective() -> None:
-    result = _stockfish_builder(depth=4, multipv=2).build(
+    result = _stockfish_builder(depth=MIN_STOCKFISH_DEPTH, multipv=2).build(
         MoveContextRequest(
             fen_before="rnbqkbnr/pppppppp/8/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
             played_move="c7c5",
@@ -64,7 +67,7 @@ def test_stockfish_golden_black_to_move_keeps_player_perspective() -> None:
 
 
 def test_stockfish_golden_forces_played_move_outside_top_multipv() -> None:
-    result = _stockfish_builder(depth=4, multipv=1).build(
+    result = _stockfish_builder(depth=MIN_STOCKFISH_DEPTH, multipv=1).build(
         MoveContextRequest(
             fen_before=chess.STARTING_FEN,
             played_move="a2a3",
@@ -82,7 +85,7 @@ def test_stockfish_golden_forces_played_move_outside_top_multipv() -> None:
 
 
 def test_stockfish_golden_game_over_after_played_has_no_after_line() -> None:
-    result = _stockfish_builder(depth=3, multipv=1).build(
+    result = _stockfish_builder(depth=MIN_STOCKFISH_DEPTH, multipv=1).build(
         MoveContextRequest(
             fen_before="7k/5Q2/7K/8/8/8/8/8 w - - 0 1",
             played_move="f7f8",
@@ -100,7 +103,7 @@ def test_stockfish_golden_game_over_after_played_has_no_after_line() -> None:
 
 def test_stockfish_golden_supplements_top_human_move_with_root_analysis() -> None:
     result = MoveContextBuilder(
-        _stockfish_provider(depth=4, multipv=1),
+        _stockfish_provider(depth=MIN_STOCKFISH_DEPTH, multipv=1),
         StaticTopHumanProvider("h2h3"),
     ).build(
         MoveContextRequest(

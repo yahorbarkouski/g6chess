@@ -15,7 +15,10 @@ import pytest
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import ColorName, MoveContextRequest, PlayerLevel
 from g6explanation.context_engine.maia_likelihood import Maia2MoveLikelihoodProvider, MaiaModelType
-from g6explanation.context_engine.stockfish_analysis import StockfishAnalysisProvider
+from g6explanation.context_engine.stockfish_analysis import (
+    MIN_STOCKFISH_DEPTH,
+    StockfishAnalysisProvider,
+)
 
 STOCKFISH = os.getenv("G6_OPERA_EVAL_STOCKFISH_BINARY") or shutil.which("stockfish")
 HAS_MAIA2 = importlib.util.find_spec("maia2") is not None
@@ -96,7 +99,7 @@ def _production_like_builder() -> MoveContextBuilder:
     return MoveContextBuilder(
         StockfishAnalysisProvider(
             binary_path=STOCKFISH or "stockfish",
-            depth=_int_env("G6_OPERA_EVAL_STOCKFISH_DEPTH", 12),
+            depth=_int_env("G6_OPERA_EVAL_STOCKFISH_DEPTH", MIN_STOCKFISH_DEPTH),
             multipv=_int_env("G6_OPERA_EVAL_STOCKFISH_MULTIPV", 5),
             threads=_optional_int_env("G6_OPERA_EVAL_STOCKFISH_THREADS"),
             hash_mb=_optional_int_env("G6_OPERA_EVAL_STOCKFISH_HASH_MB"),
