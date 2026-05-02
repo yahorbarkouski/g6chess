@@ -22,11 +22,22 @@ src/g6explanation/
   context_engine/
     candidate_moves/
     signals/
+  visualization/
 
 tests/g6explanation/context_engine/
+tests/g6explanation/visualization/
 ```
 
-The current bounded context is `g6explanation.context_engine`.
+The implemented bounded contexts are:
+
+- `g6explanation.context_engine`: chess truth, evidence packets, compact LLM
+  context, and evidence verification
+- `g6explanation.visualization`: local inspection API over current context
+  packets
+
+The next bounded context should be `g6explanation.explanation_generation` or an
+equally concrete name for verified explanation output. Keep it downstream of
+`context_engine`.
 
 Do not add a web server, database, model server, user accounts, or broad app
 scaffolding until a concrete vertical slice requires it.
@@ -42,6 +53,9 @@ scaffolding until a concrete vertical slice requires it.
 - Keep deterministic move-evaluation signals under `context_engine/signals/`.
 - Keep candidate assembly, findability, practicality, and recommendation
   policy under `context_engine/candidate_moves/`.
+- Keep model provider adapters, prompt assembly, explanation-output schemas,
+  baseline rendering, and explanation-text verification outside
+  `context_engine`.
 - Do not keep compatibility wrapper modules after internal package refactors.
   Update callers to the canonical module path and delete the obsolete module in
   the same change.
@@ -63,6 +77,7 @@ that would make the coach lie:
 - hard engine move presented as obvious
 - Maia probability treated as quality
 - unsupported tactic, material, or PV claim
+- real model output returned before deterministic explanation verification
 
 Use deterministic static providers for most tests. Use Stockfish only in small
 integration tests that can skip when the binary is unavailable, and keep every

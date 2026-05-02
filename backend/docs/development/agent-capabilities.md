@@ -9,6 +9,8 @@ Agents working here should be able to:
 - call optional Maia or replacement human-likeness providers
 - validate JSON schemas
 - run deterministic chess verification
+- build and test a downstream explanation-generation layer without moving chess
+  truth into model code
 - run unit, integration, golden, and regression tests
 - inspect data manifests and source rights
 - update the concise ADR set when durable decisions change
@@ -21,12 +23,15 @@ Agents working here should be able to:
 - Which verifier checks protect it?
 - Which test fixture proves it?
 - Which failure mode should become a regression test?
+- If this touches model output, where is the deterministic explanation verifier?
 
 ## Completion Checklist
 
 - Relevant tests passed.
 - Schema changes were validated.
 - Chess correctness checks passed.
+- Raw model output, if any, passed deterministic explanation verification or was
+  replaced by a verified fallback.
 - New behavior has tests or eval fixtures.
 - Docs or ADRs changed when contracts changed.
 - Skipped checks and residual risks are named.

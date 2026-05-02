@@ -104,6 +104,17 @@ Prompt or model changes require evals:
 
 Compare against the current baseline.
 
+## First Explanation Generation Tests
+
+Before calling a real model, add tests for:
+
+- strict output schema with only an `explanation` string
+- deterministic baseline explanations from existing context packets
+- verifier rejection of unsupported moves, PVs, mate claims, material claims,
+  tactic claims, wrong-side language, and recommendation-policy violations
+- static provider retry and fallback behavior
+- frozen Opera Game and Game of the Century contexts as representative evals
+
 ## Test Names
 
 Name tests by behavior:

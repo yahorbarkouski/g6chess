@@ -39,6 +39,7 @@ Before explanation, verify:
 Every production explanation must pass:
 
 - schema validation
+- deterministic explanation-output verification
 - legal move validation for mentioned moves
 - best-move and practical-alternative consistency
 - no unsupported PV moves
@@ -46,7 +47,9 @@ Every production explanation must pass:
 - correct side attribution
 - hard alternatives caveated when context marks them hard
 
-Failure blocks the response.
+Failure blocks raw model output. The generation layer may retry once with
+verifier issues, then return a verified deterministic fallback or a controlled
+failure.
 
 ## Gate 4: Tests And Types
 

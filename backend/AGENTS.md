@@ -18,14 +18,15 @@ Before making implementation changes, read these files:
 2. `docs/product/context-engine.md`
 3. `docs/product/product-understanding.md`
 4. `docs/product/prompt-guidelines.md`
-5. `docs/development/implementation-quality.md`
-6. `docs/development/project-structure.md`
-7. `docs/development/development-flow.md`
-8. `docs/development/quality-gates.md`
-9. `docs/development/testing-playbook.md`
-10. `docs/development/agent-capabilities.md`
-11. `docs/adr/README.md`
-12. The three concise ADRs in `docs/adr/`
+5. `docs/product/explanation-generation.md`
+6. `docs/development/implementation-quality.md`
+7. `docs/development/project-structure.md`
+8. `docs/development/development-flow.md`
+9. `docs/development/quality-gates.md`
+10. `docs/development/testing-playbook.md`
+11. `docs/development/agent-capabilities.md`
+12. `docs/adr/README.md`
+13. The three concise ADRs in `docs/adr/`
 
 If a change affects architecture, data rights, model behavior, schema contracts,
 or verification policy, update the concise ADR set before or with the
@@ -54,6 +55,18 @@ implementation.
 - Never train global models on Chess.com-derived data without a license.
 - Do not let generated explanations enter training data until they pass schema,
   deterministic chess verification, and quality review gates.
+
+## Current Product Slice
+
+The context engine is implemented as the current truth-building layer. It
+produces verified evidence packets and compact `LLMContext` objects, with
+Stockfish depth 16 or deeper required for real engine-backed contexts.
+
+The next product slice is explanation generation. Build it downstream of
+`g6explanation.context_engine`, not inside the context engine. The first
+generation implementation must add strict explanation output contracts, a
+deterministic baseline renderer, an explanation-text verifier, static provider
+tests, retry or fallback behavior, and only then a real model adapter.
 
 ## Context Intake Protocol
 
@@ -95,6 +108,10 @@ When reviewing or modifying code:
 The public API returns one explanation string. Internally, generation should be
 validated through a strict response contract, such as a schema with a single
 `explanation` string field plus private verification metadata.
+
+Model provider adapters may return raw schema-shaped output only to the
+generation layer. They must not modify Stockfish, Maia, candidate, quality,
+significance, beauty, or agenda decisions from the context engine.
 
 The coach model may:
 

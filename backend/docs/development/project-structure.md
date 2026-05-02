@@ -19,9 +19,11 @@
       context_engine/
         candidate_moves/
         signals/
+      visualization/
   tests/
     g6explanation/
       context_engine/
+      visualization/
 ```
 
 ## Strategy
@@ -52,6 +54,13 @@
   quality, significance, and beauty.
 - Use `context_engine/candidate_moves/` for candidate assembly, findability,
   practicality, recommendation policy, and key-candidate selection.
+- Use `visualization/` only for the local inspection API and real-game
+  experiment metadata. It must consume context packets instead of becoming a
+  truth-building layer.
+- When the explanation-generation slice starts, add a real package such as
+  `g6explanation.explanation_generation/` for output contracts, baseline
+  rendering, explanation verification, provider protocol, concrete model
+  adapters, and the `explain_move` orchestration service.
 - Delete obsolete internal modules during package refactors instead of leaving
   compatibility wrappers. Only documented public exports may preserve backward
   compatibility.

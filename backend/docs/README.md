@@ -12,6 +12,8 @@ durable decisions.
 - `product/product-understanding.md`: domain boundaries and failure modes.
 - `product/prompt-guidelines.md`: prompt rules, claim limits, and verification
   loop.
+- `product/explanation-generation.md`: next product slice for verified
+  explanation generation, provider boundaries, verifier checks, and evals.
 
 ## Development Docs
 
@@ -30,6 +32,12 @@ durable decisions.
 - `adr/0001-product-truth-boundary.md`: product and chess-truth boundary.
 - `adr/0002-context-contract-and-verification.md`: context contracts and gates.
 - `adr/0003-development-standards.md`: structure, docs, and workflow standards.
+
+## Audit Reports
+
+- `audits/`: scoped investigation reports and event logs. These are evidence
+  records, not operating guides; update product, development, or ADR docs for
+  durable rules.
 
 ## Maintenance Rules
 
