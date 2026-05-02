@@ -19,6 +19,8 @@ from g6explanation.context_engine.signals.score_comparison import (
 def calculate_significance(analysis: EngineAnalysis, played: PlayedMoveFacts) -> MoveSignificance:
     """Measure how much this move deserves emphasis relative to alternatives."""
 
+    if played.is_checkmate:
+        return MoveSignificance(label="critical", score=1.0)
     if has_mate_transition(analysis):
         return MoveSignificance(label="critical", score=1.0)
 

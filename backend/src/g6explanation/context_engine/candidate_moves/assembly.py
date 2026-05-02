@@ -18,8 +18,10 @@ from g6explanation.context_engine.contracts import (
     CandidateRole,
     EngineAnalysis,
     EngineLine,
+    FindabilityLabel,
     HumanMoveLikelihood,
     MoveContextRequest,
+    PracticalityCategory,
     TimeSituation,
 )
 from g6explanation.context_engine.signals.score_comparison import line_score_loss
@@ -122,7 +124,12 @@ def _candidate_from_line(
         situation=time_situation,
         previous_move_uci=previous_move_uci,
     )
-    candidate_practicality = practicality(roles, score_loss, findability)
+    candidate_practicality = _candidate_practicality(
+        roles=roles,
+        score_loss=score_loss,
+        findability=findability,
+        line=line,
+    )
     return CandidateMove(
         san=line.move_san,
         uci=line.move_uci,
@@ -145,6 +152,17 @@ def _candidate_from_line(
         practicality=candidate_practicality,
         recommendation_policy=recommendation_policy(candidate_practicality, findability, skill_gap),
     )
+
+
+def _candidate_practicality(
+    roles: list[CandidateRole],
+    score_loss: int | None,
+    findability: FindabilityLabel,
+    line: EngineLine,
+) -> PracticalityCategory:
+    if line.score.kind == "mate" and line.score.mate_for == "player":
+        return "clear_recommendation"
+    return practicality(roles, score_loss, findability)
 
 
 def _append_role(roles: list[CandidateRole], role: CandidateRole) -> list[CandidateRole]:

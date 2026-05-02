@@ -230,6 +230,12 @@ def _verify_played_position(
 
     after_board = board.copy(stack=False)
     after_board.push(move)
+    if evidence.played.is_checkmate != after_board.is_checkmate():
+        issues.fail(
+            "played_move_fact_mismatch",
+            "$.played.is_checkmate",
+            "Played checkmate flag does not match board replay.",
+        )
     if after_board.fen() != evidence.position.fen_after:
         issues.fail(
             "fen_after_mismatch",
@@ -535,6 +541,7 @@ def _verify_candidate(
     if (
         candidate.recommendation_policy == "recommend_directly"
         and candidate.time_adjusted_findability in HARD_FINDABILITY
+        and not _is_player_mate(candidate)
     ):
         issues.fail(
             "candidate_hard_direct_recommendation",
@@ -559,6 +566,10 @@ def _verify_candidate(
             f"{path}.recommendation_policy",
             "Hidden-resource policy requires hard_but_important practicality.",
         )
+
+
+def _is_player_mate(candidate: CandidateMove) -> bool:
+    return candidate.score.kind == "mate" and candidate.score.mate_for == "player"
 
 
 def _verify_llm_context(

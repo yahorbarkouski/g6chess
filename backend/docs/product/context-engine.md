@@ -100,16 +100,21 @@ player-level probability.
 Move quality answers whether the move was good. Normalize all score deltas from
 the analyzed player's point of view. Represent mate separately from centipawns.
 Use `forced` when the player had exactly one legal move; the position may still
-be winning or losing, but the move itself is not a mistake.
+be winning or losing, but the move itself is not a mistake. Immediate checkmate
+is `best` even when another checkmate is also available. If the played move
+preserves high Stockfish WDL win probability, do not label the move as a normal
+mistake or blunder solely because it was not the top engine move.
 
 Move significance answers how much this move deserves emphasis. It is one strict
 `label` plus `score`; do not add generated prose reasons. Labels are `low`,
-`moderate`, `high`, and `critical`. Mate transitions are always critical.
+`moderate`, `high`, and `critical`. Mate transitions and immediate checkmates
+are always critical.
 
 Move beauty answers whether a sound move contains a non-obvious aesthetic idea.
 It is one strict `label` plus `score`; do not let the LLM judge beauty. Labels
 are `low`, `notable`, `beautiful`, and `brilliant`. Unsound moves do not get a
-beauty bonus.
+beauty bonus. Non-mating `forced` moves are capped at low beauty because the
+player had no choice.
 
 ## LLM Context Shape
 

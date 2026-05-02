@@ -57,6 +57,9 @@ that would make the coach lie:
 - mate treated as centipawns
 - exactly-one-legal-move positions treated as ordinary mistakes instead of
   `forced`
+- immediate checkmates treated as neutral alternatives because another mate was
+  ranked first
+- high-WDL winning moves labeled as ordinary mistakes or blunders
 - hard engine move presented as obvious
 - Maia probability treated as quality
 - unsupported tactic, material, or PV claim

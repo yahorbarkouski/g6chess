@@ -227,8 +227,11 @@ def _featured_candidate(
         return key_candidate
     if quality.label == "forced":
         return played_candidate(candidates)
+    played = played_candidate(candidates)
+    if quality.label == "best" and played is not None and played.forcing_tier == "mate":
+        return played
     if quality.label == "best" and significance_label in {"high", "critical"}:
-        return played_candidate(candidates)
+        return played
     return None
 
 

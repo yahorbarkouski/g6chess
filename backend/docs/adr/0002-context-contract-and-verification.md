@@ -30,6 +30,11 @@ candidate, quality, and verifier objects.
   as a compatibility key for the main better-move focus.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
+- Immediate checkmates are quality `best` and significance `critical` even when
+  Stockfish orders another mating move first.
+- Non-mating forced moves are capped at low beauty, and high played WDL win
+  probability prevents non-mating moves from being labeled as ordinary mistakes
+  or blunders.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.

@@ -35,6 +35,9 @@ def calculate_beauty(
 ) -> MoveBeauty:
     """Measure sound aesthetic interest from engine, PV, and human-likeness evidence."""
 
+    if quality.label == "forced" and not _is_player_mate(analysis.played_line.score):
+        return MoveBeauty(label="low", score=0.0)
+
     soundness = _soundness(quality.label)
     if soundness == 0:
         return MoveBeauty(label="low", score=0.0)
@@ -79,6 +82,10 @@ def _soundness(label: MoveQualityLabel) -> float:
     if label in {"forced", "neutral"}:
         return 0.55
     return 0.0
+
+
+def _is_player_mate(score: Score) -> bool:
+    return score.kind == "mate" and score.mate_for == "player"
 
 
 def _surprise_component(likelihood: HumanMoveLikelihood | None) -> float:

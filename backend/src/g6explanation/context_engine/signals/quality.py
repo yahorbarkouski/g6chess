@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from g6explanation.context_engine.contracts import (
     EngineAnalysis,
+    EngineLine,
     MoveQuality,
     MoveQualityLabel,
     PlayedMoveFacts,
@@ -20,6 +21,7 @@ from g6explanation.context_engine.signals.score_comparison import (
 BAD_QUALITY_LABELS: frozenset[MoveQualityLabel] = frozenset(
     {"inaccuracy", "mistake", "blunder", "missed_win"}
 )
+HIGH_WIN_PROBABILITY_FLOOR = 800
 QUALITY_ORDER: dict[MoveQualityLabel, int] = {
     "best": 0,
     "forced": 1,
@@ -41,8 +43,10 @@ def classify_quality(
     cp_loss = score_loss_cp(best.score, played_line.score)
     wdl_loss = wdl_expected_score_loss(best.wdl, played_line.wdl)
 
-    if legal_move_count == 1:
-        label: MoveQualityLabel = "forced"
+    if played.is_checkmate:
+        label: MoveQualityLabel = "best"
+    elif legal_move_count == 1:
+        label = "forced"
     elif played_line.score.kind == "mate" and played_line.score.mate_for == "opponent":
         label = "blunder"
     elif (
@@ -57,6 +61,7 @@ def classify_quality(
         cp_label = _label_from_cp_loss(cp_loss)
         wdl_label = _label_from_wdl_loss(wdl_loss)
         label = _worse_label(cp_label, wdl_label)
+        label = _apply_high_win_probability_floor(label, played_line)
 
     return MoveQuality(
         label=label,
@@ -104,6 +109,20 @@ def _worse_label(left: MoveQualityLabel, right: MoveQualityLabel) -> MoveQuality
     return left if QUALITY_ORDER[left] >= QUALITY_ORDER[right] else right
 
 
+def _apply_high_win_probability_floor(
+    label: MoveQualityLabel, played_line: EngineLine
+) -> MoveQualityLabel:
+    if label not in {"inaccuracy", "mistake", "blunder"}:
+        return label
+    if played_line.score.kind == "mate":
+        return label
+    if played_line.wdl is None:
+        return label
+    if played_line.wdl.win >= HIGH_WIN_PROBABILITY_FLOOR:
+        return "good"
+    return label
+
+
 def _severity_text(
     best: Score,
     played: Score,
@@ -115,6 +134,8 @@ def _severity_text(
         if played.kind == "mate" and played.mate_for == "opponent":
             return "the player had only one legal move; the position still allowed forced mate"
         return "the player had only one legal move"
+    if label == "best" and played.kind == "mate" and played.mate_for == "player":
+        return "the played move checkmated the opponent"
     if best.kind == "mate" or played.kind == "mate":
         if played.kind == "mate" and played.mate_for == "opponent":
             return "the move allowed a forced mate against the player"

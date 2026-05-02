@@ -170,6 +170,91 @@ def test_only_legal_move_is_forced_not_blunder() -> None:
     assert result.llm_context.featured_move.move == "Nxb8"
     assert "only_legal_move" in played_candidate.roles
     assert played_candidate.practicality == "only_move"
+    assert result.evidence.beauty.label == "low"
+    assert result.evidence.beauty.score == 0.0
+
+
+def test_immediate_checkmate_is_best_even_when_engine_prefers_another_mate() -> None:
+    board = chess.Board("1Q6/5pk1/2p3p1/1p2N2p/1b5P/1bn5/r5P1/2K5 b - - 15 41")
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="b4a3",
+                move_san="Ba3#",
+                score=Score.mate(mate_in=1, mate_for="player"),
+                rank=1,
+                pv_uci=["b4a3"],
+                pv_san=["Ba3#"],
+            ),
+            EngineLine(
+                move_uci="a2c2",
+                move_san="Rc2#",
+                score=Score.mate(mate_in=1, mate_for="player"),
+                rank=2,
+                pv_uci=["a2c2"],
+                pv_san=["Rc2#"],
+            ),
+        ],
+        played_line=EngineLine(
+            move_uci="a2c2",
+            move_san="Rc2#",
+            score=Score.mate(mate_in=1, mate_for="player"),
+            rank=None,
+            pv_uci=["a2c2"],
+            pv_san=["Rc2#"],
+        ),
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="a2c2",
+        player_color="black",
+        player_level=PlayerLevel.rating(2400),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.played.is_checkmate is True
+    assert result.evidence.quality.label == "best"
+    assert result.evidence.significance.label == "critical"
+    assert result.llm_context.featured_move is not None
+    assert result.llm_context.featured_move.move == "Rc2#"
+    assert result.llm_context.featured_move.practicality == "clear_recommendation"
+    assert result.llm_context.featured_move.reason == "it checkmates the opponent"
+    assert result.llm_context.featured_move.recommendation_policy == "recommend_directly"
+
+
+def test_high_played_win_probability_prevents_bad_quality_label() -> None:
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="e2e4",
+                move_san="e4",
+                score=Score.cp(1000),
+                rank=1,
+                wdl=Wdl(win=1000, draw=0, loss=0),
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="d2d4",
+            move_san="d4",
+            score=Score.cp(700),
+            rank=None,
+            wdl=Wdl(win=900, draw=100, loss=0),
+        ),
+    )
+
+    quality = classify_quality(
+        engine_analysis,
+        PlayedMoveFacts(uci="d2d4", san="d4", legal=True, is_check=False, is_capture=False),
+    )
+
+    assert quality.score_loss_vs_best_cp == 300
+    assert quality.wdl_expected_score_loss == 50
+    assert quality.label == "good"
 
 
 def test_critical_significance_when_best_move_is_much_better_than_second_best() -> None:

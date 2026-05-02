@@ -158,6 +158,8 @@ def article(label: str) -> str:
 
 
 def _key_move_reason(candidate: CandidateMove) -> str:
+    if candidate.score.kind == "mate" and candidate.score.mate_for == "player":
+        return "it checkmates the opponent"
     if candidate.practicality == "only_move":
         return "it is the only legal move"
     if candidate.practicality == "practical_try":

@@ -67,8 +67,8 @@ CASES = [
         player_color="white",
         rating=2800,
         expected_move="Rxd4",
-        expected_beauty="beautiful",
-        expected_findability="very_hard",
+        expected_beauty="brilliant",
+        expected_findability="engine_like",
         probability_kind="rare",
     ),
 ]

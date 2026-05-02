@@ -59,6 +59,7 @@ def reconstruct_move_context(
         san=san,
         legal=True,
         is_check=is_check,
+        is_checkmate=board_after.is_checkmate(),
         is_capture=is_capture,
         promotion=chess.piece_symbol(move.promotion).upper() if move.promotion else None,
     )

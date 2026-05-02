@@ -215,6 +215,7 @@ class PlayedMoveFacts(ContextContract):
     san: str
     legal: bool
     is_check: bool
+    is_checkmate: bool = False
     is_capture: bool
     promotion: str | None = None
 

@@ -21,6 +21,8 @@ Prioritize:
 - score normalization from player perspective
 - mate score representation
 - `forced` quality for exactly-one-legal-move positions
+- immediate checkmate quality/significance when multiple mates are available
+- high-WDL winning moves protected from ordinary mistake/blunder labels
 - WDL and MultiPV parsing
 - played-move forced analysis
 - evidence, LLM context, explanation, and verifier schemas
