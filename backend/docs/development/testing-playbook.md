@@ -38,6 +38,29 @@ Prioritize:
 - Engine-dependent tests should use tiny fixed budgets and skip cleanly when the
   binary is unavailable.
 
+## Local Environment
+
+Use `uv sync` for default development dependencies. Use `uv sync --extra maia`
+only when work needs actual Maia behavior.
+
+Keep local secrets and machine-specific paths in `.env`; do not commit it.
+
+Stockfish:
+
+- `StockfishAnalysisProvider` defaults to `stockfish` on `PATH`.
+- Visualization context generation can override the binary with
+  `G6_VISUALIZATION_STOCKFISH_BINARY`.
+- Opera full-game evaluation can override the binary with
+  `G6_OPERA_EVAL_STOCKFISH_BINARY`.
+- Every depth-limited real Stockfish context remains depth 16 or deeper.
+
+Maia:
+
+- Model files default to `./maia2_models`.
+- Override model location with `MAIA2_MODEL_ROOT`.
+- Real Maia tests are opt-in with `G6EXPLANATION_RUN_MAIA2=1`.
+- Opera full-game evaluation is opt-in with `G6EXPLANATION_RUN_OPERA_EVAL=1`.
+
 ## Unit Tests
 
 Use unit tests for pure logic: score parsing, normalization, classification,

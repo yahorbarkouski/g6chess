@@ -43,8 +43,9 @@ before real model output is product-ready.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.
-- Explanation verification blocks unsupported moves, PVs, tactics, material
-  claims, mate claims, and wrong-side attribution.
+- The future explanation-generation layer must block unsupported moves, PVs,
+  tactics, material claims, mate claims, and wrong-side attribution before any
+  model output is product-ready.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
 

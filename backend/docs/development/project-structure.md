@@ -5,6 +5,7 @@
 ```text
 .
   AGENTS.md
+  README.md
   pyproject.toml
   uv.lock
   docs/

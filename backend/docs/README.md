@@ -1,7 +1,8 @@
 # Documentation Index
 
-Docs are split by decision type. Product docs define what the system must do.
-Development docs define how agents should build and verify it. ADRs record
+Start at the root `README.md` for setup and at `../AGENTS.md` for operating
+rules. Docs are split by decision type. Product docs define what the system must
+do. Development docs define how agents should build and verify it. ADRs record
 durable decisions.
 
 ## Product Docs
@@ -35,9 +36,10 @@ durable decisions.
 
 ## Audit Reports
 
-- `audits/`: scoped investigation reports and event logs. These are evidence
-  records, not operating guides; update product, development, or ADR docs for
-  durable rules.
+- `audits/`: scoped investigation reports and event logs. Read them when
+  investigating prior findings, resuming an audit, or checking why a durable
+  rule changed. These are evidence records, not operating guides; update
+  product, development, or ADR docs for durable rules.
 
 ## Maintenance Rules
 

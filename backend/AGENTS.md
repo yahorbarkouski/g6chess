@@ -12,21 +12,40 @@ Every agent must preserve that separation.
 
 ## Required Reading
 
-Before making implementation changes, read these files:
+Before making implementation changes, read this startup set:
 
-1. `docs/product/end-goal.md`
-2. `docs/product/context-engine.md`
-3. `docs/product/product-understanding.md`
-4. `docs/product/prompt-guidelines.md`
-5. `docs/product/explanation-generation.md`
-6. `docs/development/implementation-quality.md`
-7. `docs/development/project-structure.md`
-8. `docs/development/development-flow.md`
-9. `docs/development/quality-gates.md`
-10. `docs/development/testing-playbook.md`
-11. `docs/development/agent-capabilities.md`
-12. `docs/adr/README.md`
-13. The three concise ADRs in `docs/adr/`
+1. `docs/product/product-understanding.md`
+2. `docs/product/end-goal.md`
+3. `docs/development/development-flow.md`
+4. `docs/development/quality-gates.md`
+5. `docs/adr/README.md` and the ADRs that govern the change
+
+Then read the slice-specific docs before touching that slice:
+
+- Context engine or chess truth: `docs/product/context-engine.md`,
+  `docs/development/implementation-quality.md`,
+  `docs/development/project-structure.md`,
+  `docs/development/testing-playbook.md`,
+  `docs/development/agent-capabilities.md`, and
+  `docs/adr/0002-context-contract-and-verification.md`.
+- Explanation generation or model behavior:
+  `docs/product/explanation-generation.md`,
+  `docs/product/prompt-guidelines.md`, `docs/product/context-engine.md`,
+  `docs/development/testing-playbook.md`, and
+  `docs/adr/0001-product-truth-boundary.md` plus
+  `docs/adr/0002-context-contract-and-verification.md`.
+- Visualization or local inspection API:
+  `docs/development/project-structure.md`,
+  `docs/development/implementation-quality.md`,
+  `docs/development/testing-playbook.md`, and
+  `docs/adr/0003-development-standards.md`.
+- Documentation-only changes: `docs/README.md`,
+  `docs/development/development-flow.md`,
+  `docs/development/project-structure.md`, `docs/adr/README.md`, and any
+  product or development doc being changed.
+
+For cross-cutting, architectural, schema, verifier, data, model, or uncertain
+changes, read the full product, development, and ADR set in `docs/README.md`.
 
 If a change affects architecture, data rights, model behavior, schema contracts,
 or verification policy, update the concise ADR set before or with the
@@ -73,7 +92,7 @@ tests, retry or fallback behavior, and only then a real model adapter.
 When starting work:
 
 1. Inspect the actual repo state with `rg --files`, `find`, and targeted reads.
-2. Read the relevant docs and ADRs.
+2. Read the startup and slice-specific docs and ADRs.
 3. Identify the narrowest product slice being changed.
 4. Find existing tests and quality checks before editing.
 5. State assumptions if the codebase does not yet encode a decision.
