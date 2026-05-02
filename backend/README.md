@@ -61,6 +61,8 @@ Stockfish:
 
 - `StockfishAnalysisProvider` defaults to `stockfish` on `PATH`.
 - Depth-limited real Stockfish contexts must use depth 16 or deeper.
+- Stockfish context tests can override the binary with
+  `G6EXPLANATION_STOCKFISH_BINARY`.
 - Visualization contexts can override the binary with
   `G6_VISUALIZATION_STOCKFISH_BINARY`.
 - Opera evaluation can override the binary with

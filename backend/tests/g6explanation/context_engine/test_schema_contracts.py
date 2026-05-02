@@ -15,6 +15,8 @@ from g6explanation.context_engine.contracts import (
     Score,
     VerificationIssue,
     VerificationResult,
+    Wdl,
+    WdlDelta,
 )
 
 
@@ -27,6 +29,8 @@ def test_context_models_export_json_schema() -> None:
         CandidateMove,
         VerificationIssue,
         VerificationResult,
+        Wdl,
+        WdlDelta,
     ]
     for model in models:
         schema = model.json_schema()
@@ -41,6 +45,23 @@ def test_score_contract_rejects_mixed_centipawn_and_mate_fields() -> None:
 
     with pytest.raises(ValidationError):
         Score(kind="mate", value=10, mate_in=2, mate_for="player")
+
+
+def test_wdl_contract_rejects_non_absolute_values() -> None:
+    with pytest.raises(ValidationError):
+        Wdl(win=1500, draw=-500, loss=0)
+
+    with pytest.raises(ValidationError):
+        Wdl(win=500, draw=400, loss=50)
+
+
+def test_wdl_delta_contract_accepts_signed_zero_sum_values() -> None:
+    delta = WdlDelta(win=-300, draw=100, loss=200)
+
+    assert delta.to_dict() == {"win": -300, "draw": 100, "loss": 200}
+
+    with pytest.raises(ValidationError):
+        WdlDelta(win=-300, draw=0, loss=200)
 
 
 def test_player_level_contract_rejects_rating_without_integer_value() -> None:

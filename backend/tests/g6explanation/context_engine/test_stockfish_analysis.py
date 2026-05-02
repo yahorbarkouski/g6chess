@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
+import os
+import shutil
 
 import pytest
 
@@ -11,7 +12,7 @@ from g6explanation.context_engine.stockfish_analysis import (
     StockfishAnalysisProvider,
 )
 
-STOCKFISH_BINARY = Path("/opt/homebrew/bin/stockfish")
+STOCKFISH_BINARY = os.getenv("G6EXPLANATION_STOCKFISH_BINARY") or shutil.which("stockfish")
 
 
 def test_stockfish_provider_rejects_depth_below_minimum() -> None:
@@ -20,10 +21,11 @@ def test_stockfish_provider_rejects_depth_below_minimum() -> None:
 
 
 @pytest.mark.skipif(
-    not STOCKFISH_BINARY.exists(),
-    reason="/opt/homebrew/bin/stockfish is not installed",
+    STOCKFISH_BINARY is None,
+    reason="stockfish is not installed; set G6EXPLANATION_STOCKFISH_BINARY",
 )
 def test_stockfish_provider_builds_smoke_context() -> None:
+    assert STOCKFISH_BINARY is not None
     request = MoveContextRequest(
         fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         played_move="e2e4",
@@ -34,7 +36,7 @@ def test_stockfish_provider_builds_smoke_context() -> None:
 
     result = MoveContextBuilder(
         StockfishAnalysisProvider(
-            binary_path=str(STOCKFISH_BINARY),
+            binary_path=STOCKFISH_BINARY,
             depth=MIN_STOCKFISH_DEPTH,
             multipv=2,
             threads=1,

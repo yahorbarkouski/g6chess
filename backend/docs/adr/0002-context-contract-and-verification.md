@@ -24,10 +24,14 @@ before real model output is product-ready.
 - Stockfish is the required objective-strength source for production context.
 - Stockfish depth-limited analysis must use depth 16 or deeper for production,
   engine-backed integration tests, evaluations, and visualization packets.
+- `EvidenceVerifier` rejects non-static Stockfish evidence that cannot prove
+  line depth 16 or deeper.
 - Maia is optional human-likeness evidence; it affects findability, not move
   quality. Stronger-player comparison probabilities are present only when the
   Maia rating buckets differ; equal-bucket comparisons must be represented as
   unavailable instead of duplicated.
+- Absolute engine WDL and signed WDL deltas are separate contracts. Absolute
+  WDL values are 0..1000 and sum to 1000; deltas may be signed and sum to 0.
 - Every recommended candidate must carry objective evidence and findability or
   `unknown`.
 - LLM context separates objective `engine_best_move`, optional
@@ -37,6 +41,9 @@ before real model output is product-ready.
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when
   Stockfish orders another mating move first.
+- If the best line is already forced mate against the player, the engine-best
+  defense is still `best`; only newly allowing mate or shortening the mate is a
+  mate-transition blunder.
 - Non-mating forced moves are capped at low beauty, and high played WDL win
   probability prevents non-mating moves from being labeled as ordinary mistakes
   or blunders.

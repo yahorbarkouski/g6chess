@@ -20,10 +20,12 @@ Prioritize:
 - Stockfish output parsing
 - score normalization from player perspective
 - mate score representation
+- already-lost forced-mate positions where the engine-best defense is not a
+  blunder
 - `forced` quality for exactly-one-legal-move positions
 - immediate checkmate quality/significance when multiple mates are available
 - high-WDL winning moves protected from ordinary mistake/blunder labels
-- WDL and MultiPV parsing
+- absolute WDL validation, signed WDL delta validation, and MultiPV parsing
 - played-move forced analysis
 - evidence, LLM context, explanation, and verifier schemas
 - deterministic verifier failures
@@ -48,6 +50,8 @@ Keep local secrets and machine-specific paths in `.env`; do not commit it.
 Stockfish:
 
 - `StockfishAnalysisProvider` defaults to `stockfish` on `PATH`.
+- Stockfish context tests can override the binary with
+  `G6EXPLANATION_STOCKFISH_BINARY`.
 - Visualization context generation can override the binary with
   `G6_VISUALIZATION_STOCKFISH_BINARY`.
 - Opera full-game evaluation can override the binary with

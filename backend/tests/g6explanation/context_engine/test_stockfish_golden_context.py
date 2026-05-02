@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
 from dataclasses import dataclass
-from pathlib import Path
 
 import chess
 import pytest
@@ -17,11 +18,11 @@ from g6explanation.context_engine.stockfish_analysis import (
     StockfishAnalysisProvider,
 )
 
-STOCKFISH_BINARY = Path("/opt/homebrew/bin/stockfish")
+STOCKFISH_BINARY = os.getenv("G6EXPLANATION_STOCKFISH_BINARY") or shutil.which("stockfish")
 
 pytestmark = pytest.mark.skipif(
-    not STOCKFISH_BINARY.exists(),
-    reason="/opt/homebrew/bin/stockfish is not installed",
+    STOCKFISH_BINARY is None,
+    reason="stockfish is not installed; set G6EXPLANATION_STOCKFISH_BINARY",
 )
 
 
@@ -152,8 +153,9 @@ def _stockfish_builder(depth: int, multipv: int) -> MoveContextBuilder:
 
 
 def _stockfish_provider(depth: int, multipv: int) -> StockfishAnalysisProvider:
+    assert STOCKFISH_BINARY is not None
     return StockfishAnalysisProvider(
-        binary_path=str(STOCKFISH_BINARY),
+        binary_path=STOCKFISH_BINARY,
         depth=depth,
         multipv=multipv,
         threads=1,

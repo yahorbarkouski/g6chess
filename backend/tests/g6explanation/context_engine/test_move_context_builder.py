@@ -14,6 +14,7 @@ from g6explanation.context_engine.contracts import (
     PlayerLevel,
     Score,
     Wdl,
+    WdlDelta,
 )
 from g6explanation.context_engine.exceptions import AnalysisError
 from g6explanation.context_engine.signals import calculate_significance, classify_quality
@@ -398,6 +399,72 @@ def test_mate_scores_are_classified_without_centipawn_delta() -> None:
     assert "forced mate" in quality.severity_text
 
 
+def test_engine_best_in_already_lost_forced_mate_is_not_a_blunder() -> None:
+    analysis_with_opponent_mate = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="e2e4",
+                move_san="e4",
+                score=Score.mate(mate_in=5, mate_for="opponent"),
+                rank=1,
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="e2e4",
+            move_san="e4",
+            score=Score.mate(mate_in=5, mate_for="opponent"),
+            rank=None,
+        ),
+    )
+    played = PlayedMoveFacts(
+        uci="e2e4",
+        san="e4",
+        legal=True,
+        is_check=False,
+        is_capture=False,
+    )
+
+    quality = classify_quality(analysis_with_opponent_mate, played)
+    significance = calculate_significance(analysis_with_opponent_mate, played)
+
+    assert quality.label == "best"
+    assert quality.severity_text == (
+        "the move was the best defense in a position already losing by forced mate"
+    )
+    assert significance.label == "low"
+
+
+def test_worsening_an_already_lost_forced_mate_is_a_blunder() -> None:
+    analysis_with_opponent_mate = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="e2e4",
+                move_san="e4",
+                score=Score.mate(mate_in=5, mate_for="opponent"),
+                rank=1,
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="d2d4",
+            move_san="d4",
+            score=Score.mate(mate_in=2, mate_for="opponent"),
+            rank=None,
+        ),
+    )
+
+    quality = classify_quality(
+        analysis_with_opponent_mate,
+        PlayedMoveFacts(uci="d2d4", san="d4", legal=True, is_check=False, is_capture=False),
+    )
+
+    assert quality.label == "blunder"
+    assert quality.severity_text == "the move shortened the forced mate against the player"
+
+
 def test_mate_transition_sets_significance_to_critical() -> None:
     analysis_with_mate = EngineAnalysis(
         engine_version="static-test-engine",
@@ -460,7 +527,7 @@ def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
 
     assert quality.score_loss_vs_best_cp == 10
     assert quality.wdl_expected_score_loss == 250
-    assert quality.wdl_delta_player_pov == Wdl(win=-300, draw=100, loss=200)
+    assert quality.wdl_delta_player_pov == WdlDelta(win=-300, draw=100, loss=200)
     assert quality.label == "blunder"
 
 

@@ -78,6 +78,7 @@ VerificationIssueCode: TypeAlias = Literal[
     "candidate_san_mismatch",
     "engine_after_line_unexpected",
     "engine_after_line_missing",
+    "engine_depth_below_minimum",
     "engine_line_illegal",
     "engine_line_invalid_uci",
     "engine_line_san_mismatch",
@@ -205,9 +206,27 @@ class Score(ContextContract):
 
 
 class Wdl(ContextContract):
+    win: int = Field(ge=0, le=1000)
+    draw: int = Field(ge=0, le=1000)
+    loss: int = Field(ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def _validate_absolute_total(self) -> Wdl:
+        if self.win + self.draw + self.loss != 1000:
+            raise ValueError("Absolute WDL totals must sum to 1000.")
+        return self
+
+
+class WdlDelta(ContextContract):
     win: int
     draw: int
     loss: int
+
+    @model_validator(mode="after")
+    def _validate_delta_total(self) -> WdlDelta:
+        if self.win + self.draw + self.loss != 0:
+            raise ValueError("WDL deltas must sum to 0.")
+        return self
 
 
 class PlayedMoveFacts(ContextContract):
@@ -296,7 +315,7 @@ class MoveQuality(ContextContract):
     label: MoveQualityLabel
     score_delta_cp_player_pov: int | None
     score_loss_vs_best_cp: int | None
-    wdl_delta_player_pov: Wdl | None = None
+    wdl_delta_player_pov: WdlDelta | None = None
     wdl_expected_score_loss: int | None = None
     severity_text: str
 

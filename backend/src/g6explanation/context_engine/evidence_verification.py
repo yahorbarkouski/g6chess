@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import chess
 
-from g6explanation.context_engine.candidate_moves.findability import forcing_tier
+from g6explanation.context_engine.candidate_moves.findability import forcing_tier, time_situation
 from g6explanation.context_engine.contracts import (
     CandidateMove,
     CandidateRole,
@@ -20,7 +20,9 @@ from g6explanation.context_engine.contracts import (
     VerificationIssueCode,
     VerificationResult,
 )
+from g6explanation.context_engine.explanation_agenda import build_human_note
 from g6explanation.context_engine.position_reconstruction import color_name
+from g6explanation.context_engine.stockfish_analysis import MIN_STOCKFISH_DEPTH
 
 VERIFIER_VERSION = "evidence_verifier.v1"
 HARD_FINDABILITY = {"hard", "very_hard", "engine_like"}
@@ -269,6 +271,7 @@ def _verify_engine_analysis(
     is_static = analysis.analysis_budget.kind == "static"
     _verify_engine_metadata(analysis, issues, path, is_static)
     wdl_requested = analysis.engine_options.get("UCI_ShowWDL") is True
+    minimum_depth = None if is_static else MIN_STOCKFISH_DEPTH
 
     for index, line in enumerate(analysis.top_lines):
         line_path = f"{path}.top_lines[{index}]"
@@ -280,6 +283,7 @@ def _verify_engine_analysis(
             require_metadata=not is_static,
             require_pv=not is_static,
             require_wdl=wdl_requested,
+            minimum_depth=minimum_depth,
         )
 
     _verify_engine_line(
@@ -290,6 +294,7 @@ def _verify_engine_analysis(
         require_metadata=not is_static,
         require_pv=not is_static,
         require_wdl=wdl_requested,
+        minimum_depth=minimum_depth,
     )
 
     after_board = board.copy(stack=False)
@@ -326,6 +331,7 @@ def _verify_engine_analysis(
         require_metadata=not is_static,
         require_pv=not is_static,
         require_wdl=wdl_requested,
+        minimum_depth=minimum_depth,
     )
 
 
@@ -347,6 +353,23 @@ def _verify_engine_metadata(
             f"{path}.analysis_budget.value",
             "Engine analysis budget value is missing.",
         )
+    if (
+        not is_static
+        and analysis.analysis_budget.kind == "depth"
+        and analysis.analysis_budget.value is not None
+    ):
+        if not isinstance(analysis.analysis_budget.value, int):
+            issues.fail(
+                "engine_metadata_missing",
+                f"{path}.analysis_budget.value",
+                "Depth analysis budget value must be an integer.",
+            )
+        elif analysis.analysis_budget.value < MIN_STOCKFISH_DEPTH:
+            issues.fail(
+                "engine_depth_below_minimum",
+                f"{path}.analysis_budget.value",
+                (f"Depth-limited engine analysis must use at least {MIN_STOCKFISH_DEPTH} plies."),
+            )
     if not is_static and analysis.analysis_budget.multipv is None:
         issues.fail(
             "engine_metadata_missing",
@@ -363,6 +386,7 @@ def _verify_engine_line(
     require_metadata: bool,
     require_pv: bool,
     require_wdl: bool,
+    minimum_depth: int | None,
 ) -> None:
     try:
         move = chess.Move.from_uci(line.move_uci)
@@ -395,6 +419,19 @@ def _verify_engine_line(
             path,
             "Engine line is missing both depth and nodes metadata.",
         )
+    if minimum_depth is not None:
+        if line.depth is None:
+            issues.fail(
+                "engine_depth_below_minimum",
+                f"{path}.depth",
+                "Real engine-backed lines must include depth metadata.",
+            )
+        elif line.depth < minimum_depth:
+            issues.fail(
+                "engine_depth_below_minimum",
+                f"{path}.depth",
+                f"Engine line depth must be at least {minimum_depth} plies.",
+            )
     if require_wdl and line.wdl is None:
         issues.fail(
             "engine_wdl_missing",
@@ -577,6 +614,7 @@ def _verify_llm_context(
     llm_context: LLMContext,
     issues: _IssueCollector,
 ) -> None:
+    expected_time_situation = time_situation(evidence.request)
     _fail_if_mismatch(
         llm_context.played,
         evidence.played.san,
@@ -617,6 +655,30 @@ def _verify_llm_context(
         evidence.main_point.claim,
         "$.llm_context.main_point",
         "LLM context main point does not match evidence.",
+        issues,
+    )
+    _fail_if_mismatch(
+        llm_context.player_level,
+        evidence.request.player_level.label(),
+        "$.llm_context.player_level",
+        "LLM context player level does not match request evidence.",
+        issues,
+    )
+    _fail_if_mismatch(
+        llm_context.time_situation,
+        expected_time_situation,
+        "$.llm_context.time_situation",
+        "LLM context time situation does not match request evidence.",
+        issues,
+    )
+    _fail_if_mismatch(
+        llm_context.human_note,
+        build_human_note(
+            _matching_candidate_for_key_context(evidence, llm_context.best_or_key_move),
+            expected_time_situation,
+        ),
+        "$.llm_context.human_note",
+        "LLM context human note does not match deterministic candidate evidence.",
         issues,
     )
 
@@ -669,10 +731,7 @@ def _verify_key_move_context(
     if key_context is None:
         return
 
-    matching_candidate = next(
-        (candidate for candidate in evidence.candidates if candidate.san == key_context.move),
-        None,
-    )
+    matching_candidate = _matching_candidate_for_key_context(evidence, key_context)
     if matching_candidate is None:
         issues.fail(
             "llm_context_inconsistent",
@@ -717,6 +776,17 @@ def _verify_key_move_context(
         f"{path}.recommendation_policy",
         "LLM move-context recommendation policy does not match candidate evidence.",
         issues,
+    )
+
+
+def _matching_candidate_for_key_context(
+    evidence: EvidencePacket, key_context: KeyMoveContext | None
+) -> CandidateMove | None:
+    if key_context is None:
+        return None
+    return next(
+        (candidate for candidate in evidence.candidates if candidate.san == key_context.move),
+        None,
     )
 
 

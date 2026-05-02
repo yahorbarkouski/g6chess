@@ -7,11 +7,15 @@ from g6explanation.context_engine.contracts import (
     CandidateMove,
     ContextResult,
     EngineAnalysis,
+    EngineAnalysisBudget,
+    EngineLine,
     EvidencePacket,
     MoveContextRequest,
     PlayerLevel,
+    Score,
     VerificationResult,
 )
+from g6explanation.context_engine.stockfish_analysis import MIN_STOCKFISH_DEPTH
 from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 
 
@@ -101,6 +105,46 @@ def test_verifier_rejects_missing_wdl_when_show_wdl_was_requested() -> None:
     assert "engine_wdl_missing" in _issue_codes(verification)
 
 
+def test_verifier_rejects_depth_budget_below_stockfish_minimum() -> None:
+    board = chess.Board()
+    played_move = chess.Move.from_uci("e2e4")
+    engine_analysis = _depth_analysis(
+        board,
+        played_uci=played_move.uci(),
+        budget_depth=MIN_STOCKFISH_DEPTH - 1,
+        line_depth=MIN_STOCKFISH_DEPTH - 1,
+    )
+
+    verification = EvidenceVerifier().verify_engine_analysis(board, played_move, engine_analysis)
+
+    assert "engine_depth_below_minimum" in _issue_codes(verification)
+
+
+def test_verifier_rejects_non_static_line_below_stockfish_minimum() -> None:
+    board = chess.Board()
+    played_move = chess.Move.from_uci("e2e4")
+    engine_analysis = _depth_analysis(
+        board,
+        played_uci=played_move.uci(),
+        budget_depth=MIN_STOCKFISH_DEPTH,
+        line_depth=MIN_STOCKFISH_DEPTH - 1,
+    )
+
+    verification = EvidenceVerifier().verify_engine_analysis(board, played_move, engine_analysis)
+
+    assert "engine_depth_below_minimum" in _issue_codes(verification)
+
+
+def test_verifier_rejects_node_limited_real_engine_lines_without_depth() -> None:
+    board = chess.Board()
+    played_move = chess.Move.from_uci("e2e4")
+    engine_analysis = _node_analysis_without_depth(board, played_uci=played_move.uci())
+
+    verification = EvidenceVerifier().verify_engine_analysis(board, played_move, engine_analysis)
+
+    assert "engine_depth_below_minimum" in _issue_codes(verification)
+
+
 def test_verifier_rejects_direct_recommendation_for_hard_move() -> None:
     result = _valid_result()
     candidates = [
@@ -123,6 +167,33 @@ def test_verifier_rejects_unsupported_llm_claim() -> None:
     verification = EvidenceVerifier().verify(result.evidence, llm_context)
 
     assert _issue_codes(verification) == {"llm_context_claim_not_allowed"}
+
+
+def test_verifier_rejects_mismatched_llm_player_level() -> None:
+    result = _valid_result()
+    llm_context = result.llm_context.model_copy(update={"player_level": "2800 blitz"})
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_inconsistent"}
+
+
+def test_verifier_rejects_mismatched_llm_time_situation() -> None:
+    result = _valid_result()
+    llm_context = result.llm_context.model_copy(update={"time_situation": "time_scramble"})
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_inconsistent"}
+
+
+def test_verifier_rejects_mismatched_llm_human_note() -> None:
+    result = _valid_result()
+    llm_context = result.llm_context.model_copy(update={"human_note": "unsupported coaching note"})
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_inconsistent"}
 
 
 def _valid_result() -> ContextResult:
@@ -158,4 +229,85 @@ def _direct_hard_candidate(candidate: CandidateMove) -> CandidateMove:
             "time_adjusted_findability": "engine_like",
             "recommendation_policy": "recommend_directly",
         }
+    )
+
+
+def _depth_analysis(
+    board: chess.Board,
+    played_uci: str,
+    budget_depth: int,
+    line_depth: int,
+) -> EngineAnalysis:
+    played_move = chess.Move.from_uci(played_uci)
+    after_board = board.copy(stack=False)
+    after_board.push(played_move)
+    return EngineAnalysis(
+        engine_version="Stockfish test",
+        analysis_budget=EngineAnalysisBudget(kind="depth", value=budget_depth, multipv=1),
+        top_lines=[
+            _engine_line_with_metadata(
+                board,
+                played_uci,
+                depth=line_depth,
+                nodes=1_000,
+                rank=1,
+            )
+        ],
+        played_line=_engine_line_with_metadata(
+            board,
+            played_uci,
+            depth=line_depth,
+            nodes=1_000,
+        ),
+        after_line=_engine_line_with_metadata(
+            after_board,
+            "e7e5",
+            depth=line_depth,
+            nodes=1_000,
+            rank=1,
+        ),
+    )
+
+
+def _node_analysis_without_depth(board: chess.Board, played_uci: str) -> EngineAnalysis:
+    played_move = chess.Move.from_uci(played_uci)
+    after_board = board.copy(stack=False)
+    after_board.push(played_move)
+    return EngineAnalysis(
+        engine_version="Stockfish test",
+        analysis_budget=EngineAnalysisBudget(kind="nodes", value=1_000_000, multipv=1),
+        top_lines=[_engine_line_with_metadata(board, played_uci, depth=None, nodes=1_000, rank=1)],
+        played_line=_engine_line_with_metadata(
+            board,
+            played_uci,
+            depth=None,
+            nodes=1_000,
+        ),
+        after_line=_engine_line_with_metadata(
+            after_board,
+            "e7e5",
+            depth=None,
+            nodes=1_000,
+            rank=1,
+        ),
+    )
+
+
+def _engine_line_with_metadata(
+    board: chess.Board,
+    uci: str,
+    depth: int | None,
+    nodes: int | None,
+    rank: int | None = None,
+) -> EngineLine:
+    move = chess.Move.from_uci(uci)
+    return EngineLine(
+        move_uci=uci,
+        move_san=board.san(move),
+        score=Score.cp(10),
+        rank=rank,
+        pv_uci=[uci],
+        pv_san=[board.san(move)],
+        depth=depth,
+        nodes=nodes,
     )

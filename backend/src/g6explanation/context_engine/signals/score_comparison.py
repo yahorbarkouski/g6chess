@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from g6explanation.context_engine.contracts import EngineAnalysis, EngineLine, Score, Wdl
+from g6explanation.context_engine.contracts import EngineAnalysis, EngineLine, Score, Wdl, WdlDelta
 
 
 def score_as_cp(score: Score) -> int:
@@ -27,10 +27,10 @@ def score_loss_cp(best: Score, played: Score) -> int | None:
     return max(0, score_as_cp(best) - score_as_cp(played))
 
 
-def wdl_delta(best: Wdl | None, played: Wdl | None) -> Wdl | None:
+def wdl_delta(best: Wdl | None, played: Wdl | None) -> WdlDelta | None:
     if best is None or played is None:
         return None
-    return Wdl(
+    return WdlDelta(
         win=played.win - best.win,
         draw=played.draw - best.draw,
         loss=played.loss - best.loss,
@@ -51,12 +51,26 @@ def is_player_mate(score: Score) -> bool:
     return score.kind == "mate" and score.mate_for == "player"
 
 
+def is_opponent_mate(score: Score) -> bool:
+    return score.kind == "mate" and score.mate_for == "opponent"
+
+
+def opponent_mate_is_worse(best: Score, played: Score) -> bool:
+    if not is_opponent_mate(best) or not is_opponent_mate(played):
+        return False
+    if best.mate_in is None or played.mate_in is None:
+        return False
+    return played.mate_in < best.mate_in
+
+
 def has_mate_transition(analysis: EngineAnalysis) -> bool:
     best = analysis.top_lines[0].score
     played = analysis.played_line.score
     if best.kind == "mate" and best.mate_for == "player" and not is_player_mate(played):
         return True
-    return played.kind == "mate" and played.mate_for == "opponent"
+    if is_opponent_mate(played):
+        return not is_opponent_mate(best) or opponent_mate_is_worse(best, played)
+    return False
 
 
 def absolute_cp_gap(left: Score, right: Score) -> int | None:

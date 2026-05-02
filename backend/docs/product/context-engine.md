@@ -62,6 +62,8 @@ Stockfish is mandatory for production-quality explanations:
 - engine version, options, depth/nodes, and MultiPV metadata
 - depth 16 or deeper for every depth-limited production, evaluation,
   visualization, or integration-test context
+- line depth 16 or deeper for every non-static Stockfish-backed packet, including
+  node-limited runs
 
 Maia, empirical frequencies, Syzygy, and concept detectors are optional. They
 may improve wording, but they must not override deterministic legality,
@@ -99,11 +101,15 @@ player-level probability.
 
 Move quality answers whether the move was good. Normalize all score deltas from
 the analyzed player's point of view. Represent mate separately from centipawns.
-Use `forced` when the player had exactly one legal move; the position may still
-be winning or losing, but the move itself is not a mistake. Immediate checkmate
-is `best` even when another checkmate is also available. If the played move
-preserves high Stockfish WDL win probability, do not label the move as a normal
-mistake or blunder solely because it was not the top engine move.
+Use absolute WDL only for engine lines and signed WDL deltas only for quality
+comparison. Use `forced` when the player had exactly one legal move; the
+position may still be winning or losing, but the move itself is not a mistake.
+Immediate checkmate is `best` even when another checkmate is also available. If
+the best line is already forced mate against the player, the engine-best defense
+is still `best`; only newly allowing mate or shortening the mate should be
+treated as a mate-transition blunder. If the played move preserves high
+Stockfish WDL win probability, do not label the move as a normal mistake or
+blunder solely because it was not the top engine move.
 
 Move significance answers how much this move deserves emphasis. It is one strict
 `label` plus `score`; do not add generated prose reasons. Labels are `low`,

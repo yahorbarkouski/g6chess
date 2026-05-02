@@ -11,7 +11,9 @@ from g6explanation.context_engine.contracts import (
     Score,
 )
 from g6explanation.context_engine.signals.score_comparison import (
+    is_opponent_mate,
     is_player_mate,
+    opponent_mate_is_worse,
     score_as_cp,
     score_loss_cp,
     wdl_delta,
@@ -47,16 +49,21 @@ def classify_quality(
         label: MoveQualityLabel = "best"
     elif legal_move_count == 1:
         label = "forced"
-    elif played_line.score.kind == "mate" and played_line.score.mate_for == "opponent":
-        label = "blunder"
+    elif played.uci == best.move_uci:
+        label = "best"
     elif (
         best.score.kind == "mate"
         and best.score.mate_for == "player"
         and not is_player_mate(played_line.score)
     ):
         label = "missed_win"
-    elif played.uci == best.move_uci:
-        label = "best"
+    elif is_opponent_mate(played_line.score):
+        if is_opponent_mate(best.score) and not opponent_mate_is_worse(
+            best.score, played_line.score
+        ):
+            label = "neutral"
+        else:
+            label = "blunder"
     else:
         cp_label = _label_from_cp_loss(cp_loss)
         wdl_label = _label_from_wdl_loss(wdl_loss)
@@ -136,6 +143,12 @@ def _severity_text(
         return "the player had only one legal move"
     if label == "best" and played.kind == "mate" and played.mate_for == "player":
         return "the played move checkmated the opponent"
+    if is_opponent_mate(best) and is_opponent_mate(played):
+        if label == "best":
+            return "the move was the best defense in a position already losing by forced mate"
+        if opponent_mate_is_worse(best, played):
+            return "the move shortened the forced mate against the player"
+        return "the position remained losing by forced mate"
     if best.kind == "mate" or played.kind == "mate":
         if played.kind == "mate" and played.mate_for == "opponent":
             return "the move allowed a forced mate against the player"
