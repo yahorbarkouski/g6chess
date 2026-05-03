@@ -96,6 +96,18 @@ G6EXPLANATION_RUN_MAIA2=1 uv run pytest tests/g6explanation/context_engine/test_
 
 It is intentionally outside the default required check set.
 
+## Optional OpenRouter Evaluation Gates
+
+Run these gates only when work depends on actual LLM provider behavior:
+
+```text
+G6EXPLANATION_RUN_OPENROUTER=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q
+G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q
+```
+
+They require `OPENROUTER_API_KEY` in the environment or `.env`. The Stockfish
+variant also requires a local Stockfish binary.
+
 ## Completion Note
 
 Report checks run, gates passed, skipped gates with reasons, and residual risk.

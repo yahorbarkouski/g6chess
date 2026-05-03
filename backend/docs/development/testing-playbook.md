@@ -65,6 +65,16 @@ Maia:
 - Real Maia tests are opt-in with `G6EXPLANATION_RUN_MAIA2=1`.
 - Opera full-game evaluation is opt-in with `G6EXPLANATION_RUN_OPERA_EVAL=1`.
 
+OpenRouter:
+
+- Keep `OPENROUTER_API_KEY` in `.env` or the environment.
+- The default model adapter uses `openai/gpt-5.5`.
+- Override model or reasoning effort with `G6EXPLANATION_OPENROUTER_MODEL` and
+  `G6EXPLANATION_OPENROUTER_REASONING_EFFORT`.
+- Real provider smoke is opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
+- Real provider plus Stockfish smoke is opt-in with
+  `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.
+
 ## Unit Tests
 
 Use unit tests for pure logic: score parsing, normalization, classification,
@@ -141,6 +151,8 @@ Before calling a real model, add tests for:
   tactic claims, wrong-side language, and recommendation-policy violations
 - static provider retry and fallback behavior
 - frozen Opera Game and Game of the Century contexts as representative evals
+- opt-in real OpenRouter smoke where raw model output must pass deterministic
+  verification without fallback
 
 ## Test Names
 

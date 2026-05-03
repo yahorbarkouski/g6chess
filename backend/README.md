@@ -17,15 +17,17 @@ Implemented:
 
 - `g6explanation.context_engine`: builds verified evidence packets and compact
   `LLMContext` objects.
+- `g6explanation.explanation_generation`: turns verified context into one
+  schema-valid, deterministically verified explanation string. The OpenRouter
+  adapter defaults to `openai/gpt-5.5`.
 - `g6explanation.visualization`: local inspection API for real-game experiment
   metadata and fresh per-ply context packets.
 
 Next:
 
-- `g6explanation.explanation_generation`: strict explanation output contracts,
-  deterministic baseline rendering, explanation-text verification, static
-  provider tests, retry or fallback behavior, real model adapter, and then the
-  public `explain_move(...) -> str` wrapper.
+- broaden real-game LLM evals across Opera Game, Game of the Century, quiet
+  positional games, forced moves, mates, practical alternatives, and ordinary
+  blunders.
 
 Do not move chess truth into the generation layer.
 
@@ -75,6 +77,16 @@ Maia:
 - Override model location with `MAIA2_MODEL_ROOT`.
 - Real Maia tests are opt-in with `G6EXPLANATION_RUN_MAIA2=1`.
 - Opera full-game evaluation is opt-in with `G6EXPLANATION_RUN_OPERA_EVAL=1`.
+
+OpenRouter:
+
+- `OpenRouterCoachModelProvider` reads `OPENROUTER_API_KEY` from the environment
+  or `.env`.
+- Override the model with `G6EXPLANATION_OPENROUTER_MODEL`.
+- Override reasoning effort with `G6EXPLANATION_OPENROUTER_REASONING_EFFORT`.
+- Real OpenRouter tests are opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
+- Real OpenRouter plus Stockfish tests are opt-in with
+  `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.
 
 Visualization API:
 

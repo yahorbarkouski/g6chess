@@ -15,9 +15,9 @@ Versioned Pydantic contracts define externally meaningful evidence, context,
 candidate, quality, and verifier objects.
 
 Explanation generation is a separate downstream boundary. It consumes verified
-`LLMContext`, not raw engine state, and must add its own output schema,
-deterministic text verifier, provider protocol, retry policy, and fallback policy
-before real model output is product-ready.
+`LLMContext`, not raw engine state, and owns its own output schema, deterministic
+text verifier, provider protocol, retry policy, and fallback policy before model
+output is product-ready.
 
 ## Rules
 
@@ -50,9 +50,9 @@ before real model output is product-ready.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.
-- The future explanation-generation layer must block unsupported moves, PVs,
-  tactics, material claims, mate claims, and wrong-side attribution before any
-  model output is product-ready.
+- The explanation-generation layer must block unsupported moves, PVs, tactics,
+  material claims, mate claims, and wrong-side attribution before any model output
+  is product-ready.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
 

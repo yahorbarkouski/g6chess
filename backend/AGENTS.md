@@ -77,15 +77,16 @@ implementation.
 
 ## Current Product Slice
 
-The context engine is implemented as the current truth-building layer. It
-produces verified evidence packets and compact `LLMContext` objects, with
-Stockfish depth 16 or deeper required for real engine-backed contexts.
+The context engine is implemented as the truth-building layer. It produces
+verified evidence packets and compact `LLMContext` objects, with Stockfish depth
+16 or deeper required for real engine-backed contexts.
 
-The next product slice is explanation generation. Build it downstream of
-`g6explanation.context_engine`, not inside the context engine. The first
-generation implementation must add strict explanation output contracts, a
-deterministic baseline renderer, an explanation-text verifier, static provider
-tests, retry or fallback behavior, and only then a real model adapter.
+The explanation-generation layer is implemented downstream of
+`g6explanation.context_engine`. It owns strict explanation output contracts,
+prompt construction, deterministic explanation-text verification, a deterministic
+fallback renderer, retry behavior, and an OpenRouter model adapter that defaults
+to `openai/gpt-5.5`. The fallback renderer is not a judge for model quality; raw
+model output must pass deterministic verification against the context packet.
 
 ## Context Intake Protocol
 

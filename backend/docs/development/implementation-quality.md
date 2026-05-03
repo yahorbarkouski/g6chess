@@ -22,9 +22,11 @@ src/g6explanation/
   context_engine/
     candidate_moves/
     signals/
+  explanation_generation/
   visualization/
 
 tests/g6explanation/context_engine/
+tests/g6explanation/explanation_generation/
 tests/g6explanation/visualization/
 ```
 
@@ -32,12 +34,12 @@ The implemented bounded contexts are:
 
 - `g6explanation.context_engine`: chess truth, evidence packets, compact LLM
   context, and evidence verification
+- `g6explanation.explanation_generation`: verified explanation output, prompt
+  construction, model provider I/O, retry behavior, and fallback behavior
 - `g6explanation.visualization`: local inspection API over current context
   packets
 
-The next bounded context should be `g6explanation.explanation_generation` or an
-equally concrete name for verified explanation output. Keep it downstream of
-`context_engine`.
+Keep explanation generation downstream of `context_engine`.
 
 Do not add a web server, database, model server, user accounts, or broad app
 scaffolding until a concrete vertical slice requires it.

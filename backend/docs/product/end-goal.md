@@ -121,8 +121,8 @@ The truth-building part of the first slice is the context engine: position
 reconstruction, Stockfish analysis, optional Maia likelihoods, move
 classification, candidate policy, evidence packets, and compact `LLMContext`.
 
-The next step is the explanation-generation slice described in
-`docs/product/explanation-generation.md`: strict explanation schema, deterministic
-baseline renderer, explanation verifier, static provider tests, retry or fallback
-behavior, real model adapter, and then the public `explain_move(...) -> str`
-wrapper.
+The explanation-generation slice described in
+`docs/product/explanation-generation.md` now provides strict explanation schema,
+deterministic baseline fallback, explanation verification, static provider tests,
+retry behavior, an OpenRouter adapter, and the public
+`explain_move(...) -> str` wrapper.

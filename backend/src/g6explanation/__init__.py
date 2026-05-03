@@ -16,11 +16,21 @@ from g6explanation.context_engine import (
     VerificationIssue,
     VerificationResult,
 )
+from g6explanation.explanation_generation import (
+    ExplanationResult,
+    ExplanationService,
+    ExplanationVerifier,
+    OpenRouterCoachModelProvider,
+    explain_move,
+)
 
 __all__ = [
     "ContextResult",
     "EvidencePacket",
     "EvidenceVerifier",
+    "ExplanationResult",
+    "ExplanationService",
+    "ExplanationVerifier",
     "KeyMoveContext",
     "LLMContext",
     "Maia2MoveLikelihoodProvider",
@@ -28,8 +38,10 @@ __all__ = [
     "MoveContextBuilder",
     "MoveContextRequest",
     "MoveSignificance",
+    "OpenRouterCoachModelProvider",
     "PlayerLevel",
     "StockfishAnalysisProvider",
     "VerificationIssue",
     "VerificationResult",
+    "explain_move",
 ]

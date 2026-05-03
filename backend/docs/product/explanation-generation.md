@@ -9,25 +9,24 @@ This layer is downstream of the context engine. It does not calculate chess,
 choose better moves, alter quality labels, or reinterpret Stockfish, Maia, or
 deterministic rule evidence.
 
-## Current Next Slice
+## Current Implementation
 
-The context engine already builds verified evidence packets and compact LLM
-contexts. The next product slice is not prompt tuning. It is the generation
-boundary that makes model output safe to return.
+The context engine builds verified evidence packets and compact LLM contexts.
+The explanation-generation package provides the downstream generation boundary
+that makes model output safe to return.
 
-Build this slice in this order:
+Implemented pieces:
 
-1. Explanation output and verification contracts.
-2. Deterministic baseline renderer.
-3. Explanation-text verifier.
-4. Static coach provider for tests.
-5. Generation service with retry and fallback behavior.
-6. Real model adapter.
-7. Frozen real-game and adversarial evals.
-8. Public `explain_move(...) -> str` wrapper.
+- explanation output and verification contracts
+- deterministic baseline renderer
+- explanation-text verifier
+- static coach provider tests
+- generation service with retry and fallback behavior
+- OpenRouter adapter defaulting to `openai/gpt-5.5`
+- public `explain_move(...) -> str` wrapper
 
-Do not start training or fine-tuning before this slice can generate, verify, and
-trace explanations from real context packets.
+Next work is broader real-game LLM evals and verifier hardening, not training or
+fine-tuning.
 
 ## Boundary
 
@@ -46,6 +45,10 @@ Output:
 The model provider returns raw JSON to the generation layer. The public API
 returns only the verified `explanation` string.
 
+The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
+`.env`, uses `openai/gpt-5.5` by default, and can be overridden with
+`G6EXPLANATION_OPENROUTER_MODEL`.
+
 ## Contracts
 
 The raw model response must validate against:
@@ -56,7 +59,7 @@ The raw model response must validate against:
 }
 ```
 
-The generation layer should introduce contracts for:
+The generation layer includes contracts for:
 
 - raw explanation response
 - verified explanation result
@@ -69,18 +72,21 @@ issue codes, but invalid output must never be returned directly.
 
 ## Deterministic Baseline
 
-Before a real model adapter, add a deterministic baseline renderer that writes a
-plain explanation from `LLMContext`.
+The deterministic baseline renderer writes a plain explanation from
+`LLMContext`.
 
 The baseline has three jobs:
 
 - provide golden tests for the explanation contract
 - prove the context contains enough evidence to explain the move without
   invention
-- provide a safe fallback while model prompts are still immature
+- provide a safe fallback when model output or provider I/O fails verification
 
 If the baseline cannot explain a case without inventing a claim, the context
 packet is incomplete for that case.
+
+The baseline is never used to judge whether model wording is better. Model output
+is verified directly against the context packet.
 
 ## Explanation Verifier
 
@@ -123,8 +129,8 @@ surface explicitly wants a controlled failure.
 
 ## Provider Boundary
 
-Use a small coach-provider protocol with a static test implementation and a
-concrete real-model adapter.
+Use the small coach-provider protocol with static test implementations and the
+OpenRouter real-model adapter.
 
 The provider may:
 
@@ -139,8 +145,8 @@ The provider may not:
 - choose or replace the best move
 - bypass explanation verification
 
-When implementing an OpenAI adapter, check the current official OpenAI API docs
-first and record the model and prompt versions in generated metadata.
+When changing model defaults or API parameters, check current provider docs first
+and record model and prompt versions in generated metadata.
 
 ## Tests And Evals
 
@@ -159,6 +165,11 @@ Real-provider evals:
 - at least one quiet positional game
 - synthetic edge cases for forced moves, immediate mate, high-WDL non-best moves,
   hard engine resources, practical alternatives, and ordinary blunders
+
+Current opt-in smoke tests:
+
+- `G6EXPLANATION_RUN_OPENROUTER=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q`
+- `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q`
 
 Metrics:
 

@@ -6,8 +6,10 @@ Status: Accepted
 ## Decision
 
 Use a conservative Python `src/` layout. Current implementation boundaries are
-`g6explanation.context_engine` for chess truth and `g6explanation.visualization`
-for local inspection. The local React visualization app lives in the companion
+`g6explanation.context_engine` for chess truth,
+`g6explanation.explanation_generation` for verified model wording, and
+`g6explanation.visualization` for local inspection. The local React
+visualization app lives in the companion
 `/Users/yahorbarkouski/g6explanation-frontend` folder and consumes the narrow
 visualization HTTP API for real-game experiment metadata and fresh per-ply
 verified context packets. Keep documentation split by purpose:
@@ -32,9 +34,8 @@ verified context packets. Keep documentation split by purpose:
 - Do not cache visualization context output in the catalog; manual inspection
   should exercise the current production context-building path on each context
   request.
-- Add `g6explanation.explanation_generation` or an equally concrete package only
-  when implementing the verified explanation generation slice, and keep it
-  downstream of `context_engine`.
+- Keep `explanation_generation` downstream of `context_engine`; model adapters
+  may produce raw schema-shaped output only for deterministic verification.
 - Keep tests mirrored to package paths when it improves navigation.
 - Do not recreate top-level guide documents under `docs/`.
 - Keep ADRs concise; update product/development docs for operational detail.
