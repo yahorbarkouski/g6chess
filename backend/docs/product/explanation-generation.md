@@ -109,6 +109,8 @@ Minimum checks:
   words such as "piece" in development claims do not authorize material claims
 - specific material prose, such as queen, rook, bishop, knight, pawn, or
   exchange, must match the trusted material claim text
+- tactic prose requires a trusted typed `tactic` concept claim that names the
+  same tactic
 - concept language must be supported by typed `concept_claims`; free-form
   `allowed_claims` alone do not authorize strategic concepts
 - quality label consistency with `LLMContext.quality`

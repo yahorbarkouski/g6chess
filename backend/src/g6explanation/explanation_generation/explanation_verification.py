@@ -335,12 +335,14 @@ def _verify_supported_claim_terms(
                 ),
             )
     tactic = next((term for term in TACTIC_TERMS if term in text), None)
-    if tactic and tactic not in support:
-        issues.fail(
-            "unsupported_tactic_claim",
-            "$.explanation",
-            f"Explanation includes unsupported tactic claim {tactic!r}.",
-        )
+    if tactic:
+        tactic_support = _trusted_claim_text(context_result, {"tactic"})
+        if not _contains_phrase(tactic_support, tactic):
+            issues.fail(
+                "unsupported_tactic_claim",
+                "$.explanation",
+                f"Explanation includes unsupported tactic claim {tactic!r}.",
+            )
     concept = _unsupported_concept_claim(text, context_result, support)
     if concept is not None:
         issues.fail(

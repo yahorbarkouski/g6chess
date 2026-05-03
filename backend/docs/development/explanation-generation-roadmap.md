@@ -100,6 +100,10 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   was reviewed as `model_wording_issue`; the verifier correctly blocked an
   unsupported tactic phrase and the retry used supported king-safety/mate
   evidence.
+- 2026-05-03: hardened tactic verification so a tactic word such as fork, pin,
+  skewer, or back-rank requires a trusted `tactic` concept claim naming that
+  tactic. Full no-mock eval passed 12/12 with 0 fallbacks and 0 retries after
+  this verifier change.
 
 ## Resume Checklist
 
