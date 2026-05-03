@@ -11,6 +11,7 @@ from g6explanation.real_game_evaluation import (
     apply_real_explanation_manual_reviews,
     build_real_explanation_eval_report,
     build_real_explanation_eval_report_from_jsonl,
+    evaluate_real_explanation_promotion_gate,
     load_real_explanation_manual_reviews,
     render_real_explanation_eval_report_markdown,
     summarize_real_explanation_eval_records,
@@ -290,6 +291,87 @@ def test_jsonl_report_builder_applies_manual_reviews(tmp_path: Path) -> None:
 
     assert report.review_required_case_ids == []
     assert report.manual_review_counts == {"model_wording_issue": 1}
+
+
+def test_promotion_gate_passes_when_current_report_matches_or_improves() -> None:
+    baseline = build_real_explanation_eval_report(
+        summarize_real_explanation_eval_records(
+            [
+                _record(
+                    case_id="case-a",
+                    passed=True,
+                    attempts=2,
+                    latency_seconds=1.0,
+                    failure_codes=["unsupported_concept_claim"],
+                    manual_review_category="model_wording_issue",
+                )
+            ]
+        )
+    )
+    current = build_real_explanation_eval_report(
+        summarize_real_explanation_eval_records(
+            [
+                _record(
+                    case_id="case-a",
+                    passed=True,
+                    attempts=1,
+                    latency_seconds=1.0,
+                    failure_codes=[],
+                )
+            ]
+        )
+    )
+
+    result = evaluate_real_explanation_promotion_gate(baseline, current)
+
+    assert result.passed
+    assert result.issues == []
+
+
+def test_promotion_gate_blocks_regressions_and_unreviewed_records() -> None:
+    baseline = build_real_explanation_eval_report(
+        summarize_real_explanation_eval_records(
+            [
+                _record(
+                    case_id="case-a",
+                    passed=True,
+                    attempts=1,
+                    latency_seconds=1.0,
+                    failure_codes=[],
+                ),
+                _record(
+                    case_id="case-b",
+                    passed=True,
+                    attempts=1,
+                    latency_seconds=1.0,
+                    failure_codes=[],
+                ),
+            ]
+        )
+    )
+    current = build_real_explanation_eval_report(
+        summarize_real_explanation_eval_records(
+            [
+                _record(
+                    case_id="case-a",
+                    passed=True,
+                    attempts=2,
+                    latency_seconds=1.0,
+                    failure_codes=["unsupported_tactic_claim"],
+                )
+            ]
+        )
+    )
+
+    result = evaluate_real_explanation_promotion_gate(baseline, current)
+
+    assert not result.passed
+    assert {issue.code for issue in result.issues} == {
+        "case_count_regressed",
+        "retry_cases_regressed",
+        "failure_code_regressed",
+        "manual_review_required",
+    }
 
 
 def _record(

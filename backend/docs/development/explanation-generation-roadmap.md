@@ -56,7 +56,7 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
 | 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
 | 6 | Stabilize public API shape | Complete | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
 | 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, failed-attempt text, and manual-review fields. |
-| 8 | Define promotion gates | Partial | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
+| 8 | Define promotion gates | Complete | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
 | 9 | Broaden model/provider resilience | Partial | Provider has explicit timeout, retry/backoff policy, error taxonomy, model metadata, and optional comparison runs. |
 | 10 | Prepare training data | Not started | Only verified context plus verified explanation plus reviewed eval records can enter training-data manifests. |
 
@@ -148,6 +148,10 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   `MoveContextRequest`; player color, player level, time control, clock, and
   increment flow into the underlying context request; ambiguous public input
   raises `ExplanationInputError`.
+- 2026-05-03: added deterministic real-eval promotion gates. Candidate reports
+  now compare against a prior promoted report and fail promotion when case
+  count, failed cases, pass rate, fallback count, retry count, failure-code
+  counts, or manual-review-required cases regress.
 
 ## Resume Checklist
 

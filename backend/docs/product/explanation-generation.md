@@ -232,6 +232,11 @@ annotations live in
 `docs/development/real-explanation-manual-reviews.json` and apply only when the
 case id, model, attempts, and failure codes still match the reviewed record.
 
+Promotion gates compare a candidate real-eval report against the prior promoted
+report. A candidate is not promotable if it covers fewer cases, has more failed
+or fallback cases, lowers pass rate, increases retries, increases failure-code
+counts, or leaves manual-review-required records unresolved.
+
 Metrics:
 
 - schema pass rate

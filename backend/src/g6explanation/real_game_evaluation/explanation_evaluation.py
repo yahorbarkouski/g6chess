@@ -194,6 +194,26 @@ class RealExplanationEvalReport(ContextContract):
     )
 
 
+class RealExplanationPromotionGateIssue(ContextContract):
+    code: str
+    message: str
+
+
+class RealExplanationPromotionGateResult(ContextContract):
+    passed: bool
+    issues: list[RealExplanationPromotionGateIssue] = Field(
+        default_factory=list[RealExplanationPromotionGateIssue]
+    )
+    baseline_total_cases: int
+    current_total_cases: int
+    baseline_pass_rate: float
+    current_pass_rate: float
+    baseline_fallback_rate: float
+    current_fallback_rate: float
+    baseline_retry_rate: float
+    current_retry_rate: float
+
+
 REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
     RealExplanationEvalCase(
         case_id="opera-final-mate",
@@ -510,6 +530,89 @@ def build_real_explanation_eval_report_from_jsonl(
     return build_real_explanation_eval_report(summarize_real_explanation_eval_records(records))
 
 
+def evaluate_real_explanation_promotion_gate(
+    baseline: RealExplanationEvalReport,
+    current: RealExplanationEvalReport,
+) -> RealExplanationPromotionGateResult:
+    """Compare a candidate real-eval report against the prior promoted report."""
+
+    issues: list[RealExplanationPromotionGateIssue] = []
+    _gate_if(
+        issues,
+        current.total_cases < baseline.total_cases,
+        "case_count_regressed",
+        (
+            "Current report covers fewer cases than baseline: "
+            f"{current.total_cases} < {baseline.total_cases}."
+        ),
+    )
+    _gate_if(
+        issues,
+        current.failed_cases > baseline.failed_cases,
+        "failed_cases_regressed",
+        (
+            "Current report has more failed cases than baseline: "
+            f"{current.failed_cases} > {baseline.failed_cases}."
+        ),
+    )
+    _gate_if(
+        issues,
+        current.pass_rate < baseline.pass_rate,
+        "pass_rate_regressed",
+        (
+            "Current pass rate is below baseline: "
+            f"{_percent(current.pass_rate)} < {_percent(baseline.pass_rate)}."
+        ),
+    )
+    _gate_if(
+        issues,
+        current.fallback_cases > baseline.fallback_cases,
+        "fallback_cases_regressed",
+        (
+            "Current report has more fallback cases than baseline: "
+            f"{current.fallback_cases} > {baseline.fallback_cases}."
+        ),
+    )
+    _gate_if(
+        issues,
+        current.retry_cases > baseline.retry_cases,
+        "retry_cases_regressed",
+        (
+            "Current report has more retry cases than baseline: "
+            f"{current.retry_cases} > {baseline.retry_cases}."
+        ),
+    )
+    for code, current_count in current.failure_code_counts.items():
+        baseline_count = baseline.failure_code_counts.get(code, 0)
+        _gate_if(
+            issues,
+            current_count > baseline_count,
+            "failure_code_regressed",
+            (f"Failure code {code!r} regressed: {current_count} > {baseline_count}."),
+        )
+    _gate_if(
+        issues,
+        bool(current.review_required_case_ids),
+        "manual_review_required",
+        (
+            "Current report has unreviewed records requiring manual review: "
+            f"{', '.join(current.review_required_case_ids)}."
+        ),
+    )
+    return RealExplanationPromotionGateResult(
+        passed=not issues,
+        issues=issues,
+        baseline_total_cases=baseline.total_cases,
+        current_total_cases=current.total_cases,
+        baseline_pass_rate=baseline.pass_rate,
+        current_pass_rate=current.pass_rate,
+        baseline_fallback_rate=baseline.fallback_rate,
+        current_fallback_rate=current.fallback_rate,
+        baseline_retry_rate=baseline.retry_rate,
+        current_retry_rate=current.retry_rate,
+    )
+
+
 def write_real_explanation_eval_report(
     summary: RealExplanationEvalSummary,
     path: str | Path,
@@ -789,6 +892,16 @@ def _write_jsonl(path: Path, records: list[RealExplanationEvalRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = "\n".join(json.dumps(record.to_dict(), sort_keys=True) for record in records)
     path.write_text(f"{payload}\n", encoding="utf-8")
+
+
+def _gate_if(
+    issues: list[RealExplanationPromotionGateIssue],
+    condition: bool,
+    code: str,
+    message: str,
+) -> None:
+    if condition:
+        issues.append(RealExplanationPromotionGateIssue(code=code, message=message))
 
 
 def _rate(count: int, total: int) -> float:
