@@ -36,7 +36,7 @@ def test_training_manifest_includes_only_manually_accepted_verified_records() ->
     assert manifest.entries[0].case_id == "accepted"
     assert manifest.entries[0].source == PROJECT_SYNTHETIC_SOURCE
     assert manifest.entries[0].llm_context == accepted.llm_context
-    assert manifest.entries[0].prompt_version == "single_move_coach.v3"
+    assert manifest.entries[0].prompt_version == "single_move_coach.v4"
     assert manifest.entries[0].explanation == "e4 was the best move."
     assert manifest.excluded_counts == {
         "fallback_or_unknown_finish": 1,
@@ -112,7 +112,7 @@ def _record(
     explanation: str | None = "e4 was the best move.",
     source: ExplanationDataSource | None = PROJECT_SYNTHETIC_SOURCE,
     llm_context: LLMContext | None | object = _DEFAULT_LLM_CONTEXT,
-    prompt_version: str | None = "single_move_coach.v3",
+    prompt_version: str | None = "single_move_coach.v4",
 ) -> RealExplanationEvalRecord:
     resolved_llm_context = (
         best_context().llm_context if llm_context is _DEFAULT_LLM_CONTEXT else llm_context

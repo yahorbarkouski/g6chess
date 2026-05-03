@@ -116,6 +116,9 @@ JSONL records for manual review. Use `G6EXPLANATION_REAL_LLM_EVAL_CASES` only fo
 local debugging; the product gate should run the full curated case list.
 Use `G6EXPLANATION_REAL_LLM_EVAL_REPORT=.evals/real-explanations.md` to create
 the durable summary report used for manual review and promotion comparisons.
+OpenRouter generation in the real eval is batched concurrently after
+Stockfish/Maia context building; the default is 30 in-flight requests and can be
+overridden with `G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY`.
 Manual-review annotations default to
 `docs/development/real-explanation-manual-reviews.json` and can be overridden
 with `G6EXPLANATION_REAL_LLM_EVAL_MANUAL_REVIEWS`.

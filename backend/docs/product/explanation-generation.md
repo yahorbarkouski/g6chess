@@ -57,13 +57,16 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
 
-Current prompt version: `single_move_coach.v3`. Version 2 made
+Current prompt version: `single_move_coach.v4`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
 stricter named-tactic wording rules and issue-specific retry repair
 instructions after real evals showed unsupported tactic labels and
-recommendation-policy retries.
+recommendation-policy retries. Version 4 makes the style contract concise,
+neutral, and non-template-rigid: serious labels remain explicit, while good or
+quiet moves may explain the supported purpose without repeating a visible
+quality label every ply.
 
 ## Contracts
 
@@ -136,7 +139,13 @@ Minimum checks:
   same tactic
 - concept language must be supported by typed `concept_claims`; free-form
   `allowed_claims` alone do not authorize strategic concepts
-- quality label consistency with `LLMContext.quality`
+- quality-label consistency with `LLMContext.quality`; forced moves,
+  inaccuracies, mistakes, blunders, and missed wins must be named, while best,
+  excellent, good, and neutral moves may omit a visible label if they do not
+  conflict with the context quality
+- no internal prompt or context language such as "featured move", "move
+  quality", "supplied context", `allowed_claims`, `concept_claims`, or
+  `recommendation_policy`
 - best move and practical alternative consistency
 - side-to-move and player-perspective sanity
 - no direct recommendation of a `do_not_recommend` move

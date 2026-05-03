@@ -9,6 +9,7 @@ import shutil
 import time
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeAlias, cast
@@ -53,6 +54,7 @@ from g6explanation.real_game_evaluation.source_rights import (
 )
 
 REAL_EXPLANATION_EVAL_REPORT_VERSION = "real_explanation_eval_report.v1"
+DEFAULT_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY = 30
 DEFAULT_REAL_EXPLANATION_MANUAL_REVIEWS_PATH = Path(
     "docs/development/real-explanation-manual-reviews.json"
 )
@@ -232,6 +234,13 @@ class RealExplanationPromotionGateResult(ContextContract):
     current_fallback_rate: float
     baseline_retry_rate: float
     current_retry_rate: float
+
+
+@dataclass(frozen=True)
+class _PreparedRealExplanationEvalCase:
+    case: RealExplanationEvalCase
+    context: ContextResult
+    context_latency_seconds: float
 
 
 REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
@@ -505,8 +514,27 @@ def run_real_explanation_evaluation(
         coach_provider=OpenRouterCoachModelProvider.from_env(),
         use_baseline_fallback=use_baseline_fallback,
     )
+    records_by_index: list[RealExplanationEvalRecord | None] = [None] * len(cases)
+    prepared_cases: list[tuple[int, _PreparedRealExplanationEvalCase]] = []
+    for index, case in enumerate(cases):
+        prepared_or_record = _prepare_case(case, context_builder)
+        if isinstance(prepared_or_record, RealExplanationEvalRecord):
+            records_by_index[index] = prepared_or_record
+        else:
+            prepared_cases.append((index, prepared_or_record))
+
+    if prepared_cases:
+        max_workers = real_explanation_openrouter_generation_concurrency(len(prepared_cases))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_evaluate_prepared_case, prepared, service): index
+                for index, prepared in prepared_cases
+            }
+            for future in as_completed(futures):
+                records_by_index[futures[future]] = future.result()
+
     records = apply_real_explanation_manual_reviews(
-        [_evaluate_case(case, context_builder, service) for case in cases],
+        [record for record in records_by_index if record is not None],
         reviews,
     )
     if output_path is not None:
@@ -810,11 +838,10 @@ def render_real_explanation_eval_report_markdown(report: RealExplanationEvalRepo
     return "\n".join(lines)
 
 
-def _evaluate_case(
+def _prepare_case(
     case: RealExplanationEvalCase,
     context_builder: MoveContextBuilder,
-    service: ExplanationService,
-) -> RealExplanationEvalRecord:
+) -> _PreparedRealExplanationEvalCase | RealExplanationEvalRecord:
     start = time.perf_counter()
     context: ContextResult | None = None
     try:
@@ -823,6 +850,28 @@ def _evaluate_case(
             raise AssertionError(
                 f"Expected {case.expected_san}, got {context.evidence.played.san}."
             )
+        return _PreparedRealExplanationEvalCase(
+            case=case,
+            context=context,
+            context_latency_seconds=time.perf_counter() - start,
+        )
+    except Exception as exc:
+        return _failure_record_from_exception(
+            case=case,
+            exc=exc,
+            context=context,
+            latency_seconds=round(time.perf_counter() - start, 3),
+        )
+
+
+def _evaluate_prepared_case(
+    prepared: _PreparedRealExplanationEvalCase,
+    service: ExplanationService,
+) -> RealExplanationEvalRecord:
+    start = time.perf_counter()
+    case = prepared.case
+    context = prepared.context
+    try:
         result = service.explain_context(context)
         if result.used_fallback:
             raise AssertionError("Real explanation eval used deterministic fallback.")
@@ -830,6 +879,7 @@ def _evaluate_case(
         failure_codes = [
             code for attempt in result.attempts for code in attempt.failure_codes if code
         ]
+        latency_seconds = prepared.context_latency_seconds + (time.perf_counter() - start)
         return RealExplanationEvalRecord(
             case_id=case.case_id,
             description=case.description,
@@ -862,53 +912,69 @@ def _evaluate_case(
             attempts=len(result.attempts),
             failure_codes=failure_codes,
             generation_attempts=result.attempts,
-            latency_seconds=round(time.perf_counter() - start, 3),
+            latency_seconds=round(latency_seconds, 3),
             llm_context=context.llm_context,
             explanation=result.explanation,
         )
     except Exception as exc:
-        attempts: list[GenerationAttempt] = (
-            exc.attempts if isinstance(exc, ExplanationVerificationError) else []
+        latency_seconds = prepared.context_latency_seconds + (time.perf_counter() - start)
+        return _failure_record_from_exception(
+            case=case,
+            exc=exc,
+            context=context,
+            latency_seconds=round(latency_seconds, 3),
         )
-        failure_codes = [code for attempt in attempts for code in attempt.failure_codes if code]
-        record = RealExplanationEvalRecord(
-            case_id=case.case_id,
-            description=case.description,
-            tags=list(case.tags),
-            source=case.source,
-            passed=False,
-            error=f"{type(exc).__name__}: {exc}",
-            attempts=len(attempts),
-            failure_codes=failure_codes,
-            generation_attempts=attempts,
-            latency_seconds=round(time.perf_counter() - start, 3),
-        )
-        if context is None:
-            return record
-        played = _played_candidate(context.evidence.candidates)
-        return record.model_copy(
-            update={
-                "played_san": context.evidence.played.san,
-                "played_uci": context.evidence.played.uci,
-                "player_color": context.evidence.request.player_color,
-                "quality": context.evidence.quality.label,
-                "score_loss_vs_best_cp": context.evidence.quality.score_loss_vs_best_cp,
-                "wdl_expected_score_loss": context.evidence.quality.wdl_expected_score_loss,
-                "significance": context.evidence.significance.label,
-                "beauty": context.evidence.beauty.label,
-                "stockfish_version": context.evidence.engine.engine_version,
-                "stockfish_depth": _stockfish_depth(context.evidence.engine.top_lines),
-                "maia_candidate_count": _maia_candidate_count(context.evidence.candidates),
-                "maia_sources": _maia_sources(context.evidence.candidates),
-                "played_findability_source": played.findability_source if played else None,
-                "played_findability": played.time_adjusted_findability if played else None,
-                "schema_version": EXPLANATION_SCHEMA_VERSION if attempts else None,
-                "context_version": context.evidence.context_version,
-                "prompt_id": PROMPT_ID if attempts else None,
-                "prompt_version": attempts[-1].prompt_version if attempts else None,
-                "llm_context": context.llm_context,
-            }
-        )
+
+
+def _failure_record_from_exception(
+    *,
+    case: RealExplanationEvalCase,
+    exc: Exception,
+    context: ContextResult | None,
+    latency_seconds: float,
+) -> RealExplanationEvalRecord:
+    attempts: list[GenerationAttempt] = (
+        exc.attempts if isinstance(exc, ExplanationVerificationError) else []
+    )
+    failure_codes = [code for attempt in attempts for code in attempt.failure_codes if code]
+    record = RealExplanationEvalRecord(
+        case_id=case.case_id,
+        description=case.description,
+        tags=list(case.tags),
+        source=case.source,
+        passed=False,
+        error=f"{type(exc).__name__}: {exc}",
+        attempts=len(attempts),
+        failure_codes=failure_codes,
+        generation_attempts=attempts,
+        latency_seconds=latency_seconds,
+    )
+    if context is None:
+        return record
+    played = _played_candidate(context.evidence.candidates)
+    return record.model_copy(
+        update={
+            "played_san": context.evidence.played.san,
+            "played_uci": context.evidence.played.uci,
+            "player_color": context.evidence.request.player_color,
+            "quality": context.evidence.quality.label,
+            "score_loss_vs_best_cp": context.evidence.quality.score_loss_vs_best_cp,
+            "wdl_expected_score_loss": context.evidence.quality.wdl_expected_score_loss,
+            "significance": context.evidence.significance.label,
+            "beauty": context.evidence.beauty.label,
+            "stockfish_version": context.evidence.engine.engine_version,
+            "stockfish_depth": _stockfish_depth(context.evidence.engine.top_lines),
+            "maia_candidate_count": _maia_candidate_count(context.evidence.candidates),
+            "maia_sources": _maia_sources(context.evidence.candidates),
+            "played_findability_source": played.findability_source if played else None,
+            "played_findability": played.time_adjusted_findability if played else None,
+            "schema_version": EXPLANATION_SCHEMA_VERSION if attempts else None,
+            "context_version": context.evidence.context_version,
+            "prompt_id": PROMPT_ID if attempts else None,
+            "prompt_version": attempts[-1].prompt_version if attempts else None,
+            "llm_context": context.llm_context,
+        }
+    )
 
 
 def _load_default_manual_reviews(
@@ -968,6 +1034,20 @@ def _failed_attempt_explanations(record: RealExplanationEvalRecord) -> list[str]
         for attempt in record.generation_attempts
         if not attempt.verification_passed and attempt.explanation
     ]
+
+
+def real_explanation_openrouter_generation_concurrency(case_count: int) -> int:
+    if case_count <= 0:
+        return 0
+    configured = _int_env(
+        "G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY",
+        DEFAULT_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY,
+    )
+    if configured < 1:
+        raise RealEvaluationSetupError(
+            "G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY must be at least 1."
+        )
+    return min(case_count, configured)
 
 
 def _real_context_builder() -> MoveContextBuilder:

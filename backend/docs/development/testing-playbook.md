@@ -87,6 +87,10 @@ OpenRouter:
 - Real eval manual-review annotations default to
   `docs/development/real-explanation-manual-reviews.json`; override them with
   `G6EXPLANATION_REAL_LLM_EVAL_MANUAL_REVIEWS`.
+- Batched real eval builds Stockfish/Maia context packets deterministically,
+  then runs OpenRouter generation concurrently. Override the default 30
+  in-flight OpenRouter requests with
+  `G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY`.
 
 ## Unit Tests
 

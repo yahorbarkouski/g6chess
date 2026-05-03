@@ -74,7 +74,7 @@ def test_service_returns_verified_model_output_without_baseline_comparison() -> 
     assert len(provider.prompts) == 1
 
 
-def test_prompt_spells_out_recommendation_policy_contract() -> None:
+def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
@@ -96,7 +96,14 @@ def test_prompt_spells_out_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v3"
+    assert result.prompt_version == "single_move_coach.v4"
+    assert "Use a neutral explanatory voice" in prompt_payload
+    assert "Prefer one compact sentence" in prompt_payload
+    assert "Avoid rigid templates" in prompt_payload
+    assert "Choose the smallest sufficient teaching point" in prompt_payload
+    assert "For low-significance best" in prompt_payload
+    assert "Do not call a practical_alternative a better move" in prompt_payload
+    assert "Do not expose internal wording" in prompt_payload
     assert "recommend_directly allows direct advice" in prompt_payload
     assert "do_not_recommend must not be called" in prompt_payload
     assert "Do not use named tactic labels" in prompt_payload

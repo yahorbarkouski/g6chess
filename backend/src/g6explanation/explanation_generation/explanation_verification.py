@@ -34,6 +34,14 @@ RAW_ENGINE_RE = re.compile(
     r"(?<![A-Za-z0-9])[+-]\d+(?:\.\d+)?(?![A-Za-z0-9])",
     re.IGNORECASE,
 )
+INTERNAL_LANGUAGE_RE = re.compile(
+    r"\b(?:"
+    r"featured move|move quality|quality label|verified context|supplied context|"
+    r"allowed_claims|concept_claims|recommendation_policy|engine[- ]listed|"
+    r"engine's listed|deterministic evidence|schema-valid|json object"
+    r")\b",
+    re.IGNORECASE,
+)
 MATERIAL_RE = re.compile(
     r"\b(?:wins?|loses?|lost|drops?|dropped|hangs?|hung)\s+material\b|"
     r"\b(?:wins?|loses?|lost|drops?|dropped|hangs?|hung)\s+"
@@ -99,7 +107,7 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "center": ("center", "centre", "central"),
     "development": ("development", "developing", "undeveloped"),
     "initiative": ("initiative",),
-    "space": ("space advantage", "space"),
+    "space": ("space advantage", "gained space", "gains space", "more space", "extra space"),
     "pawn_structure": (
         "pawn structure",
         "isolated pawn",
@@ -130,6 +138,13 @@ CAVEAT_TERMS = {
 }
 HARD_FINDABILITY = {"hard", "very_hard", "engine_like"}
 NON_BAD_QUALITY_LABELS = {"best", "forced", "excellent", "good", "neutral"}
+REQUIRED_EXPLICIT_QUALITY_LABELS = {
+    "forced",
+    "inaccuracy",
+    "mistake",
+    "blunder",
+    "missed_win",
+}
 
 
 class ExplanationVerifier:
@@ -148,7 +163,7 @@ class ExplanationVerifier:
 
         allowed_aliases = _allowed_move_aliases(context_result)
         mentions = _move_mentions(explanation)
-        _verify_played_move_mentioned(context_result, mentions, issues)
+        _verify_played_move_mentioned(context_result, explanation, mentions, issues)
         _verify_move_mentions(mentions, allowed_aliases, issues)
         _verify_quality(context_result, explanation, issues)
         _verify_supported_claim_terms(context_result, explanation, mentions, issues)
@@ -275,12 +290,15 @@ def _verify_move_mentions(
 
 def _verify_played_move_mentioned(
     context_result: ContextResult,
+    explanation: str,
     mentions: list[_MoveMention],
     issues: _IssueCollector,
 ) -> None:
     played_aliases = _san_aliases(context_result.llm_context.played)
     mentioned_aliases = {mention.normalized for mention in mentions if not mention.is_uci}
-    if not _aliases_mentioned(played_aliases, mentioned_aliases):
+    if not _aliases_mentioned(played_aliases, mentioned_aliases) and not (
+        _castling_played_move_alias_mentioned(context_result.llm_context.played, explanation)
+    ):
         issues.fail(
             "played_move_missing",
             "$.explanation",
@@ -293,24 +311,27 @@ def _verify_quality(
     explanation: str,
     issues: _IssueCollector,
 ) -> None:
-    expected = _quality_phrases(context_result.llm_context.quality)
+    quality = context_result.llm_context.quality
+    expected = _quality_phrases(quality)
     text = explanation.lower()
-    if not any(phrase in text for phrase in expected):
+    if quality in REQUIRED_EXPLICIT_QUALITY_LABELS and not any(
+        phrase in text for phrase in expected
+    ):
         issues.fail(
             "quality_label_missing",
             "$.explanation",
-            f"Explanation does not clearly state quality {context_result.llm_context.quality}.",
+            f"Explanation does not clearly state quality {quality}.",
         )
         return
 
     played = context_result.llm_context.played.lower().rstrip("+#")
-    for label in _all_quality_labels() - {context_result.llm_context.quality}:
+    for label in _all_quality_labels() - {quality}:
         for phrase in _quality_phrases(label):
             if f"{played} was {phrase}" in text or f"{played} was a {phrase}" in text:
                 issues.fail(
                     "quality_label_conflict",
                     "$.explanation",
-                    f"Explanation conflicts with quality {context_result.llm_context.quality}.",
+                    f"Explanation conflicts with quality {quality}.",
                 )
                 return
 
@@ -349,7 +370,7 @@ def _verify_supported_claim_terms(
                     f"claims: {unsupported_material_term}."
                 ),
             )
-    tactic = next((term for term in TACTIC_TERMS if term in text), None)
+    tactic = next((term for term in TACTIC_TERMS if _contains_phrase(text, term)), None)
     if tactic:
         tactic_support = _trusted_claim_text(context_result, {"tactic"})
         if not _contains_phrase(tactic_support, tactic):
@@ -370,6 +391,12 @@ def _verify_supported_claim_terms(
             "raw_engine_dump",
             "$.explanation",
             "Explanation includes raw engine/evaluation data.",
+        )
+    if INTERNAL_LANGUAGE_RE.search(explanation):
+        issues.fail(
+            "internal_language",
+            "$.explanation",
+            "Explanation exposes prompt, context, or verifier-internal wording.",
         )
 
 
@@ -437,6 +464,11 @@ def _verify_hard_move_caveats(
     mentioned = {mention.normalized for mention in mentions if not mention.is_uci}
     for move_context in _move_contexts(context_result):
         if move_context.findability not in HARD_FINDABILITY:
+            continue
+        if (
+            move_context.move == context_result.llm_context.played
+            and context_result.evidence.quality.label in NON_BAD_QUALITY_LABELS
+        ):
             continue
         if not _aliases_mentioned(_san_aliases(move_context.move), mentioned):
             continue
@@ -561,6 +593,19 @@ def _candidate_is_mentioned(candidate: CandidateMove, mentioned: set[str]) -> bo
 
 def _aliases_mentioned(aliases: set[str], mentioned: set[str]) -> bool:
     return any(alias in mentioned for alias in aliases)
+
+
+def _castling_played_move_alias_mentioned(played_san: str, explanation: str) -> bool:
+    played = played_san.lower().rstrip("+#")
+    if played not in {"o-o", "o-o-o"}:
+        return False
+    text = explanation.lower()
+    aliases = ["castling", "castled", "castle"]
+    if played == "o-o":
+        aliases.extend(["kingside castling", "king-side castling"])
+    else:
+        aliases.extend(["queenside castling", "queen-side castling"])
+    return any(_contains_phrase(text, alias) for alias in aliases)
 
 
 def _has_recommendation_language(text: str, aliases: set[str]) -> bool:

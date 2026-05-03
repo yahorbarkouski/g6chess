@@ -25,10 +25,30 @@ The static prompt should say:
 
 - Use only the supplied context.
 - Return exactly one concise explanation string.
-- State move quality clearly.
-- Explain the main reason and featured move or idea when supplied.
+- Use a concise, neutral explanatory voice rather than direct address or
+  broadcast commentary.
+- Do not force a rigid sentence template. One compact sentence is preferred,
+  with two short sentences only when contrast is useful.
+- State serious outcomes clearly: forced moves, inaccuracies, mistakes,
+  blunders, and missed wins must be named. For best, good, excellent, or
+  neutral moves, explain the supported purpose naturally instead of forcing a
+  visible label every time.
+- Explain the main reason and key move or idea when supplied.
+- Choose the smallest sufficient teaching point. Do not list every supplied
+  candidate or concept.
+- For good high-WDL or good-not-best moves, explain why the played move still
+  worked instead of caveating with a hidden engine resource unless that hidden
+  idea is the central lesson.
+- For low-significance best, excellent, good, or neutral moves, avoid hidden
+  resources, hard-to-find language, and comparison alternatives. One supported
+  purpose for the played move is enough.
+- For forced legal moves, keep the explanation centered on the lack of legal
+  alternatives and avoid residual position-status detail unless it directly
+  explains the move.
 - Treat `engine_best_move` as objective truth and `practical_alternative` as a
   coaching option; do not collapse the two when both are supplied.
+- Do not call a `practical_alternative` a better move unless typed
+  `better_alternative` evidence supports that wording.
 - Respect recommendation policy fields; do not tell the player to play a
   `do_not_recommend` move.
 - Add a caveat when the context marks the key move as hard to find.
@@ -42,6 +62,9 @@ The static prompt should say:
 - On retries, repair the exact verifier issue instead of paraphrasing broadly;
   keep recommendation wording attached only to moves whose
   `recommendation_policy` allows it.
+- Do not expose internal field names or workflow language such as
+  `featured_move`, `move_quality`, `allowed_claims`, `concept_claims`,
+  `recommendation_policy`, "verified context", or "engine-listed".
 
 ## Dynamic Context Rules
 
@@ -65,7 +88,7 @@ The model may:
 
 - summarize what changed
 - explain why the played move worked or failed
-- state the move quality
+- state serious move quality labels when the context requires them
 - explain the supported better move or idea
 - mention that a move was hard or easy to find when the context says so
 
@@ -91,9 +114,10 @@ Keep the chess specific. Do not hide uncertainty with confident generic advice.
 
 ```text
 System:
-You are a chess coach. Use only the verified context. Return JSON with one
-field, "explanation". Do not introduce unsupported moves, lines, tactics, mate
-claims, or material claims.
+You are a chess coach for one verified move. The chess truth is already decided
+by deterministic evidence. Phrase that evidence as a concise, neutral
+explanation. Return JSON with one field, "explanation". Do not introduce
+unsupported moves, lines, tactics, mate claims, or material claims.
 
 User:
 Write one explanation for this verified move context:

@@ -97,7 +97,7 @@ def build_allowed_claims(
         if key_candidate.practicality == "practical_try":
             claims.append(f"{key_candidate.san} was a practical alternative")
     if featured_candidate and not key_candidate:
-        claims.append(f"{featured_candidate.san} was the featured move")
+        claims.append(f"{featured_candidate.san} was the key move")
     if analysis.after_line and quality.label in BAD_QUALITY_LABELS:
         claims.append(
             f"the opponent's key reply after {played.san} was {analysis.after_line.move_san}"

@@ -26,7 +26,54 @@ def build_coach_prompt(
         "constraints": [
             "Use only supplied context.",
             "Return exactly one JSON object with an explanation string.",
-            "State the move quality clearly.",
+            (
+                "Use a neutral explanatory voice. Do not address the player directly, "
+                "and do not write broadcast-style commentary."
+            ),
+            (
+                "Prefer one compact sentence. Use two short sentences only when a "
+                "mistake, missed win, forced move, or hard alternative needs contrast."
+            ),
+            (
+                "Avoid rigid templates and vary sentence shape naturally across moves. "
+                "Do not start every explanation with the same quality label pattern."
+            ),
+            (
+                "State serious outcomes clearly: forced moves, inaccuracies, mistakes, "
+                "blunders, and missed wins must be named. For best, good, excellent, "
+                "or neutral moves, explain the supported purpose naturally without "
+                "forcing a visible quality label every time."
+            ),
+            (
+                "Choose the smallest sufficient teaching point. Do not list every "
+                "supplied candidate or concept. Mention at most one better, practical, "
+                "or hidden move unless the main_point itself needs a direct contrast."
+            ),
+            (
+                "For good high-WDL or good-not-best moves, explain why the played move "
+                "still worked; do not caveat with hidden engine resources unless that "
+                "hidden idea is the central lesson."
+            ),
+            (
+                "For low-significance best, excellent, good, or neutral moves, do not "
+                "mention hidden resources, hard-to-find language, or comparison "
+                "alternatives. One supported purpose for the played move is enough."
+            ),
+            (
+                "Reserve hard-to-find and hidden-resource wording for high or critical "
+                "review points, missed wins, bad moves, or unplayed alternatives that "
+                "the context makes the lesson."
+            ),
+            (
+                "For forced legal moves, keep the explanation centered on the lack of "
+                "legal alternatives. Do not add residual position status unless it "
+                "directly explains the move."
+            ),
+            (
+                "Do not expose internal wording such as featured move, move quality, "
+                "verified context, supplied context, allowed_claims, concept_claims, "
+                "recommendation_policy, or engine-listed."
+            ),
             (
                 "Do not add moves, PV continuations, material claims, tactic claims, "
                 "concept claims, or mate claims unless they are supplied in "
@@ -41,6 +88,10 @@ def build_coach_prompt(
             (
                 "Treat engine_best_move as objective truth and practical_alternative "
                 "as a coaching option."
+            ),
+            (
+                "Do not call a practical_alternative a better move or better "
+                "alternative unless a supplied better_alternative claim supports that wording."
             ),
             (
                 "Respect recommendation_policy fields: never tell the player to play "
@@ -71,8 +122,8 @@ def build_coach_prompt(
                 "content": (
                     "You are a chess coach for one verified move. The chess truth is "
                     "already decided by deterministic evidence. Your job is only to "
-                    "phrase that evidence clearly for the player. Return strict JSON "
-                    "with one field named explanation."
+                    "phrase that evidence as a concise, neutral explanation. Return "
+                    "strict JSON with one field named explanation."
                 ),
             },
             {

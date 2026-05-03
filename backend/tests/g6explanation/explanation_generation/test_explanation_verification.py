@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from typing import cast
 
+import chess
 import pytest
 
+from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
     CandidateMove,
     ConceptClaim,
     ConceptClaimKind,
+    MoveContextRequest,
+    PlayerLevel,
     Score,
 )
 from g6explanation.explanation_generation.contracts import (
@@ -15,6 +19,7 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationVerificationResult,
 )
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
+from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 from tests.g6explanation.explanation_generation.helpers import (
     best_context,
     hard_engine_best_context,
@@ -64,6 +69,29 @@ def test_verifier_rejects_explanation_that_omits_played_move() -> None:
 
     assert not verification.passed
     assert "played_move_missing" in _failure_codes(verification)
+
+
+def test_verifier_accepts_castling_word_as_played_move_mention() -> None:
+    board = chess.Board("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
+    engine_analysis = analysis(
+        board,
+        played_uci="e1g1",
+        top_scores=[("e1g1", 100), ("a1a8", 80)],
+        played_score=100,
+    )
+    context = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(
+        MoveContextRequest(
+            fen_before=board.fen(),
+            played_move="e1g1",
+            player_color="white",
+            player_level=PlayerLevel.rating(1200),
+        )
+    )
+    output = ExplanationOutput(explanation="Castling was the best move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
 
 
 def test_verifier_rejects_unsupported_pv_continuation() -> None:
@@ -264,8 +292,8 @@ def test_verifier_accepts_multiple_verified_immediate_mates() -> None:
     )
     output = ExplanationOutput(
         explanation=(
-            "Best move. e4# was the featured move and delivered forced mate. "
-            "The engine's listed best move is Rd8#, but e4# also checkmated the opponent."
+            "e4# was the best move and delivered forced mate. "
+            "Rd8# was another immediate mate, but e4# also checkmated the opponent."
         )
     )
 
@@ -388,6 +416,15 @@ def test_verifier_rejects_unsupported_tactic_claim() -> None:
     assert "unsupported_tactic_claim" in _failure_codes(verification)
 
 
+def test_verifier_does_not_match_tactic_terms_inside_words() -> None:
+    context = best_context()
+    output = ExplanationOutput(explanation="e4 was the best move, keeping the position stable.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_accepts_supported_tactic_claim() -> None:
     context = mistake_context_with_practical_alternative()
     claim = ConceptClaim(
@@ -491,6 +528,15 @@ def test_verifier_accepts_supported_concept_claim() -> None:
             "Nf3 was a practical alternative close to the engine best move."
         )
     )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_allows_central_space_when_center_claim_is_supported() -> None:
+    context = best_context()
+    output = ExplanationOutput(explanation="e4 was the best move, claiming central space.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -651,6 +697,37 @@ def test_verifier_rejects_wrong_quality_label() -> None:
     assert "quality_label_missing" in _failure_codes(verification)
 
 
+def test_verifier_allows_implicit_positive_quality_label() -> None:
+    context = best_context()
+    output = ExplanationOutput(
+        explanation="e4 fits the position; no sharper alternative is needed."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_still_requires_bad_quality_label() -> None:
+    context = hard_engine_best_context()
+    output = ExplanationOutput(explanation="a3 let the opponent improve with e5.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "quality_label_missing" in _failure_codes(verification)
+
+
+def test_verifier_rejects_internal_prompt_language() -> None:
+    context = best_context()
+    output = ExplanationOutput(explanation="e4 was the featured move and the best move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "internal_language" in _failure_codes(verification)
+
+
 def test_verifier_rejects_best_move_inconsistency() -> None:
     context = mistake_context_with_practical_alternative()
     output = ExplanationOutput(explanation="g4 was a mistake, but Nf3 was the best move.")
@@ -669,6 +746,31 @@ def test_verifier_rejects_hard_move_without_caveat() -> None:
 
     assert not verification.passed
     assert "hard_move_uncaveated" in _failure_codes(verification)
+
+
+def test_verifier_allows_hard_played_move_when_quality_is_non_bad() -> None:
+    context = best_context()
+    engine_best = context.llm_context.engine_best_move
+    assert engine_best is not None
+    context = context.model_copy(
+        update={
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "engine_best_move": engine_best.model_copy(
+                        update={
+                            "findability": "hard",
+                            "recommendation_policy": "mention_with_caveat",
+                        }
+                    )
+                }
+            )
+        }
+    )
+    output = ExplanationOutput(explanation="e4 was the best move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
 
 
 def test_verifier_rejects_do_not_recommend_move() -> None:

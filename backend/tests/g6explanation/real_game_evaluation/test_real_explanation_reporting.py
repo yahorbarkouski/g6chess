@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
+import pytest
+
+import g6explanation.real_game_evaluation.explanation_evaluation as evaluation_module
 from g6explanation.explanation_generation.contracts import GenerationAttempt
 from g6explanation.real_game_evaluation import (
     ManualReviewCategory,
@@ -140,7 +143,7 @@ def test_markdown_report_includes_failed_attempt_explanations() -> None:
                         provider_name="openrouter",
                         model="openai/gpt-5.5-20260423",
                         prompt_id="single_move_coach",
-                        prompt_version="single_move_coach.v3",
+                        prompt_version="single_move_coach.v4",
                         verification_passed=False,
                         failure_codes=["unsupported_tactic_claim"],
                         explanation="Nf6 missed a back-rank tactic.",
@@ -150,7 +153,7 @@ def test_markdown_report_includes_failed_attempt_explanations() -> None:
                         provider_name="openrouter",
                         model="openai/gpt-5.5-20260423",
                         prompt_id="single_move_coach",
-                        prompt_version="single_move_coach.v3",
+                        prompt_version="single_move_coach.v4",
                         verification_passed=True,
                         explanation="Nf6 missed Qh4#.",
                     ),
@@ -253,6 +256,24 @@ def test_manual_review_annotations_apply_only_to_matching_records() -> None:
     assert reviewed_records[0].manual_review_category == "model_wording_issue"
     assert reviewed_records[0].manual_review_notes == review.notes
     assert reviewed_records[1].manual_review_category == "not_reviewed"
+
+
+def test_openrouter_generation_concurrency_defaults_to_bounded_parallelism(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY", raising=False)
+
+    assert evaluation_module.real_explanation_openrouter_generation_concurrency(0) == 0
+    assert evaluation_module.real_explanation_openrouter_generation_concurrency(12) == 12
+    assert evaluation_module.real_explanation_openrouter_generation_concurrency(40) == 30
+
+
+def test_openrouter_generation_concurrency_respects_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY", "7")
+
+    assert evaluation_module.real_explanation_openrouter_generation_concurrency(20) == 7
 
 
 def test_jsonl_report_builder_applies_manual_reviews(tmp_path: Path) -> None:

@@ -172,6 +172,20 @@ accept seed records, then prepare training manifests
   `LLMContext` and generation-version metadata in eval records, and tightened
   the verifier for square references and multiple immediate-mate moves before
   promoting the broader no-mock suite.
+- 2026-05-03: started the every-move style-polish phase before fine-tuning.
+  Prompt v4 targets concise, neutral, non-template explanations; the verifier
+  now requires explicit labels for forced/bad/missed-win moves but allows good
+  or quiet moves to explain their purpose naturally. Real OpenRouter generation
+  in batched evals is prepared concurrently after deterministic Stockfish/Maia
+  context building.
+- 2026-05-03: completed the first every-move style pass against real providers.
+  Prompt v4 now prefers one teaching point, suppresses hidden-resource noise for
+  low-significance non-bad moves, and keeps practical alternatives distinct
+  from better alternatives. Deterministic verification now supports natural
+  castling wording, word-bound tactic matching, center claims for central
+  squares, and narrower space aliases. Final no-mock checks passed 20/20 with
+  0 retries/fallbacks, Opera full-chain passed 33/33 with 0 retries/fallbacks,
+  and a Capablanca strategic segment passed 12/12 with 0 retries/fallbacks.
 
 ## Resume Checklist
 

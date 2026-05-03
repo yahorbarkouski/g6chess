@@ -151,7 +151,7 @@ The coach model may:
 - summarize what changed
 - explain the human reason for a mistake
 - adapt wording to rating level
-- state the move quality clearly
+- state serious move-quality labels clearly when the context requires them
 - explain the better move or idea when supported by evidence
 
 The coach model may not:

@@ -10,7 +10,7 @@ from g6explanation.context_engine.contracts import ContextContract
 
 EXPLANATION_SCHEMA_VERSION = "explanation_output.v1"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v3"
+PROMPT_VERSION = "single_move_coach.v4"
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",
@@ -25,6 +25,7 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
     "unsupported_tactic_claim",
     "unsupported_concept_claim",
     "raw_engine_dump",
+    "internal_language",
     "best_move_inconsistent",
     "recommendation_policy_violation",
     "hard_move_uncaveated",

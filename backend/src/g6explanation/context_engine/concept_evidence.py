@@ -17,6 +17,7 @@ DEVELOPMENT_HOME_SQUARES = {
     chess.WHITE: {chess.B1, chess.C1, chess.F1, chess.G1},
     chess.BLACK: {chess.B8, chess.C8, chess.F8, chess.G8},
 }
+CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 
 
 def build_move_concept_claims(
@@ -54,6 +55,16 @@ def build_move_concept_claims(
                 kind="development",
                 subject=subject,
                 claim=f"{move_san} developed a piece",
+                source="deterministic_detector",
+                move_san=move_san,
+            )
+        )
+    if _occupies_center(move):
+        claims.append(
+            ConceptClaim(
+                kind="center",
+                subject=subject,
+                claim=f"{move_san} claimed the center",
                 source="deterministic_detector",
                 move_san=move_san,
             )
@@ -178,6 +189,10 @@ def _develops_minor_piece(piece: chess.Piece, move: chess.Move) -> bool:
         piece.piece_type in {chess.KNIGHT, chess.BISHOP}
         and move.from_square in DEVELOPMENT_HOME_SQUARES[piece.color]
     )
+
+
+def _occupies_center(move: chess.Move) -> bool:
+    return move.to_square in CENTER_SQUARES
 
 
 def _uses_open_file(board: chess.Board, piece: chess.Piece, move: chess.Move) -> bool:

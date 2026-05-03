@@ -232,6 +232,7 @@ def test_special_played_move_concept_claims(
     [
         ("8/8/8/8/8/3p4/4P3/4K2k w - - 0 1", "e2d3", "exd3", "material"),
         ("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1", "g1f3", "Nf3", "development"),
+        ("4k3/8/8/8/8/8/3P4/4K3 w - - 0 1", "d2d4", "d4", "center"),
         ("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1", "a1d1", "Rd1", "open_file"),
         ("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1", "e4e5", "e5", "passed_pawn"),
         ("4k3/8/8/8/2P1PN2/8/8/4K3 w - - 0 1", "f4d5", "Nd5", "weak_square"),
