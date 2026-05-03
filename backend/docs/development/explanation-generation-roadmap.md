@@ -58,7 +58,7 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
 | 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, failed-attempt text, and manual-review fields. |
 | 8 | Define promotion gates | Complete | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
 | 9 | Broaden model/provider resilience | Complete | Provider has explicit timeout, retry/backoff policy, error taxonomy, model metadata, and optional comparison runs. |
-| 10 | Prepare training data | Not started | Only verified context plus verified explanation plus reviewed eval records can enter training-data manifests. |
+| 10 | Prepare training data | Complete | Only verified context plus verified explanation plus reviewed eval records can enter training-data manifests. |
 
 ## Checkpoint Log
 
@@ -156,6 +156,10 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   max-retry, retry-backoff, and max-token settings. Transient transport errors
   and retryable HTTP statuses are retried within bounded limits; non-retryable
   provider errors fail immediately with controlled `CoachModelError` messages.
+- 2026-05-03: added conservative training-data manifest gates. Eval records are
+  excluded unless they passed verification, avoided fallback, include explanation
+  and model metadata, use Stockfish depth 16 or deeper, and are manually marked
+  `accepted`.
 
 ## Resume Checklist
 

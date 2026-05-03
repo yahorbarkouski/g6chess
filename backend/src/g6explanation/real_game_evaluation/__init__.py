@@ -36,6 +36,12 @@ from g6explanation.real_game_evaluation.real_games import (
     read_game,
     san_at_ply,
 )
+from g6explanation.real_game_evaluation.training_manifest import (
+    TRAINING_DATA_MANIFEST_VERSION,
+    TrainingDataManifest,
+    TrainingDataManifestEntry,
+    build_training_data_manifest,
+)
 
 __all__ = [
     "BYRNE_FISCHER",
@@ -44,6 +50,7 @@ __all__ = [
     "OPERA_GAME",
     "REAL_EXPLANATION_EVAL_CASES",
     "REAL_GAME_FIXTURES",
+    "TRAINING_DATA_MANIFEST_VERSION",
     "ManualReviewCategory",
     "RealEvaluationSetupError",
     "RealExplanationEvalCase",
@@ -55,10 +62,13 @@ __all__ = [
     "RealExplanationPromotionGateIssue",
     "RealExplanationPromotionGateResult",
     "RealGameFixture",
+    "TrainingDataManifest",
+    "TrainingDataManifestEntry",
     "apply_real_explanation_manual_reviews",
     "board_before_ply",
     "build_real_explanation_eval_report",
     "build_real_explanation_eval_report_from_jsonl",
+    "build_training_data_manifest",
     "color_name",
     "evaluate_real_explanation_promotion_gate",
     "load_real_explanation_eval_records",

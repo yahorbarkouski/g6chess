@@ -243,6 +243,11 @@ report. A candidate is not promotable if it covers fewer cases, has more failed
 or fallback cases, lowers pass rate, increases retries, increases failure-code
 counts, or leaves manual-review-required records unresolved.
 
+Training-data manifests are conservative. A generated explanation is eligible
+only when the eval record passed verification, did not use fallback, has
+provider/model metadata, has Stockfish depth 16 or deeper, includes the verified
+explanation text, and is manually marked `accepted`.
+
 Metrics:
 
 - schema pass rate
