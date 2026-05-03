@@ -30,7 +30,7 @@ def build_coach_prompt(
             (
                 "Do not add moves, PV continuations, material claims, tactic claims, "
                 "concept claims, or mate claims unless they are supplied in "
-                "allowed_claims or candidates."
+                "concept_claims, allowed_claims, or candidates."
             ),
             (
                 "Treat engine_best_move as objective truth and practical_alternative "

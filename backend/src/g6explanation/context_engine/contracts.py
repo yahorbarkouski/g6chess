@@ -66,6 +66,49 @@ ForcingTier: TypeAlias = Literal[
     "ordinary_capture",
     "quiet",
 ]
+ConceptClaimKind: TypeAlias = Literal[
+    "move_quality",
+    "forced_move",
+    "forced_mate",
+    "forcing_move",
+    "critical_best_move",
+    "capture",
+    "practical_alternative",
+    "better_alternative",
+    "opponent_resource",
+    "hidden_resource",
+    "hard_to_find",
+    "teachable_skill_gap",
+    "material",
+    "tactic",
+    "king_safety",
+    "center",
+    "development",
+    "initiative",
+    "space",
+    "pawn_structure",
+    "open_file",
+    "piece_activity",
+    "weak_square",
+]
+ConceptClaimSubject: TypeAlias = Literal[
+    "played_move",
+    "key_move",
+    "featured_move",
+    "engine_best_move",
+    "practical_alternative",
+    "opponent_reply",
+    "position",
+]
+ConceptClaimSource: TypeAlias = Literal[
+    "quality_classification",
+    "legal_move_count",
+    "played_move_fact",
+    "candidate_policy",
+    "engine_line",
+    "human_likelihood",
+    "deterministic_detector",
+]
 VerificationIssueCode: TypeAlias = Literal[
     "candidate_duplicate",
     "candidate_hard_direct_recommendation",
@@ -96,6 +139,7 @@ VerificationIssueCode: TypeAlias = Literal[
     "fen_before_invalid",
     "legal_moves_mismatch",
     "llm_context_claim_not_allowed",
+    "llm_context_concept_claim_not_allowed",
     "llm_context_inconsistent",
     "played_move_fact_mismatch",
     "played_move_illegal",
@@ -358,6 +402,14 @@ class MainPoint(ContextContract):
     claim: str
 
 
+class ConceptClaim(ContextContract):
+    kind: ConceptClaimKind
+    subject: ConceptClaimSubject
+    claim: str
+    source: ConceptClaimSource
+    move_san: str | None = None
+
+
 class KeyMoveContext(ContextContract):
     move: str
     practicality: PracticalityCategory
@@ -377,6 +429,7 @@ class EvidencePacket(ContextContract):
     beauty: MoveBeauty
     candidates: list[CandidateMove] = Field(default_factory=list[CandidateMove])
     main_point: MainPoint
+    concept_claims: list[ConceptClaim] = Field(default_factory=list[ConceptClaim])
     allowed_claims: list[str] = Field(default_factory=list[str])
 
 
@@ -394,6 +447,7 @@ class LLMContext(ContextContract):
     practical_alternative: KeyMoveContext | None = None
     featured_move: KeyMoveContext | None = None
     human_note: str | None
+    concept_claims: list[ConceptClaim] = Field(default_factory=list[ConceptClaim])
     allowed_claims: list[str] = Field(default_factory=list[str])
 
 

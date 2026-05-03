@@ -5,6 +5,7 @@ import chess
 from g6explanation.context_engine import EvidenceVerifier, MoveContextBuilder
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    ConceptClaim,
     ContextResult,
     EngineAnalysis,
     EngineAnalysisBudget,
@@ -167,6 +168,37 @@ def test_verifier_rejects_unsupported_llm_claim() -> None:
     verification = EvidenceVerifier().verify(result.evidence, llm_context)
 
     assert _issue_codes(verification) == {"llm_context_claim_not_allowed"}
+
+
+def test_verifier_rejects_unsupported_llm_concept_claim() -> None:
+    result = _valid_result()
+    llm_context = result.llm_context.model_copy(
+        update={
+            "concept_claims": [
+                *result.llm_context.concept_claims,
+                ConceptClaim(
+                    kind="king_safety",
+                    subject="played_move",
+                    claim="e4 improved king safety",
+                    source="deterministic_detector",
+                    move_san="e4",
+                ),
+            ]
+        }
+    )
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_concept_claim_not_allowed"}
+
+
+def test_verifier_rejects_missing_llm_concept_claim() -> None:
+    result = _valid_result()
+    llm_context = result.llm_context.model_copy(update={"concept_claims": []})
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_inconsistent"}
 
 
 def test_verifier_rejects_mismatched_llm_player_level() -> None:

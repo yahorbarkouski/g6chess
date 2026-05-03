@@ -1,6 +1,7 @@
 """Context engine for focused chess move explanations."""
 
 from g6explanation.context_engine import (
+    ConceptClaim,
     ContextResult,
     EvidencePacket,
     EvidenceVerifier,
@@ -25,6 +26,7 @@ from g6explanation.explanation_generation import (
 )
 
 __all__ = [
+    "ConceptClaim",
     "ContextResult",
     "EvidencePacket",
     "EvidenceVerifier",

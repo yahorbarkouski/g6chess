@@ -100,15 +100,17 @@ Minimum checks:
   move, engine best, practical alternative, and explicitly allowed replies
 - no unsupported PV continuations
 - no unsupported mate, material, tactic, or concept claims
+- concept language must be supported by typed `concept_claims`; free-form
+  `allowed_claims` alone do not authorize strategic concepts
 - quality label consistency with `LLMContext.quality`
 - best move and practical alternative consistency
 - side-to-move and player-perspective sanity
 - no direct recommendation of a `do_not_recommend` move
 - hard or engine-like alternatives caveated when the context marks them hard
 
-Because free-form chess language is hard to verify, the first prompt should keep
-wording close to `main_point`, supplied move contexts, `human_note`, and
-`allowed_claims`.
+Because free-form chess language is hard to verify, prompts should keep wording
+close to `main_point`, typed `concept_claims`, supplied move contexts,
+`human_note`, and `allowed_claims`.
 
 ## Retry And Fallback
 

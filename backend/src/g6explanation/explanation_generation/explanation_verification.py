@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    ConceptClaim,
     ContextResult,
     KeyMoveContext,
 )
@@ -51,8 +52,31 @@ TACTIC_TERMS = {
     "intermezzo",
     "back rank",
 }
-CONCEPT_CLAIMS: dict[str, tuple[str, ...]] = {
-    "king safety": (
+CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
+    "forced_move": ("forced move", "only legal move", "no legal alternative"),
+    "forcing_move": (
+        "forcing move",
+        "forcing check",
+        "gave check",
+        "with check",
+        "checking move",
+    ),
+    "forced_mate": ("forced mate", "checkmate", "mate"),
+    "critical_best_move": ("critical move", "critical best move"),
+    "capture": ("captured", "capture"),
+    "practical_alternative": ("practical alternative", "practical try"),
+    "better_alternative": ("better move", "better alternative"),
+    "opponent_resource": (
+        "opponent resource",
+        "opponent's key reply",
+        "let the opponent",
+        "allowed the opponent",
+        "opponent improve",
+    ),
+    "hidden_resource": ("hidden resource",),
+    "hard_to_find": ("hard to find", "difficult to find", "engine-like", "engine like"),
+    "teachable_skill_gap": ("stronger players", "stronger levels"),
+    "king_safety": (
         "king safety",
         "king was exposed",
         "king is exposed",
@@ -63,7 +87,7 @@ CONCEPT_CLAIMS: dict[str, tuple[str, ...]] = {
     "development": ("development", "developing", "undeveloped"),
     "initiative": ("initiative",),
     "space": ("space advantage", "space"),
-    "pawn structure": (
+    "pawn_structure": (
         "pawn structure",
         "isolated pawn",
         "isolated pawns",
@@ -72,15 +96,15 @@ CONCEPT_CLAIMS: dict[str, tuple[str, ...]] = {
         "passed pawn",
         "passed pawns",
     ),
-    "open file": ("open file", "open files", "file control"),
-    "piece activity": (
+    "open_file": ("open file", "open files", "file control"),
+    "piece_activity": (
         "piece activity",
         "active piece",
         "active pieces",
         "inactive piece",
         "inactive pieces",
     ),
-    "weak square": ("weak square", "weak squares", "outpost"),
+    "weak_square": ("weak square", "weak squares", "outpost"),
 }
 CAVEAT_TERMS = {
     "hard",
@@ -302,7 +326,7 @@ def _verify_supported_claim_terms(
             "$.explanation",
             f"Explanation includes unsupported tactic claim {tactic!r}.",
         )
-    concept = _unsupported_concept_claim(text, support)
+    concept = _unsupported_concept_claim(text, context_result, support)
     if concept is not None:
         issues.fail(
             "unsupported_concept_claim",
@@ -449,6 +473,14 @@ def _support_text(context_result: ContextResult) -> str:
         context_result.llm_context.human_note or "",
         *context_result.llm_context.allowed_claims,
     ]
+    for concept_claim in _trusted_concept_claims(context_result):
+        parts.extend(
+            [
+                concept_claim.kind.replace("_", " "),
+                concept_claim.subject.replace("_", " "),
+                concept_claim.claim,
+            ]
+        )
     for move_context in _move_contexts(context_result):
         parts.append(move_context.reason)
     return " ".join(parts).lower()
@@ -513,14 +545,42 @@ def _supports_any(support: str, terms: set[str]) -> bool:
     return any(re.search(rf"\b{re.escape(term)}\b", support) for term in terms)
 
 
-def _unsupported_concept_claim(text: str, support: str) -> str | None:
-    for concept, aliases in CONCEPT_CLAIMS.items():
-        if any(_contains_phrase(text, alias) for alias in aliases) and not any(
+def _unsupported_concept_claim(
+    text: str,
+    context_result: ContextResult,
+    support: str,
+) -> str | None:
+    supported_kinds = {claim.kind for claim in _trusted_concept_claims(context_result)}
+    has_structured_concepts = bool(
+        context_result.evidence.concept_claims or context_result.llm_context.concept_claims
+    )
+    for kind, aliases in CONCEPT_ALIASES_BY_KIND.items():
+        if not any(_contains_phrase(text, alias) for alias in aliases):
+            continue
+        if kind in supported_kinds:
+            continue
+        if not has_structured_concepts and any(
             _contains_phrase(support, alias) for alias in aliases
         ):
-            return concept
+            continue
+        return kind.replace("_", " ")
     return None
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
     return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
+
+
+def _trusted_concept_claims(context_result: ContextResult) -> list[ConceptClaim]:
+    llm_claim_keys = {
+        _concept_claim_key(claim) for claim in context_result.llm_context.concept_claims
+    }
+    return [
+        claim
+        for claim in context_result.evidence.concept_claims
+        if _concept_claim_key(claim) in llm_claim_keys
+    ]
+
+
+def _concept_claim_key(claim: ConceptClaim) -> tuple[str, str, str, str, str | None]:
+    return (claim.kind, claim.subject, claim.claim, claim.source, claim.move_san)

@@ -5,6 +5,7 @@ import pytest
 
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
+    ContextResult,
     EngineAnalysis,
     EngineAnalysisBudget,
     EngineLine,
@@ -22,6 +23,7 @@ from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     StaticHumanLikelihoodProvider,
     analysis,
+    engine_line,
 )
 
 
@@ -62,6 +64,11 @@ def test_uses_practical_alternative_when_engine_best_is_hard_and_close() -> None
     assert (
         result.llm_context.best_or_key_move.recommendation_policy == "use_as_practical_alternative"
     )
+    assert _concept_kinds(result) >= {
+        "move_quality",
+        "practical_alternative",
+        "opponent_resource",
+    }
 
 
 def test_caveats_hard_engine_best_instead_of_presenting_it_as_obvious() -> None:
@@ -121,6 +128,66 @@ def test_low_significance_when_best_move_is_only_slightly_better() -> None:
     assert result.evidence.significance.score == 0.05
 
 
+def test_good_move_concept_claims_cover_exposed_alternatives() -> None:
+    board = chess.Board()
+    after_board = board.copy(stack=False)
+    after_board.push(chess.Move.from_uci("d2d4"))
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=2),
+        top_lines=[
+            engine_line(board, "e2e4", 100, rank=1, wdl=Wdl(win=500, draw=400, loss=100)),
+            engine_line(board, "g1f3", 95, rank=2, wdl=Wdl(win=490, draw=400, loss=110)),
+        ],
+        played_line=engine_line(
+            board,
+            "d2d4",
+            70,
+            rank=None,
+            wdl=Wdl(win=480, draw=400, loss=120),
+        ),
+        after_line=engine_line(
+            after_board,
+            "d7d5",
+            70,
+            rank=1,
+            wdl=Wdl(win=480, draw=400, loss=120),
+        ),
+    )
+    human = StaticHumanLikelihoodProvider(
+        {
+            "e2e4": HumanMoveLikelihood(
+                player_level_probability=0.005,
+                plus_400_probability=0.12,
+            ),
+            "g1f3": HumanMoveLikelihood(
+                player_level_probability=0.30,
+                plus_400_probability=0.35,
+            ),
+        }
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="d2d4",
+        player_color="white",
+        player_level=PlayerLevel.rating(1200),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
+
+    assert result.evidence.quality.label == "good"
+    assert result.llm_context.best_or_key_move is None
+    assert result.llm_context.engine_best_move is not None
+    assert result.llm_context.engine_best_move.move == "e4"
+    assert result.llm_context.practical_alternative is not None
+    assert result.llm_context.practical_alternative.move == "Nf3"
+    assert _concept_keys(result) >= {
+        ("hidden_resource", "engine_best_move", "e4"),
+        ("hard_to_find", "engine_best_move", "e4"),
+        ("practical_alternative", "practical_alternative", "Nf3"),
+    }
+
+
 def test_only_legal_move_is_forced_not_blunder() -> None:
     board = chess.Board("1Q2kb1r/p2n1ppp/4q3/4p1B1/4P3/8/PPP2PPP/2KR4 b k - 1 16")
     engine_analysis = EngineAnalysis(
@@ -173,6 +240,8 @@ def test_only_legal_move_is_forced_not_blunder() -> None:
     assert played_candidate.practicality == "only_move"
     assert result.evidence.beauty.label == "low"
     assert result.evidence.beauty.score == 0.0
+    assert "forced_move" in _concept_kinds(result)
+    assert "capture" in _concept_kinds(result)
 
 
 def test_immediate_checkmate_is_best_even_when_engine_prefers_another_mate() -> None:
@@ -224,6 +293,7 @@ def test_immediate_checkmate_is_best_even_when_engine_prefers_another_mate() -> 
     assert result.llm_context.featured_move.practicality == "clear_recommendation"
     assert result.llm_context.featured_move.reason == "it checkmates the opponent"
     assert result.llm_context.featured_move.recommendation_policy == "recommend_directly"
+    assert "forced_mate" in _concept_kinds(result)
 
 
 def test_high_played_win_probability_prevents_bad_quality_label() -> None:
@@ -281,6 +351,7 @@ def test_critical_significance_when_best_move_is_much_better_than_second_best() 
     assert result.evidence.significance.score == 1.0
     assert result.llm_context.featured_move is not None
     assert result.llm_context.featured_move.move == "e4"
+    assert "critical_best_move" in _concept_kinds(result)
 
 
 def test_bad_move_context_separates_engine_best_from_practical_alternative() -> None:
@@ -744,3 +815,11 @@ def test_rejects_engine_line_with_illegal_pv_move() -> None:
 
     with pytest.raises(AnalysisError, match="engine_pv_illegal"):
         engine.build(request)
+
+
+def _concept_kinds(result: ContextResult) -> set[str]:
+    return {claim.kind for claim in result.evidence.concept_claims}
+
+
+def _concept_keys(result: ContextResult) -> set[tuple[str, str, str | None]]:
+    return {(claim.kind, claim.subject, claim.move_san) for claim in result.evidence.concept_claims}

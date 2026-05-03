@@ -35,7 +35,8 @@ The static prompt should say:
 - Match the player's level.
 - Do not include raw engine data unless the context explicitly asks for it.
 - Do not mention moves, lines, tactics, positional concepts, material wins, or
-  mate claims that are not present in allowed claims or supplied candidates.
+  mate claims that are not present in typed `concept_claims`, allowed claim text,
+  or supplied candidates.
 
 ## Dynamic Context Rules
 
@@ -46,6 +47,7 @@ Per-request context should provide:
 - main point
 - engine best move, practical alternative, featured move, or key idea
 - candidate practicality and findability
+- typed concept claims
 - allowed claims
 - forbidden claims when needed
 
@@ -68,7 +70,7 @@ The model may not:
 - override Stockfish, tablebase, legal-move, or verifier evidence
 - turn Maia probability into quality
 - claim material gain, mate, or tactics without allowed evidence
-- claim positional concepts without allowed evidence
+- claim positional concepts without typed concept-claim evidence
 - silently change the best move or recommendation policy
 - use vague claims such as "wins material" without deterministic support
 

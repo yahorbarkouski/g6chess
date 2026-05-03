@@ -10,6 +10,7 @@ from g6explanation.context_engine.candidate_moves.findability import forcing_tie
 from g6explanation.context_engine.contracts import (
     CandidateMove,
     CandidateRole,
+    ConceptClaim,
     EngineAnalysis,
     EngineLine,
     EvidencePacket,
@@ -691,6 +692,30 @@ def _verify_llm_context(
             "$.llm_context.allowed_claims",
             f"LLM context includes unsupported claims: {unsupported_claims}.",
         )
+    evidence_concept_claims = {_concept_claim_key(claim) for claim in evidence.concept_claims}
+    llm_concept_claims = {_concept_claim_key(claim) for claim in llm_context.concept_claims}
+    unsupported_concept_claims = [
+        claim
+        for claim in llm_context.concept_claims
+        if _concept_claim_key(claim) not in evidence_concept_claims
+    ]
+    if unsupported_concept_claims:
+        issues.fail(
+            "llm_context_concept_claim_not_allowed",
+            "$.llm_context.concept_claims",
+            f"LLM context includes unsupported concept claims: {unsupported_concept_claims}.",
+        )
+    missing_concept_claims = [
+        claim
+        for claim in evidence.concept_claims
+        if _concept_claim_key(claim) not in llm_concept_claims
+    ]
+    if missing_concept_claims:
+        issues.fail(
+            "llm_context_inconsistent",
+            "$.llm_context.concept_claims",
+            f"LLM context is missing evidence concept claims: {missing_concept_claims}.",
+        )
 
     _verify_key_move_context(
         evidence=evidence,
@@ -788,6 +813,10 @@ def _matching_candidate_for_key_context(
         (candidate for candidate in evidence.candidates if candidate.san == key_context.move),
         None,
     )
+
+
+def _concept_claim_key(claim: ConceptClaim) -> tuple[str, str, str, str, str | None]:
+    return (claim.kind, claim.subject, claim.claim, claim.source, claim.move_san)
 
 
 def _fail_if_mismatch(

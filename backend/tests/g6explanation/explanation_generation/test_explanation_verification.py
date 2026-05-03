@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from g6explanation.context_engine.contracts import CandidateMove
+from g6explanation.context_engine.contracts import CandidateMove, ConceptClaim
 from g6explanation.explanation_generation.contracts import (
     ExplanationOutput,
     ExplanationVerificationResult,
@@ -113,6 +113,37 @@ def test_verifier_rejects_unsupported_concept_claim() -> None:
 
 def test_verifier_accepts_supported_concept_claim() -> None:
     context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="king_safety",
+        subject="played_move",
+        claim="g4 damaged king safety",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it damaged king safety. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_does_not_accept_concept_from_allowed_claims_alone() -> None:
+    context = mistake_context_with_practical_alternative()
     context = context.model_copy(
         update={
             "llm_context": context.llm_context.model_copy(
@@ -134,7 +165,8 @@ def test_verifier_accepts_supported_concept_claim() -> None:
 
     verification = ExplanationVerifier().verify(context, output)
 
-    assert verification.passed
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
 
 
 def test_verifier_rejects_wrong_quality_label() -> None:

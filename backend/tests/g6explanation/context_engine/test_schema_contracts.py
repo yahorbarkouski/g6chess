@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    ConceptClaim,
     ContextContract,
     EvidencePacket,
     KeyMoveContext,
@@ -24,6 +25,7 @@ def test_context_models_export_json_schema() -> None:
     models: list[type[ContextContract]] = [
         EvidencePacket,
         LLMContext,
+        ConceptClaim,
         MoveQuality,
         MoveBeauty,
         CandidateMove,
@@ -112,5 +114,28 @@ def test_key_move_context_contract_is_strict() -> None:
                 "reason": "it is the engine's best move",
                 "recommendation_policy": "recommend_directly",
                 "unsupported": True,
+            }
+        )
+
+
+def test_concept_claim_contract_is_strict() -> None:
+    claim = ConceptClaim(
+        kind="king_safety",
+        subject="played_move",
+        claim="g4 weakened king safety",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+
+    assert claim.to_dict()["kind"] == "king_safety"
+
+    with pytest.raises(ValidationError):
+        ConceptClaim.model_validate(
+            {
+                "kind": "vague_concept",
+                "subject": "played_move",
+                "claim": "g4 was positionally bad",
+                "source": "deterministic_detector",
+                "move_san": "g4",
             }
         )

@@ -6,6 +6,8 @@ import chess
 
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    ConceptClaim,
+    ConceptClaimSubject,
     EngineAnalysis,
     KeyMoveContext,
     MainPoint,
@@ -100,6 +102,101 @@ def build_allowed_claims(
             f"the opponent's key reply after {played.san} was {analysis.after_line.move_san}"
         )
     return list(dict.fromkeys(claims))
+
+
+def build_concept_claims(
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    quality: MoveQuality,
+    key_candidate: CandidateMove | None,
+    featured_candidate: CandidateMove | None,
+    engine_best_candidate: CandidateMove | None,
+    practical_alternative: CandidateMove | None,
+    analysis: EngineAnalysis,
+) -> list[ConceptClaim]:
+    quality_claim = build_quality_claim(played, quality)
+    claims = [
+        ConceptClaim(
+            kind="move_quality",
+            subject="played_move",
+            claim=quality_claim,
+            source="quality_classification",
+            move_san=played.san,
+        )
+    ]
+
+    if quality.label == "forced":
+        claims.append(
+            ConceptClaim(
+                kind="forced_move",
+                subject="played_move",
+                claim=f"{quality_claim}; the player had no legal alternative.",
+                source="legal_move_count",
+                move_san=played.san,
+            )
+        )
+    if "forced mate" in quality.severity_text:
+        claims.append(
+            ConceptClaim(
+                kind="forced_mate",
+                subject="position",
+                claim=quality.severity_text,
+                source="quality_classification",
+                move_san=played.san,
+            )
+        )
+    if played.is_capture:
+        claims.append(
+            ConceptClaim(
+                kind="capture",
+                subject="played_move",
+                claim=f"{played.san} was a capture",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        )
+
+    if featured_candidate is not None:
+        claims.extend(
+            _featured_concept_claims(played, quality, quality_claim, featured_candidate, analysis)
+        )
+        claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
+
+    if engine_best_candidate is not None:
+        claims.extend(_candidate_policy_concept_claims(engine_best_candidate, "engine_best_move"))
+
+    if practical_alternative is not None:
+        claims.append(
+            ConceptClaim(
+                kind="practical_alternative",
+                subject="practical_alternative",
+                claim=f"{practical_alternative.san} was a practical alternative",
+                source="candidate_policy",
+                move_san=practical_alternative.san,
+            )
+        )
+        claims.extend(
+            _candidate_policy_concept_claims(practical_alternative, "practical_alternative")
+        )
+
+    if key_candidate is not None:
+        claims.extend(_key_candidate_concept_claims(board, key_candidate))
+
+    if analysis.after_line is not None and quality.label in BAD_QUALITY_LABELS:
+        claims.append(
+            ConceptClaim(
+                kind="opponent_resource",
+                subject="opponent_reply",
+                claim=(
+                    f"the opponent's key reply after {played.san} was "
+                    f"{analysis.after_line.move_san}"
+                ),
+                source="engine_line",
+                move_san=analysis.after_line.move_san,
+            )
+        )
+
+    return _unique_concept_claims(claims)
 
 
 def build_human_note(
@@ -201,3 +298,159 @@ def _featured_best_claim(
     if analysis.after_line is not None:
         return f"{quality_claim}; this was the critical move before {analysis.after_line.move_san}."
     return f"{quality_claim}; this was the critical move in the position."
+
+
+def _featured_concept_claims(
+    played: PlayedMoveFacts,
+    quality: MoveQuality,
+    quality_claim: str,
+    featured_candidate: CandidateMove,
+    analysis: EngineAnalysis,
+) -> list[ConceptClaim]:
+    if featured_candidate.uci != played.uci:
+        return []
+    if (
+        analysis.played_line.score.kind == "mate"
+        and analysis.played_line.score.mate_for == "player"
+    ):
+        return [
+            ConceptClaim(
+                kind="forced_mate",
+                subject="featured_move",
+                claim=f"{quality_claim}; it delivered forced mate.",
+                source="engine_line",
+                move_san=played.san,
+            )
+        ]
+    if played.is_check:
+        return [
+            ConceptClaim(
+                kind="forcing_move",
+                subject="featured_move",
+                claim=f"{quality_claim}; it gave check in a critical position.",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        ]
+    if played.is_capture:
+        return [
+            ConceptClaim(
+                kind="capture",
+                subject="featured_move",
+                claim=f"{quality_claim}; it captured in a critical position.",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        ]
+    if quality.label != "best":
+        return []
+    return [
+        ConceptClaim(
+            kind="critical_best_move",
+            subject="featured_move",
+            claim=_featured_best_claim(played, quality_claim, analysis),
+            source="candidate_policy",
+            move_san=played.san,
+        )
+    ]
+
+
+def _key_candidate_concept_claims(
+    board: chess.Board,
+    key_candidate: CandidateMove,
+) -> list[ConceptClaim]:
+    claims: list[ConceptClaim] = []
+    if key_candidate.score.kind == "mate" and key_candidate.score.mate_for == "player":
+        claims.append(
+            ConceptClaim(
+                kind="forced_mate",
+                subject="key_move",
+                claim=f"{key_candidate.san} checkmates the opponent",
+                source="engine_line",
+                move_san=key_candidate.san,
+            )
+        )
+    if key_candidate.practicality == "practical_try":
+        claims.append(
+            ConceptClaim(
+                kind="practical_alternative",
+                subject="practical_alternative",
+                claim=f"{key_candidate.san} was a practical alternative",
+                source="candidate_policy",
+                move_san=key_candidate.san,
+            )
+        )
+    else:
+        if _candidate_gives_check(board, key_candidate):
+            claims.append(
+                ConceptClaim(
+                    kind="forcing_move",
+                    subject="key_move",
+                    claim=f"{key_candidate.san} was the key forcing check",
+                    source="deterministic_detector",
+                    move_san=key_candidate.san,
+                )
+            )
+        claims.append(
+            ConceptClaim(
+                kind="better_alternative",
+                subject="key_move",
+                claim=f"{key_candidate.san} was the better move",
+                source="candidate_policy",
+                move_san=key_candidate.san,
+            )
+        )
+
+    claims.extend(_candidate_policy_concept_claims(key_candidate, "key_move"))
+    return claims
+
+
+def _candidate_policy_concept_claims(
+    candidate: CandidateMove,
+    subject: ConceptClaimSubject,
+) -> list[ConceptClaim]:
+    claims: list[ConceptClaim] = []
+    if candidate.recommendation_policy == "explain_as_hidden_resource":
+        claims.append(
+            ConceptClaim(
+                kind="hidden_resource",
+                subject=subject,
+                claim=f"{candidate.san} was an important hidden resource",
+                source="candidate_policy",
+                move_san=candidate.san,
+            )
+        )
+    if candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
+        claims.append(
+            ConceptClaim(
+                kind="hard_to_find",
+                subject=subject,
+                claim=f"{candidate.san} was hard to find",
+                source="human_likelihood",
+                move_san=candidate.san,
+            )
+        )
+    if candidate.teachable_skill_gap:
+        claims.append(
+            ConceptClaim(
+                kind="teachable_skill_gap",
+                subject=subject,
+                claim=f"{candidate.san} becomes more common at stronger levels",
+                source="human_likelihood",
+                move_san=candidate.san,
+            )
+        )
+    return claims
+
+
+def _candidate_gives_check(board: chess.Board, candidate: CandidateMove) -> bool:
+    move = chess.Move.from_uci(candidate.uci)
+    return move in board.legal_moves and board.gives_check(move)
+
+
+def _unique_concept_claims(claims: list[ConceptClaim]) -> list[ConceptClaim]:
+    unique: dict[tuple[str, str, str, str, str | None], ConceptClaim] = {}
+    for claim in claims:
+        key = (claim.kind, claim.subject, claim.claim, claim.source, claim.move_san)
+        unique[key] = claim
+    return list(unique.values())

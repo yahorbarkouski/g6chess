@@ -19,7 +19,8 @@ metadata.
 ### LLM Context
 
 Small deterministic projection used for generation. It contains only facts,
-decisions, and allowed claims needed to write one explanation.
+decisions, typed concept claims, and allowed claim text needed to write one
+explanation.
 
 Do not put generic prompt rules, tone rules, or style instructions in the LLM
 context. Put them in the static prompt.
@@ -138,7 +139,8 @@ The compact context should include:
 - the key move or idea
 - candidate practicality and findability
 - human note when backed by evidence
-- allowed claims and any necessary forbidden claims
+- typed `concept_claims` for every supported concept family
+- allowed claim text and any necessary forbidden claims
 
 It should not include:
 
@@ -160,6 +162,19 @@ Choose one agenda before generation:
 
 The agenda is a deterministic teaching decision, not prose polish.
 
+## Concept Claims
+
+Concept language exposed to the model must be structured. `concept_claims` carry
+the concept kind, subject, claim text, source, and related SAN move when one
+exists. The explanation verifier treats these typed claims as the authority for
+concept language.
+
+Free-form `allowed_claims` are still useful as compact wording evidence, but
+they are not enough to authorize positional, tactical, mate, material, or forcing
+concepts by themselves. For example, a model may discuss king safety only after a
+deterministic detector adds a `king_safety` concept claim; adding a sentence to
+`allowed_claims` is not sufficient.
+
 ## Pitfalls To Prevent
 
 - recommending hard engine moves as obvious
@@ -167,6 +182,7 @@ The agenda is a deterministic teaching decision, not prose polish.
 - changing quality because the player was low on time
 - overvaluing tiny engine preferences
 - allowing unsupported tactic or material claims
+- allowing unsupported strategic concept claims through free-form strings
 - mixing White, Black, side-to-move, and player perspectives
 - letting generated text introduce new PV moves
 

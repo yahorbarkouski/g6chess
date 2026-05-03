@@ -37,6 +37,10 @@ output is product-ready.
 - LLM context separates objective `engine_best_move`, optional
   `practical_alternative`, and `featured_move`; `best_or_key_move` remains only
   as a compatibility key for the main better-move focus.
+- Evidence packets and LLM contexts expose structured `concept_claims` for
+  supported concept families. Free-form `allowed_claims` remain wording support,
+  but they do not authorize unsupported strategic, tactical, mate, material, or
+  forcing concepts by themselves.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when
@@ -51,8 +55,8 @@ output is product-ready.
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.
 - The explanation-generation layer must block unsupported moves, PVs, tactics,
-  material claims, mate claims, and wrong-side attribution before any model output
-  is product-ready.
+  material claims, mate claims, strategic concept claims, and wrong-side
+  attribution before any model output is product-ready.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
 

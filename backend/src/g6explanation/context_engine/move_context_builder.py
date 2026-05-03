@@ -29,6 +29,7 @@ from g6explanation.context_engine.evidence_verification import EvidenceVerifier
 from g6explanation.context_engine.exceptions import AnalysisError
 from g6explanation.context_engine.explanation_agenda import (
     build_allowed_claims,
+    build_concept_claims,
     build_human_note,
     build_key_move_context,
     build_main_point,
@@ -128,6 +129,16 @@ class MoveContextBuilder:
         allowed_claims = build_allowed_claims(
             reconstructed.played, quality, key_candidate, featured_candidate, analysis
         )
+        concept_claims = build_concept_claims(
+            board,
+            reconstructed.played,
+            quality,
+            key_candidate,
+            featured_candidate,
+            engine_best,
+            practical_alternative,
+            analysis,
+        )
         evidence = EvidencePacket(
             context_version="move_context.v1",
             request=request,
@@ -139,6 +150,7 @@ class MoveContextBuilder:
             beauty=beauty,
             candidates=candidates,
             main_point=main_point,
+            concept_claims=concept_claims,
             allowed_claims=allowed_claims,
         )
         llm_context = LLMContext(
@@ -155,6 +167,7 @@ class MoveContextBuilder:
             practical_alternative=build_key_move_context(practical_alternative),
             featured_move=build_key_move_context(featured_candidate),
             human_note=build_human_note(key_candidate, situation),
+            concept_claims=concept_claims,
             allowed_claims=allowed_claims,
         )
         verification = self._evidence_verifier.verify(evidence, llm_context)

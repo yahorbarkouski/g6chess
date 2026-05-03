@@ -2,6 +2,7 @@
 
 from g6explanation.context_engine.contracts import (
     CandidateMove,
+    ConceptClaim,
     ContextContract,
     ContextResult,
     EvidencePacket,
@@ -34,6 +35,7 @@ __all__ = [
     "AmbiguousRequestError",
     "AnalysisError",
     "CandidateMove",
+    "ConceptClaim",
     "ContextContract",
     "ContextEngineError",
     "ContextResult",
