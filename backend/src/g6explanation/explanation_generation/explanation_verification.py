@@ -135,6 +135,7 @@ RECOMMENDATION_TERMS = {
     "recommend",
 }
 HARD_FINDABILITY = {"hard", "very_hard", "engine_like"}
+NON_BAD_QUALITY_LABELS = {"best", "forced", "excellent", "good", "neutral"}
 
 
 class ExplanationVerifier:
@@ -391,6 +392,11 @@ def _verify_recommendation_policy(
     mentioned = {mention.normalized for mention in mentions if not mention.is_uci}
     for candidate in context_result.evidence.candidates:
         if candidate.recommendation_policy != "do_not_recommend":
+            continue
+        if (
+            "played_move" in candidate.roles
+            and context_result.evidence.quality.label in NON_BAD_QUALITY_LABELS
+        ):
             continue
         if not _candidate_is_mentioned(candidate, mentioned):
             continue

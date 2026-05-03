@@ -49,6 +49,11 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `.env`, uses `openai/gpt-5.5` by default, and can be overridden with
 `G6EXPLANATION_OPENROUTER_MODEL`.
 
+Current prompt version: `single_move_coach.v2`. Version 2 makes
+`recommendation_policy` wording explicit so hard or hidden resources are framed
+as review points, practical alternatives are framed as coaching options, and
+`do_not_recommend` moves are never described as recommendations.
+
 ## Contracts
 
 The raw model response must validate against:
@@ -110,6 +115,8 @@ Minimum checks:
 - best move and practical alternative consistency
 - side-to-move and player-perspective sanity
 - no direct recommendation of a `do_not_recommend` move
+- positive wording about a non-bad played move is allowed even if the played
+  candidate itself is not a future recommendation target
 - hard or engine-like alternatives caveated when the context marks them hard
 
 Because free-form chess language is hard to verify, prompts should keep wording

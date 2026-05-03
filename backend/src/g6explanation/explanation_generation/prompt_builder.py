@@ -40,6 +40,13 @@ def build_coach_prompt(
                 "Respect recommendation_policy fields: never tell the player to play "
                 "a do_not_recommend move."
             ),
+            (
+                "Use recommendation_policy literally: recommend_directly allows direct "
+                "advice; use_as_practical_alternative is a practical coaching option; "
+                "mention_with_caveat and explain_as_hidden_resource are review points "
+                "that need hard/hidden caveats; do_not_recommend must not be called "
+                "the better move, recommendation, or move to play."
+            ),
             "Caveat hard, very_hard, or engine_like alternatives.",
             "Do not include raw engine numbers, WDL, centipawns, or Stockfish dumps.",
         ],

@@ -88,6 +88,18 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   name that material. Generic material evidence no longer authorizes a specific
   invented piece claim. Full no-mock eval passed 12/12 with 0 fallbacks and 0
   retries after this verifier change.
+- 2026-05-03: bumped the prompt to `single_move_coach.v2` to clarify
+  `recommendation_policy` wording after repeated reviewed
+  `recommendation_policy_violation` retries. The change is evidence-backed by
+  the manual-review log rather than a style preference. The first v2 real eval
+  still found one high-WDL retry, which exposed a verifier-policy issue:
+  positive language about a non-bad played move should not be treated like
+  recommending an unplayed `do_not_recommend` alternative.
+- 2026-05-03: after narrowing that verifier rule, the full prompt-v2 real eval
+  passed 12/12. One `fools-mate-g4-blunder` retry for `unsupported_tactic_claim`
+  was reviewed as `model_wording_issue`; the verifier correctly blocked an
+  unsupported tactic phrase and the retry used supported king-safety/mate
+  evidence.
 
 ## Resume Checklist
 

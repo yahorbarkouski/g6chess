@@ -11,6 +11,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
 from tests.g6explanation.explanation_generation.helpers import (
+    best_context,
     hard_engine_best_context,
     mistake_context_with_practical_alternative,
 )
@@ -380,6 +381,40 @@ def test_verifier_rejects_do_not_recommend_move() -> None:
         }
     )
     output = ExplanationOutput(explanation="g4 was a mistake, so you should play e4.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "recommendation_policy_violation" in _failure_codes(verification)
+
+
+def test_verifier_allows_positive_language_for_non_bad_played_move() -> None:
+    context = best_context()
+    played = _candidate(context.evidence.candidates, "e2e4").model_copy(
+        update={"recommendation_policy": "do_not_recommend"}
+    )
+    candidates = [
+        played if existing.uci == played.uci else existing
+        for existing in context.evidence.candidates
+    ]
+    context = context.model_copy(
+        update={"evidence": context.evidence.model_copy(update={"candidates": candidates})}
+    )
+    output = ExplanationOutput(explanation="e4 was the best move, so it was fine to play e4.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_still_rejects_recommending_bad_played_move() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake, but you should play g4 anyway. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
 
     verification = ExplanationVerifier().verify(context, output)
 

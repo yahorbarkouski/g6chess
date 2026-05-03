@@ -53,6 +53,29 @@ def test_service_returns_verified_model_output_without_baseline_comparison() -> 
     assert len(provider.prompts) == 1
 
 
+def test_prompt_spells_out_recommendation_policy_contract() -> None:
+    context = mistake_context_with_practical_alternative()
+    provider = StaticCoachProvider(
+        [
+            (
+                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
+                'Nf3 was a practical alternative close to the engine best move."}'
+            )
+        ]
+    )
+    service = ExplanationService(
+        context_builder=_unused_builder(),
+        coach_provider=provider,
+    )
+
+    result = service.explain_context(context)
+    prompt_payload = provider.prompts[0].messages[1]["content"]
+
+    assert result.prompt_version == "single_move_coach.v2"
+    assert "recommend_directly allows direct advice" in prompt_payload
+    assert "do_not_recommend must not be called" in prompt_payload
+
+
 def test_service_retries_with_verifier_failures() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
