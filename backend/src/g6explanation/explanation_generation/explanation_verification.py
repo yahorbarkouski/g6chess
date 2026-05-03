@@ -39,6 +39,14 @@ MATERIAL_RE = re.compile(
     r"(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange)\b",
     re.IGNORECASE,
 )
+MATERIAL_TERM_ALIASES: dict[str, tuple[str, ...]] = {
+    "pawn": ("pawn", "pawns"),
+    "queen": ("queen", "queens"),
+    "rook": ("rook", "rooks"),
+    "bishop": ("bishop", "bishops"),
+    "knight": ("knight", "knights"),
+    "exchange": ("exchange",),
+}
 TACTIC_TERMS = {
     "fork",
     "pin",
@@ -313,12 +321,18 @@ def _verify_supported_claim_terms(
             "$.explanation",
             "Explanation includes a mate claim not present in supplied claims.",
         )
-    if MATERIAL_RE.search(explanation) and "material" not in _trusted_concept_kinds(context_result):
-        issues.fail(
-            "unsupported_material_claim",
-            "$.explanation",
-            "Explanation includes a material claim not present in supplied claims.",
-        )
+    if MATERIAL_RE.search(explanation):
+        material_support = _trusted_claim_text(context_result, {"material"})
+        unsupported_material_term = _unsupported_material_term(text, material_support)
+        if unsupported_material_term is not None:
+            issues.fail(
+                "unsupported_material_claim",
+                "$.explanation",
+                (
+                    "Explanation includes a material claim not present in supplied "
+                    f"claims: {unsupported_material_term}."
+                ),
+            )
     tactic = next((term for term in TACTIC_TERMS if term in text), None)
     if tactic and tactic not in support:
         issues.fail(
@@ -565,6 +579,26 @@ def _unsupported_concept_claim(
 
 def _trusted_concept_kinds(context_result: ContextResult) -> set[str]:
     return {claim.kind for claim in _trusted_concept_claims(context_result)}
+
+
+def _trusted_claim_text(context_result: ContextResult, kinds: set[str]) -> str:
+    parts: list[str] = []
+    for claim in _trusted_concept_claims(context_result):
+        if claim.kind in kinds:
+            parts.extend([claim.kind.replace("_", " "), claim.claim])
+    return " ".join(parts).lower()
+
+
+def _unsupported_material_term(text: str, material_support: str) -> str | None:
+    if not material_support:
+        return "material"
+    for term, aliases in MATERIAL_TERM_ALIASES.items():
+        if not any(_contains_phrase(text, alias) for alias in aliases):
+            continue
+        if any(_contains_phrase(material_support, alias) for alias in aliases):
+            continue
+        return term
+    return None
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:

@@ -83,6 +83,11 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   The first full real eval exposed that promotion checks also need a typed
   `forcing_move` claim; after adding it, the full no-mock eval passed 12/12 with
   0 fallbacks and 0 retries.
+- 2026-05-03: hardened material verification so specific claims such as queen,
+  rook, bishop, knight, pawn, or exchange require the trusted material claim to
+  name that material. Generic material evidence no longer authorizes a specific
+  invented piece claim. Full no-mock eval passed 12/12 with 0 fallbacks and 0
+  retries after this verifier change.
 
 ## Resume Checklist
 

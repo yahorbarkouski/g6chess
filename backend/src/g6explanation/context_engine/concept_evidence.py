@@ -37,7 +37,7 @@ def build_move_concept_claims(
     after_board = board.copy(stack=False)
     after_board.push(move)
     claims: list[ConceptClaim] = []
-    claims.extend(_material_claims(board, after_board, piece.color, move_san, subject))
+    claims.extend(_material_claims(board, after_board, move, piece.color, move_san, subject))
     if board.gives_check(move):
         claims.append(
             ConceptClaim(
@@ -94,6 +94,7 @@ def build_move_concept_claims(
 def _material_claims(
     board: chess.Board,
     after_board: chess.Board,
+    move: chess.Move,
     player: chess.Color,
     move_san: str,
     subject: ConceptClaimSubject,
@@ -101,10 +102,11 @@ def _material_claims(
     delta = _material_balance(after_board, player) - _material_balance(board, player)
     if delta == 0:
         return []
+    material_detail = _material_detail(board, move, delta)
     if delta > 0:
-        claim = f"{move_san} won material immediately"
+        claim = f"{move_san} won {material_detail} immediately"
     else:
-        claim = f"{move_san} gave up material immediately"
+        claim = f"{move_san} gave up {material_detail} immediately"
     return [
         ConceptClaim(
             kind="material",
@@ -114,6 +116,53 @@ def _material_claims(
             move_san=move_san,
         )
     ]
+
+
+def _material_detail(board: chess.Board, move: chess.Move, delta: int) -> str:
+    if move.promotion is not None:
+        promoted_piece = _piece_name(move.promotion)
+        captured_piece = _captured_piece(board, move)
+        if captured_piece is not None:
+            captured_piece_name = _piece_name(captured_piece.piece_type)
+            return (
+                f"material by promoting to a {promoted_piece} and capturing a {captured_piece_name}"
+            )
+        return f"material by promoting to a {promoted_piece}"
+    captured_piece = _captured_piece(board, move)
+    if captured_piece is not None:
+        return f"a {_piece_name(captured_piece.piece_type)}"
+    return _material_value_name(abs(delta))
+
+
+def _captured_piece(board: chess.Board, move: chess.Move) -> chess.Piece | None:
+    if board.is_en_passant(move):
+        captured_rank = chess.square_rank(move.from_square)
+        captured_square = chess.square(chess.square_file(move.to_square), captured_rank)
+        return board.piece_at(captured_square)
+    return board.piece_at(move.to_square)
+
+
+def _material_value_name(value: int) -> str:
+    piece_names = {
+        100: "a pawn",
+        300: "a minor piece",
+        500: "a rook",
+        800: "material",
+        900: "a queen",
+    }
+    return piece_names.get(value, "material")
+
+
+def _piece_name(piece_type: chess.PieceType) -> str:
+    names = {
+        chess.PAWN: "pawn",
+        chess.KNIGHT: "knight",
+        chess.BISHOP: "bishop",
+        chess.ROOK: "rook",
+        chess.QUEEN: "queen",
+        chess.KING: "king",
+    }
+    return names[piece_type]
 
 
 def _material_balance(board: chess.Board, player: chess.Color) -> int:

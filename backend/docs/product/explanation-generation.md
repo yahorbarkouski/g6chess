@@ -102,6 +102,8 @@ Minimum checks:
 - no unsupported mate, material, tactic, or concept claims
 - material prose requires a trusted typed `material` concept claim; unrelated
   words such as "piece" in development claims do not authorize material claims
+- specific material prose, such as queen, rook, bishop, knight, pawn, or
+  exchange, must match the trusted material claim text
 - concept language must be supported by typed `concept_claims`; free-form
   `allowed_claims` alone do not authorize strategic concepts
 - quality label consistency with `LLMContext.quality`

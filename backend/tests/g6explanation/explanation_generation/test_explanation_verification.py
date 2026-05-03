@@ -121,6 +121,69 @@ def test_verifier_accepts_supported_material_claim() -> None:
     assert verification.passed
 
 
+def test_verifier_rejects_specific_material_claim_not_in_material_evidence() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="material",
+        subject="played_move",
+        claim="g4 lost material immediately",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it lost a queen. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_material_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_specific_material_claim_when_evidence_matches() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="material",
+        subject="played_move",
+        claim="g4 won a pawn immediately",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake even though it won a pawn. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_rejects_unsupported_tactic_claim() -> None:
     context = mistake_context_with_practical_alternative()
     output = ExplanationOutput(explanation="g4 was a mistake because it walks into a fork.")

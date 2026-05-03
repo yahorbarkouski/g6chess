@@ -181,7 +181,8 @@ claim.
 
 Current deterministic concept evidence is intentionally conservative:
 
-- immediate material gain or loss from the legal move
+- immediate material gain or loss from the legal move, including the captured or
+  promoted material when it is known
 - minor-piece development from the home rank
 - rook or queen use of a file with no pawns
 - passed-pawn advances
