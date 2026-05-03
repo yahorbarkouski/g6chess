@@ -34,6 +34,15 @@ Then read the slice-specific docs before touching that slice:
   `docs/development/testing-playbook.md`, and
   `docs/adr/0001-product-truth-boundary.md` plus
   `docs/adr/0002-context-contract-and-verification.md`.
+- Asynchronous game analysis, Redis jobs, or polling API:
+  `docs/product/game-analysis.md`, `docs/product/context-engine.md`,
+  `docs/product/explanation-generation.md`,
+  `docs/development/project-structure.md`,
+  `docs/development/implementation-quality.md`,
+  `docs/development/testing-playbook.md`, and
+  `docs/adr/0001-product-truth-boundary.md`,
+  `docs/adr/0002-context-contract-and-verification.md`, plus
+  `docs/adr/0003-development-standards.md`.
 - Visualization or local inspection API:
   `docs/development/project-structure.md`,
   `docs/development/implementation-quality.md`,
@@ -92,6 +101,12 @@ The real-game evaluation layer is implemented downstream of context and
 generation. Its opt-in gate uses real Stockfish, real Maia, and real OpenRouter
 with fallback disabled; use it for prompt, verifier, and model-behavior changes
 that need actual provider evidence.
+
+The async game-analysis API is implemented downstream of context and generation.
+It starts Redis-backed jobs, parallelizes per-ply context building, classifies
+every completed move, and concurrently generates verified OpenRouter
+explanations for configured significance labels. It must not define separate
+chess-truth, classification, or explanation-verification policy.
 
 When running batched real OpenRouter generation or evaluation work, parallelize
 heavily. Independent OpenRouter explanation requests should be sent with bounded

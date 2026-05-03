@@ -92,6 +92,17 @@ OpenRouter:
   in-flight OpenRouter requests with
   `G6EXPLANATION_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY`.
 
+Redis and game analysis:
+
+- Local game-analysis snapshots default to `redis://localhost:6379/0`.
+- Override Redis with `G6EXPLANATION_REDIS_URL`.
+- The default test suite skips Redis-dependent tests when Redis is unavailable.
+- The no-mock endpoint gate is opt-in with
+  `G6EXPLANATION_RUN_REAL_GAME_ANALYSIS=1`; it requires Redis, Stockfish,
+  Maia2, local Maia model files, and OpenRouter credentials.
+- Tune full-game analysis with `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`
+  and `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`.
+
 ## Unit Tests
 
 Use unit tests for pure logic: score parsing, normalization, classification,
@@ -123,6 +134,17 @@ G6EXPLANATION_RUN_MAIA2=1 uv run pytest tests/g6explanation/context_engine/test_
 
 Use actual Maia in integration/evaluation tests, not ordinary unit tests. Static
 human-likelihood providers remain the default for deterministic policy tests.
+
+Real game-analysis endpoint evaluation is opt-in:
+
+```text
+G6EXPLANATION_RUN_REAL_GAME_ANALYSIS=1 \
+uv run pytest tests/g6explanation/game_analysis/test_game_analysis_redis.py -q -s
+```
+
+It exercises the Redis-backed POST/poll flow with real Stockfish, real Maia, and
+real OpenRouter output. Keep it outside default CI because it is intentionally
+slow and provider-dependent.
 
 ## Golden Tests
 

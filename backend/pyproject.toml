@@ -7,6 +7,7 @@ dependencies = [
   "chess>=1.10,<2",
   "fastapi>=0.115,<1",
   "pydantic>=2,<3",
+  "redis>=5,<6",
   "uvicorn[standard]>=0.30,<1",
 ]
 

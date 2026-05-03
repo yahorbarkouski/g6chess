@@ -15,6 +15,8 @@ durable decisions.
   loop.
 - `product/explanation-generation.md`: verified explanation generation,
   provider boundaries, verifier checks, and real-provider evals.
+- `product/game-analysis.md`: asynchronous full-game job API, Redis snapshots,
+  polling contract, and runtime policy.
 
 ## Development Docs
 

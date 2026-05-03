@@ -20,6 +20,9 @@ Implemented:
 - `g6explanation.explanation_generation`: turns verified context into one
   schema-valid, deterministically verified explanation string. The OpenRouter
   adapter defaults to `openai/gpt-5.5`.
+- `g6explanation.game_analysis`: starts Redis-backed asynchronous full-game
+  jobs, classifies every completed ply, and adds verified GPT explanations for
+  configured criticality labels.
 - `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and
   OpenRouter explanation evals with JSONL records.
 - `g6explanation.visualization`: local inspection API for real-game experiment
@@ -91,6 +94,16 @@ OpenRouter:
 - Real Stockfish plus Maia plus OpenRouter eval is opt-in with
   `G6EXPLANATION_RUN_REAL_LLM_EVAL=1`.
 - Write real eval JSONL records with `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT`.
+
+Redis game analysis:
+
+- Start local Redis before using the async game-analysis API.
+- Override Redis with `G6EXPLANATION_REDIS_URL`.
+- Tune context workers with `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`.
+- Tune OpenRouter fan-out with
+  `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`.
+- Run the no-mock endpoint gate with
+  `G6EXPLANATION_RUN_REAL_GAME_ANALYSIS=1`.
 
 Visualization API:
 

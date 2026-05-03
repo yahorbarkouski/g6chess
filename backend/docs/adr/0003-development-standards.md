@@ -7,9 +7,10 @@ Status: Accepted
 
 Use a conservative Python `src/` layout. Current implementation boundaries are
 `g6explanation.context_engine` for chess truth,
-`g6explanation.explanation_generation` for verified model wording, and
-`g6explanation.real_game_evaluation` for no-mock provider evals, and
-`g6explanation.visualization` for local inspection. The local React visualization
+`g6explanation.explanation_generation` for verified model wording,
+`g6explanation.game_analysis` for Redis-backed asynchronous full-game
+orchestration, `g6explanation.real_game_evaluation` for no-mock provider evals,
+and `g6explanation.visualization` for local inspection. The local React visualization
 app lives in the companion
 `/Users/yahorbarkouski/g6explanation-frontend` folder and consumes the narrow
 visualization HTTP API for real-game experiment metadata and fresh per-ply
@@ -37,6 +38,9 @@ verified context packets. Keep documentation split by purpose:
   request.
 - Keep `explanation_generation` downstream of `context_engine`; model adapters
   may produce raw schema-shaped output only for deterministic verification.
+- Keep `game_analysis` downstream of context and generation. It may parallelize
+  per-ply work and persist polling snapshots, but it must not define chess-truth
+  or explanation-verification policy.
 - Keep `real_game_evaluation` downstream of context and generation; it may call
   real providers and record JSONL eval results but must not define chess truth.
 - Keep tests mirrored to package paths when it improves navigation.

@@ -6,6 +6,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from g6explanation.context_engine.exceptions import AnalysisError
+from g6explanation.game_analysis import (
+    GameAnalysisService,
+    GameAnalysisSetupError,
+    GameAnalysisSnapshot,
+    GameAnalysisStartRequest,
+    GameAnalysisStartResponse,
+    GameAnalysisStoreError,
+    game_analysis_service_from_env,
+)
 from g6explanation.visualization.contracts import (
     VisualizationExample,
     VisualizationExampleCollection,
@@ -19,11 +28,19 @@ from g6explanation.visualization.example_catalog import (
 )
 
 
-def create_app() -> FastAPI:
+def create_app(game_analysis_service: GameAnalysisService | None = None) -> FastAPI:
     app = FastAPI(
         title="G6 Explanation Visualization API",
         version="0.1.0",
     )
+    analysis_service = game_analysis_service or game_analysis_service_from_env()
+
+    def submit_game_analysis(request: GameAnalysisStartRequest) -> GameAnalysisStartResponse:
+        return start_game_analysis(request, analysis_service)
+
+    def read_game_analysis_state(analysis_id: str) -> GameAnalysisSnapshot:
+        return game_analysis_state(analysis_id, analysis_service)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -31,7 +48,7 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:5173",
         ],
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
     app.add_api_route(
@@ -56,6 +73,18 @@ def create_app() -> FastAPI:
         example_context,
         methods=["GET"],
         response_model=VisualizationMoveContext,
+    )
+    app.add_api_route(
+        "/api/game-analysis",
+        submit_game_analysis,
+        methods=["POST"],
+        response_model=GameAnalysisStartResponse,
+    )
+    app.add_api_route(
+        "/api/game-analysis/{analysis_id}",
+        read_game_analysis_state,
+        methods=["GET"],
+        response_model=GameAnalysisSnapshot,
     )
     return app
 
@@ -90,6 +119,31 @@ def example_context(example_id: str, ply: int) -> VisualizationMoveContext:
     if selected is None:
         raise HTTPException(status_code=404, detail="Visualization context not found.")
     return selected
+
+
+def start_game_analysis(
+    request: GameAnalysisStartRequest,
+    service: GameAnalysisService,
+) -> GameAnalysisStartResponse:
+    try:
+        return service.start(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (GameAnalysisSetupError, GameAnalysisStoreError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def game_analysis_state(
+    analysis_id: str,
+    service: GameAnalysisService,
+) -> GameAnalysisSnapshot:
+    try:
+        snapshot = service.get(analysis_id)
+    except GameAnalysisStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Game analysis not found.")
+    return snapshot
 
 
 app = create_app()

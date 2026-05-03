@@ -1,6 +1,6 @@
 # Product End Goal
 
-## Product Contract
+## Core Product Contract
 
 Build one API:
 
@@ -8,8 +8,8 @@ Build one API:
 explain_move(game_context, played_move, player_level) -> explanation_string
 ```
 
-The API explains one move from one game. It returns one coach-quality string.
-The LLM may phrase the explanation, but it must not create chess truth.
+The core API explains one move from one game. It returns one coach-quality
+string. The LLM may phrase the explanation, but it must not create chess truth.
 
 ## User Question
 
@@ -32,11 +32,21 @@ At this move in my game, what happened, how good was my move, and what should I 
 
 ## Out Of Scope
 
-- Drills, plans, dashboards, puzzle generation, and full-game review.
+- Drills, plans, dashboards, and puzzle generation.
 - Opening repertoire advice.
 - Multi-game personalization or weakness memory.
 - Generic chess tutoring disconnected from the requested move.
 - Any LLM-generated chess claim that is not backed by supplied evidence.
+
+## Full-Game Orchestration
+
+The asynchronous game-analysis API is now an orchestration surface over the
+core one-move contract. It may analyze every ply, classify every move, and
+generate explanations for configured significance labels, but each move still
+passes through the same context and explanation boundaries.
+
+Full-game analysis must not introduce separate chess-truth policy. Its job is
+parallelism, persistence, and polling state.
 
 ## Required Input Understanding
 

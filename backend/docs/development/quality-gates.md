@@ -125,6 +125,21 @@ with `G6EXPLANATION_REAL_LLM_EVAL_MANUAL_REVIEWS`.
 Failed, retried, fallback, or surprising records must be reviewed before
 changing prompt, verifier, model, or context policy.
 
+## Optional Game Analysis API Gate
+
+Run this gate when changing the async full-game API, Redis snapshot contract,
+provider setup, or background orchestration:
+
+```text
+G6EXPLANATION_RUN_REAL_GAME_ANALYSIS=1 \
+uv run pytest tests/g6explanation/game_analysis/test_game_analysis_redis.py -q -s
+```
+
+It requires local Redis, real Stockfish, Maia2 with local model files, and
+OpenRouter credentials. It starts a real HTTP job, polls Redis-backed state, and
+expects Stockfish depth 16 or deeper, Maia evidence, and verified GPT
+explanations for critical moves.
+
 ## Completion Note
 
 Report checks run, gates passed, skipped gates with reasons, and residual risk.
