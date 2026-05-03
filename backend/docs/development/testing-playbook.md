@@ -71,6 +71,10 @@ OpenRouter:
 - The default model adapter uses `openai/gpt-5.5`.
 - Override model or reasoning effort with `G6EXPLANATION_OPENROUTER_MODEL` and
   `G6EXPLANATION_OPENROUTER_REASONING_EFFORT`.
+- Tune provider resilience with `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
+  `G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
+  `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
+  `G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
 - Real provider smoke is opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
 - Real provider plus Stockfish smoke is opt-in with
   `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.

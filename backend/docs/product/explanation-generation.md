@@ -50,7 +50,11 @@ controlled `ExplanationInputError` exceptions instead of silently guessing.
 
 The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `.env`, uses `openai/gpt-5.5` by default, and can be overridden with
-`G6EXPLANATION_OPENROUTER_MODEL`.
+`G6EXPLANATION_OPENROUTER_MODEL`. Provider resilience settings are explicit:
+`G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
+`G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
+`G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
+`G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
 
 Current prompt version: `single_move_coach.v3`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
@@ -170,6 +174,8 @@ The provider may:
 - consume the static prompt and JSON context
 - return raw schema-shaped output
 - expose model and provider version metadata
+- apply bounded retries for transport errors and retryable provider HTTP
+  statuses
 
 The provider may not:
 

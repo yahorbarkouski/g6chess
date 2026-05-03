@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
@@ -20,8 +21,13 @@ from g6explanation.explanation_generation.exceptions import CoachModelError
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.5"
 DEFAULT_REASONING_EFFORT = "high"
+DEFAULT_TIMEOUT_SECONDS = 90.0
+DEFAULT_MAX_RETRIES = 1
+DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
+RETRYABLE_HTTP_STATUSES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 HttpTransport = Callable[[str, Mapping[str, str], bytes, float], tuple[int, bytes]]
+Sleep = Callable[[float], None]
 
 
 def _urllib_transport(
@@ -47,9 +53,20 @@ class OpenRouterCoachModelProvider:
     model: str = DEFAULT_OPENROUTER_MODEL
     endpoint: str = OPENROUTER_CHAT_COMPLETIONS_URL
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT
-    timeout_seconds: float = 90.0
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    max_retries: int = DEFAULT_MAX_RETRIES
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS
     max_completion_tokens: int = 700
     transport: HttpTransport = _urllib_transport
+    sleep: Sleep = time.sleep
+
+    def __post_init__(self) -> None:
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive.")
+        if self.max_retries < 0:
+            raise ValueError("max_retries must be non-negative.")
+        if self.retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds must be non-negative.")
 
     @property
     def provider_name(self) -> str:
@@ -70,6 +87,16 @@ class OpenRouterCoachModelProvider:
                 "G6EXPLANATION_OPENROUTER_REASONING_EFFORT",
                 DEFAULT_REASONING_EFFORT,
             ),
+            timeout_seconds=_float_env(
+                "G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS",
+                DEFAULT_TIMEOUT_SECONDS,
+            ),
+            max_retries=_int_env("G6EXPLANATION_OPENROUTER_MAX_RETRIES", DEFAULT_MAX_RETRIES),
+            retry_backoff_seconds=_float_env(
+                "G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS",
+                DEFAULT_RETRY_BACKOFF_SECONDS,
+            ),
+            max_completion_tokens=_int_env("G6EXPLANATION_OPENROUTER_MAX_TOKENS", 700),
         )
 
     def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
@@ -80,18 +107,35 @@ class OpenRouterCoachModelProvider:
             "Content-Type": "application/json",
             "X-OpenRouter-Title": "g6explanation",
         }
-        try:
-            status, response_body = self.transport(
-                self.endpoint,
-                headers,
-                body,
-                self.timeout_seconds,
-            )
-        except (OSError, urllib.error.URLError) as exc:
-            raise CoachModelError(f"OpenRouter request failed: {exc}") from exc
-        if status >= 400:
-            raise CoachModelError(f"OpenRouter returned HTTP {status}: {_safe_body(response_body)}")
-        return _response_from_body(response_body, requested_model=self.model)
+        last_error: str | None = None
+        attempts = self.max_retries + 1
+        for attempt_index in range(1, attempts + 1):
+            try:
+                status, response_body = self.transport(
+                    self.endpoint,
+                    headers,
+                    body,
+                    self.timeout_seconds,
+                )
+            except (OSError, urllib.error.URLError) as exc:
+                last_error = f"request failed: {exc}"
+                if attempt_index < attempts:
+                    self._sleep_before_retry(attempt_index)
+                    continue
+                raise CoachModelError(
+                    f"OpenRouter request failed after {attempts} attempts: {exc}"
+                ) from exc
+            if status >= 400:
+                body_text = _safe_body(response_body)
+                last_error = f"HTTP {status}: {body_text}"
+                if status in RETRYABLE_HTTP_STATUSES and attempt_index < attempts:
+                    self._sleep_before_retry(attempt_index)
+                    continue
+                raise CoachModelError(
+                    f"OpenRouter returned HTTP {status} after {attempt_index} attempts: {body_text}"
+                )
+            return _response_from_body(response_body, requested_model=self.model)
+        raise CoachModelError(f"OpenRouter request failed: {last_error or 'unknown error'}")
 
     def _payload(self, prompt: CoachPrompt) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -103,6 +147,11 @@ class OpenRouterCoachModelProvider:
         if self.reasoning_effort:
             payload["reasoning"] = {"effort": self.reasoning_effort, "exclude": True}
         return payload
+
+    def _sleep_before_retry(self, attempt_index: int) -> None:
+        if self.retry_backoff_seconds == 0:
+            return
+        self.sleep(self.retry_backoff_seconds * attempt_index)
 
 
 def openrouter_api_key(dotenv_path: str | Path | None = None) -> str:
@@ -127,6 +176,16 @@ def _dotenv_value(path: Path, key: str) -> str | None:
             continue
         return raw_value.strip().strip("'\"")
     return None
+
+
+def _int_env(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    return default if value is None else int(value)
+
+
+def _float_env(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    return default if value is None else float(value)
 
 
 def _response_from_body(body: bytes, requested_model: str) -> CoachModelResponse:
