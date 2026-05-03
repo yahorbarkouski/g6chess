@@ -18,6 +18,7 @@ from g6explanation.context_engine import (
     VerificationResult,
 )
 from g6explanation.explanation_generation import (
+    ExplanationInputError,
     ExplanationResult,
     ExplanationService,
     ExplanationVerifier,
@@ -30,6 +31,7 @@ __all__ = [
     "ContextResult",
     "EvidencePacket",
     "EvidenceVerifier",
+    "ExplanationInputError",
     "ExplanationResult",
     "ExplanationService",
     "ExplanationVerifier",

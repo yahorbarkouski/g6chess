@@ -7,9 +7,10 @@ from pydantic import ValidationError
 from g6explanation.context_engine import (
     MoveContextBuilder,
     MoveContextRequest,
+    PlayerLevel,
     StockfishAnalysisProvider,
 )
-from g6explanation.context_engine.contracts import ContextResult
+from g6explanation.context_engine.contracts import ColorName, ContextResult
 from g6explanation.explanation_generation.baseline_renderer import render_baseline_explanation
 from g6explanation.explanation_generation.coach_model import CoachModelProvider
 from g6explanation.explanation_generation.contracts import (
@@ -24,6 +25,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.exceptions import (
     CoachModelError,
+    ExplanationInputError,
     ExplanationVerificationError,
 )
 from g6explanation.explanation_generation.explanation_verification import (
@@ -133,17 +135,106 @@ class ExplanationService:
 
 
 def explain_move(
-    request: MoveContextRequest,
+    game_context: MoveContextRequest | str,
+    played_move: str | None = None,
+    player_level: PlayerLevel | int | None = None,
+    *,
+    player_color: ColorName | None = None,
+    pgn_ply: int | None = None,
+    time_control: str = "unknown",
+    clock_before_seconds: float | None = None,
+    increment_seconds: float | None = None,
     context_builder: MoveContextBuilder | None = None,
     coach_provider: CoachModelProvider | None = None,
 ) -> str:
     """Public one-move explanation API."""
 
+    request = _public_move_context_request(
+        game_context=game_context,
+        played_move=played_move,
+        player_level=player_level,
+        player_color=player_color,
+        pgn_ply=pgn_ply,
+        time_control=time_control,
+        clock_before_seconds=clock_before_seconds,
+        increment_seconds=increment_seconds,
+    )
     service = ExplanationService(
         context_builder=context_builder or MoveContextBuilder(StockfishAnalysisProvider()),
         coach_provider=coach_provider or OpenRouterCoachModelProvider.from_env(),
     )
     return service.explain(request).explanation
+
+
+def _public_move_context_request(
+    *,
+    game_context: MoveContextRequest | str,
+    played_move: str | None,
+    player_level: PlayerLevel | int | None,
+    player_color: ColorName | None,
+    pgn_ply: int | None,
+    time_control: str,
+    clock_before_seconds: float | None,
+    increment_seconds: float | None,
+) -> MoveContextRequest:
+    if isinstance(game_context, MoveContextRequest):
+        if (
+            any(
+                value is not None
+                for value in (
+                    played_move,
+                    player_level,
+                    player_color,
+                    pgn_ply,
+                    clock_before_seconds,
+                    increment_seconds,
+                )
+            )
+            or time_control != "unknown"
+        ):
+            raise ExplanationInputError(
+                "Pass either a MoveContextRequest or public API fields, not both."
+            )
+        return game_context
+
+    if player_color is None:
+        raise ExplanationInputError("player_color is required for public explain_move input.")
+    if player_level is None:
+        raise ExplanationInputError("player_level is required for public explain_move input.")
+
+    level = _public_player_level(player_level)
+    if pgn_ply is not None:
+        return MoveContextRequest(
+            pgn=game_context,
+            ply=pgn_ply,
+            player_color=player_color,
+            player_level=level,
+            time_control=time_control,
+            clock_before_seconds=clock_before_seconds,
+            increment_seconds=increment_seconds,
+        )
+    if played_move is None:
+        raise ExplanationInputError(
+            "played_move is required when game_context is a FEN string. "
+            "For PGN input, pass pgn_ply."
+        )
+    return MoveContextRequest(
+        fen_before=game_context,
+        played_move=played_move,
+        player_color=player_color,
+        player_level=level,
+        time_control=time_control,
+        clock_before_seconds=clock_before_seconds,
+        increment_seconds=increment_seconds,
+    )
+
+
+def _public_player_level(player_level: PlayerLevel | int) -> PlayerLevel:
+    if isinstance(player_level, PlayerLevel):
+        return player_level
+    if player_level <= 0:
+        raise ExplanationInputError("player_level rating must be positive.")
+    return PlayerLevel.rating(player_level)
 
 
 def _attempt_from_response(

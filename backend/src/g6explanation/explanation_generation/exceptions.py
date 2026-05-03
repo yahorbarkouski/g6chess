@@ -13,6 +13,10 @@ class CoachModelError(ExplanationGenerationError):
     """Raised when a coach model provider cannot return usable output."""
 
 
+class ExplanationInputError(ExplanationGenerationError):
+    """Raised when public explanation input is ambiguous or incomplete."""
+
+
 class ExplanationVerificationError(ExplanationGenerationError):
     """Raised when no generated or fallback explanation passes verification."""
 

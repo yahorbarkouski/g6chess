@@ -54,7 +54,7 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
 | 3 | Add structured concept evidence | Complete | Deterministic tags exist for supported material, king safety, development, open files, passed pawns, weak squares, initiative, and forcing concepts before the LLM may mention them. |
 | 4 | Harden the explanation verifier | Partial | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
 | 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
-| 6 | Stabilize public API shape | Partial | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
+| 6 | Stabilize public API shape | Complete | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
 | 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, failed-attempt text, and manual-review fields. |
 | 8 | Define promotion gates | Partial | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
 | 9 | Broaden model/provider resilience | Partial | Provider has explicit timeout, retry/backoff policy, error taxonomy, model metadata, and optional comparison runs. |
@@ -143,6 +143,11 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   slice passed: full local gate passed, and the full no-mock eval passed 12/12
   with Stockfish depth 16, real Maia, OpenRouter `openai/gpt-5.5-20260423`, 0
   fallbacks, 0 retries, no failure codes, and no manual-review-required cases.
+- 2026-05-03: stabilized the public explanation API. `explain_move` now accepts
+  FEN + played UCI move, explicit-ply PGN input, or an existing
+  `MoveContextRequest`; player color, player level, time control, clock, and
+  increment flow into the underlying context request; ambiguous public input
+  raises `ExplanationInputError`.
 
 ## Resume Checklist
 

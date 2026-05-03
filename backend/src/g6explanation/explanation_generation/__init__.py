@@ -14,6 +14,7 @@ from g6explanation.explanation_generation.contracts import (
 from g6explanation.explanation_generation.exceptions import (
     CoachModelError,
     ExplanationGenerationError,
+    ExplanationInputError,
     ExplanationVerificationError,
 )
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
@@ -26,6 +27,7 @@ __all__ = [
     "CoachModelResponse",
     "CoachPrompt",
     "ExplanationGenerationError",
+    "ExplanationInputError",
     "ExplanationOutput",
     "ExplanationResult",
     "ExplanationService",

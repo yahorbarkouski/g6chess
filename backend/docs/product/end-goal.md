@@ -125,4 +125,5 @@ The explanation-generation slice described in
 `docs/product/explanation-generation.md` now provides strict explanation schema,
 deterministic baseline fallback, explanation verification, static provider tests,
 retry behavior, an OpenRouter adapter, and the public
-`explain_move(...) -> str` wrapper.
+`explain_move(...) -> str` wrapper for FEN, explicit-ply PGN, or existing
+context-request input.

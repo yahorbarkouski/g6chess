@@ -23,7 +23,8 @@ Implemented pieces:
 - static coach provider tests
 - generation service with retry and fallback behavior
 - OpenRouter adapter defaulting to `openai/gpt-5.5`
-- public `explain_move(...) -> str` wrapper
+- public `explain_move(...) -> str` wrapper for FEN + UCI move input, explicit
+  PGN ply input, or an existing `MoveContextRequest`
 
 Next work is broader real-game LLM evals and verifier hardening, not training or
 fine-tuning.
@@ -44,7 +45,8 @@ Output:
   status, and failure codes
 
 The model provider returns raw JSON to the generation layer. The public API
-returns only the verified `explanation` string.
+returns only the verified `explanation` string. Public input errors raise
+controlled `ExplanationInputError` exceptions instead of silently guessing.
 
 The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `.env`, uses `openai/gpt-5.5` by default, and can be overridden with
@@ -75,6 +77,15 @@ The generation layer includes contracts for:
 - explanation verification issue
 - explanation verification result
 - generation attempt metadata
+
+Public `explain_move` accepts either:
+
+- `explain_move(fen_before, played_move_uci, player_level, player_color=...)`
+- `explain_move(pgn, player_level=..., player_color=..., pgn_ply=...)`
+- `explain_move(move_context_request)`
+
+PGN input requires an explicit ply. FEN input requires a played move. Ambiguous
+mixed input is rejected.
 
 Schema failures are hard failures. The verifier may retry once with concrete
 issue codes, but invalid output must never be returned directly.
