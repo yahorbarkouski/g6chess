@@ -86,6 +86,8 @@ class RealExplanationEvalRecord(ContextContract):
     played_uci: str | None = None
     player_color: ColorName | None = None
     quality: str | None = None
+    score_loss_vs_best_cp: int | None = None
+    wdl_expected_score_loss: int | None = None
     significance: str | None = None
     beauty: str | None = None
     stockfish_version: str | None = None
@@ -190,6 +192,17 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         expected_san="g4",
         tags=("synthetic", "ordinary-blunder", "mate-threat"),
     ),
+    RealExplanationEvalCase(
+        case_id="high-wdl-qxa7-good",
+        description="High-WDL non-best winning move",
+        fen_before="rnb1kbnr/pppppppp/8/8/8/8/QPPPPPPP/RNB1KBNR w KQkq - 0 1",
+        played_move="a2a7",
+        player_color="white",
+        player_level=PlayerLevel.rating(1400, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="Qxa7",
+        tags=("synthetic", "high-wdl-non-best", "winning"),
+    ),
 )
 
 
@@ -259,6 +272,8 @@ def _evaluate_case(
             played_uci=context.evidence.played.uci,
             player_color=context.evidence.request.player_color,
             quality=context.evidence.quality.label,
+            score_loss_vs_best_cp=context.evidence.quality.score_loss_vs_best_cp,
+            wdl_expected_score_loss=context.evidence.quality.wdl_expected_score_loss,
             significance=context.evidence.significance.label,
             beauty=context.evidence.beauty.label,
             stockfish_version=context.evidence.engine.engine_version,

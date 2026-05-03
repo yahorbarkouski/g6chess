@@ -96,6 +96,47 @@ def test_verifier_rejects_unsupported_tactic_claim() -> None:
     assert "unsupported_tactic_claim" in _failure_codes(verification)
 
 
+def test_verifier_rejects_unsupported_concept_claim() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it damaged king safety. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_supported_concept_claim() -> None:
+    context = mistake_context_with_practical_alternative()
+    context = context.model_copy(
+        update={
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "allowed_claims": [
+                        *context.llm_context.allowed_claims,
+                        "g4 damaged king safety",
+                    ]
+                }
+            )
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it damaged king safety. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_rejects_wrong_quality_label() -> None:
     context = mistake_context_with_practical_alternative()
     output = ExplanationOutput(explanation="g4 was good because Nf3 was another option.")

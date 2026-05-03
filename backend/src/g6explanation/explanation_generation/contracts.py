@@ -23,6 +23,7 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
     "unsupported_mate_claim",
     "unsupported_material_claim",
     "unsupported_tactic_claim",
+    "unsupported_concept_claim",
     "raw_engine_dump",
     "best_move_inconsistent",
     "recommendation_policy_violation",

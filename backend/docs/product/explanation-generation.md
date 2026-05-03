@@ -178,7 +178,7 @@ Current no-mock real eval:
 This eval uses real Stockfish, real Maia, and real OpenRouter output with
 fallback disabled. It covers Opera Game, Game of the Century,
 Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, and synthetic
-ordinary-blunder edge cases.
+ordinary-blunder, and high-WDL non-best edge cases.
 
 Metrics:
 

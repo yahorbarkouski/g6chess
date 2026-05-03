@@ -29,11 +29,13 @@ The static prompt should say:
 - Explain the main reason and featured move or idea when supplied.
 - Treat `engine_best_move` as objective truth and `practical_alternative` as a
   coaching option; do not collapse the two when both are supplied.
+- Respect recommendation policy fields; do not tell the player to play a
+  `do_not_recommend` move.
 - Add a caveat when the context marks the key move as hard to find.
 - Match the player's level.
 - Do not include raw engine data unless the context explicitly asks for it.
-- Do not mention moves, lines, tactics, material wins, or mate claims that are
-  not present in allowed claims or supplied candidates.
+- Do not mention moves, lines, tactics, positional concepts, material wins, or
+  mate claims that are not present in allowed claims or supplied candidates.
 
 ## Dynamic Context Rules
 
@@ -66,6 +68,7 @@ The model may not:
 - override Stockfish, tablebase, legal-move, or verifier evidence
 - turn Maia probability into quality
 - claim material gain, mate, or tactics without allowed evidence
+- claim positional concepts without allowed evidence
 - silently change the best move or recommendation policy
 - use vague claims such as "wins material" without deterministic support
 

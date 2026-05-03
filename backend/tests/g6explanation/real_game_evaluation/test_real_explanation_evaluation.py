@@ -92,7 +92,13 @@ def test_real_game_explanations_pass_with_stockfish_maia_and_openrouter(
             "quiet-positional",
             "forced",
             "ordinary-blunder",
+            "high-wdl-non-best",
         }
+        high_wdl_record = _record(summary.records, "high-wdl-qxa7-good")
+        assert high_wdl_record.quality == "good"
+        assert high_wdl_record.score_loss_vs_best_cp is not None
+        assert high_wdl_record.score_loss_vs_best_cp >= 150
+        assert high_wdl_record.wdl_expected_score_loss == 0
 
 
 def _selected_case_ids() -> list[str] | None:
@@ -104,3 +110,10 @@ def _selected_case_ids() -> list[str] | None:
 
 def _all_tags(records: list[RealExplanationEvalRecord]) -> set[str]:
     return {tag for record in records for tag in record.tags}
+
+
+def _record(
+    records: list[RealExplanationEvalRecord],
+    case_id: str,
+) -> RealExplanationEvalRecord:
+    return next(record for record in records if record.case_id == case_id)

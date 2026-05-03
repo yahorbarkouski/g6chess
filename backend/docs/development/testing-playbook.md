@@ -159,7 +159,8 @@ Before calling a real model, add tests for:
   verification without fallback
 - opt-in no-mock real-game eval over Opera Game, Game of the Century,
   Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move cases, and
-  synthetic blunder cases using real Stockfish, real Maia, and real OpenRouter
+  synthetic blunder and high-WDL non-best cases using real Stockfish, real Maia,
+  and real OpenRouter
 
 ## Test Names
 

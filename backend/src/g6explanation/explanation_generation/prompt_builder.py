@@ -29,11 +29,16 @@ def build_coach_prompt(
             "State the move quality clearly.",
             (
                 "Do not add moves, PV continuations, material claims, tactic claims, "
-                "or mate claims unless they are supplied in allowed_claims or candidates."
+                "concept claims, or mate claims unless they are supplied in "
+                "allowed_claims or candidates."
             ),
             (
                 "Treat engine_best_move as objective truth and practical_alternative "
                 "as a coaching option."
+            ),
+            (
+                "Respect recommendation_policy fields: never tell the player to play "
+                "a do_not_recommend move."
             ),
             "Caveat hard, very_hard, or engine_like alternatives.",
             "Do not include raw engine numbers, WDL, centipawns, or Stockfish dumps.",

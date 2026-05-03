@@ -51,6 +51,37 @@ TACTIC_TERMS = {
     "intermezzo",
     "back rank",
 }
+CONCEPT_CLAIMS: dict[str, tuple[str, ...]] = {
+    "king safety": (
+        "king safety",
+        "king was exposed",
+        "king is exposed",
+        "exposed king",
+        "unsafe king",
+    ),
+    "center": ("center", "centre", "central"),
+    "development": ("development", "developing", "undeveloped"),
+    "initiative": ("initiative",),
+    "space": ("space advantage", "space"),
+    "pawn structure": (
+        "pawn structure",
+        "isolated pawn",
+        "isolated pawns",
+        "weak pawn",
+        "weak pawns",
+        "passed pawn",
+        "passed pawns",
+    ),
+    "open file": ("open file", "open files", "file control"),
+    "piece activity": (
+        "piece activity",
+        "active piece",
+        "active pieces",
+        "inactive piece",
+        "inactive pieces",
+    ),
+    "weak square": ("weak square", "weak squares", "outpost"),
+}
 CAVEAT_TERMS = {
     "hard",
     "difficult",
@@ -271,6 +302,13 @@ def _verify_supported_claim_terms(
             "$.explanation",
             f"Explanation includes unsupported tactic claim {tactic!r}.",
         )
+    concept = _unsupported_concept_claim(text, support)
+    if concept is not None:
+        issues.fail(
+            "unsupported_concept_claim",
+            "$.explanation",
+            f"Explanation includes unsupported concept claim {concept!r}.",
+        )
     if RAW_ENGINE_RE.search(explanation):
         issues.fail(
             "raw_engine_dump",
@@ -404,6 +442,8 @@ def _allowed_reply_aliases(context_result: ContextResult) -> set[str]:
 
 def _support_text(context_result: ContextResult) -> str:
     parts = [
+        context_result.evidence.main_point.concept,
+        context_result.evidence.main_point.claim,
         context_result.llm_context.main_point,
         context_result.llm_context.severity,
         context_result.llm_context.human_note or "",
@@ -471,3 +511,16 @@ def _has_recommendation_language(text: str, aliases: set[str]) -> bool:
 
 def _supports_any(support: str, terms: set[str]) -> bool:
     return any(re.search(rf"\b{re.escape(term)}\b", support) for term in terms)
+
+
+def _unsupported_concept_claim(text: str, support: str) -> str | None:
+    for concept, aliases in CONCEPT_CLAIMS.items():
+        if any(_contains_phrase(text, alias) for alias in aliases) and not any(
+            _contains_phrase(support, alias) for alias in aliases
+        ):
+            return concept
+    return None
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
