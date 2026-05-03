@@ -90,6 +90,7 @@ ConceptClaimKind: TypeAlias = Literal[
     "initiative",
     "space",
     "pawn_structure",
+    "passed_pawn",
     "open_file",
     "piece_activity",
     "weak_square",

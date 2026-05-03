@@ -100,6 +100,8 @@ Minimum checks:
   move, engine best, practical alternative, and explicitly allowed replies
 - no unsupported PV continuations
 - no unsupported mate, material, tactic, or concept claims
+- material prose requires a trusted typed `material` concept claim; unrelated
+  words such as "piece" in development claims do not authorize material claims
 - concept language must be supported by typed `concept_claims`; free-form
   `allowed_claims` alone do not authorize strategic concepts
 - quality label consistency with `LLMContext.quality`

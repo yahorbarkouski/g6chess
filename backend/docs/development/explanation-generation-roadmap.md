@@ -35,11 +35,14 @@ Completed foundation:
 - first expanded no-mock edge-case batch for castling, en passant, promotion,
   low-time play, beginner/intermediate/advanced rating levels,
   Black-perspective missed wins, and high-WDL good-not-best moves
+- conservative deterministic concept detectors for material, king safety,
+  development, open files, passed pawns, weak squares/outposts, initiative, and
+  forcing move facts
 
 Active phase:
 
 ```text
-concept detectors -> verifier hardening -> prompt changes only from eval failures
+verifier hardening -> prompt changes only from eval failures -> API stabilization
 ```
 
 ## Ten-Step Track
@@ -48,7 +51,7 @@ concept detectors -> verifier hardening -> prompt changes only from eval failure
 |---|---|---|---|
 | 1 | Expand the real eval suite | Partial | No-mock cases include quiet positional moves, missed wins, already-lost mate defenses, promotions, castling, en passant, low-time cases, rating ladder cases, Black-perspective cases, and more high-WDL good-not-best moves. |
 | 2 | Review eval output manually | Complete | Every failed, retried, or surprising record has a review category: context missing evidence, wrong context policy, prompt issue, verifier too weak, verifier too strict, model wording issue, or provider/runtime issue. |
-| 3 | Add structured concept evidence | Partial | Deterministic tags exist for supported material, king safety, development, open files, passed pawns, weak squares, initiative, and forcing concepts before the LLM may mention them. |
+| 3 | Add structured concept evidence | Complete | Deterministic tags exist for supported material, king safety, development, open files, passed pawns, weak squares, initiative, and forcing concepts before the LLM may mention them. |
 | 4 | Harden the explanation verifier | Partial | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
 | 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
 | 6 | Stabilize public API shape | Partial | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
@@ -72,6 +75,14 @@ concept detectors -> verifier hardening -> prompt changes only from eval failure
   `recommendation_policy_violation`; the verifier correctly blocked the first
   attempts and the retries were acceptable. The repeated failure code is now
   evidence for a later prompt-policy clarification, not a context-policy change.
+- 2026-05-03: added conservative deterministic concept evidence for concrete
+  material changes, development from home squares, rook/queen open-file use,
+  passed-pawn advances, knight outposts, checking initiative, and forced-mate
+  king-safety failures. Material prose now requires a trusted `material`
+  concept claim instead of incidental words such as "piece" in other concepts.
+  The first full real eval exposed that promotion checks also need a typed
+  `forcing_move` claim; after adding it, the full no-mock eval passed 12/12 with
+  0 fallbacks and 0 retries.
 
 ## Resume Checklist
 

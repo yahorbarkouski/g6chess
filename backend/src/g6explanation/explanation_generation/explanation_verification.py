@@ -96,9 +96,8 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
         "isolated pawns",
         "weak pawn",
         "weak pawns",
-        "passed pawn",
-        "passed pawns",
     ),
+    "passed_pawn": ("passed pawn", "passed pawns"),
     "open_file": ("open file", "open files", "file control"),
     "piece_activity": (
         "piece activity",
@@ -314,9 +313,7 @@ def _verify_supported_claim_terms(
             "$.explanation",
             "Explanation includes a mate claim not present in supplied claims.",
         )
-    if MATERIAL_RE.search(explanation) and not _supports_any(
-        support, {"material", "pawn", "piece"}
-    ):
+    if MATERIAL_RE.search(explanation) and "material" not in _trusted_concept_kinds(context_result):
         issues.fail(
             "unsupported_material_claim",
             "$.explanation",
@@ -544,16 +541,12 @@ def _has_recommendation_language(text: str, aliases: set[str]) -> bool:
     return False
 
 
-def _supports_any(support: str, terms: set[str]) -> bool:
-    return any(re.search(rf"\b{re.escape(term)}\b", support) for term in terms)
-
-
 def _unsupported_concept_claim(
     text: str,
     context_result: ContextResult,
     support: str,
 ) -> str | None:
-    supported_kinds = {claim.kind for claim in _trusted_concept_claims(context_result)}
+    supported_kinds = _trusted_concept_kinds(context_result)
     has_structured_concepts = bool(
         context_result.evidence.concept_claims or context_result.llm_context.concept_claims
     )
@@ -568,6 +561,10 @@ def _unsupported_concept_claim(
             continue
         return kind.replace("_", " ")
     return None
+
+
+def _trusted_concept_kinds(context_result: ContextResult) -> set[str]:
+    return {claim.kind for claim in _trusted_concept_claims(context_result)}
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:

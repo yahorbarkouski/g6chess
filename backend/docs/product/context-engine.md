@@ -179,6 +179,17 @@ Special move facts are concept claims too. Castling, en passant, and promotion
 language is allowed only when the legal played move itself provides the typed
 claim.
 
+Current deterministic concept evidence is intentionally conservative:
+
+- immediate material gain or loss from the legal move
+- minor-piece development from the home rank
+- rook or queen use of a file with no pawns
+- passed-pawn advances
+- knight outposts, exposed as weak-square or outpost evidence
+- checking moves as forcing or initiative evidence
+- king-safety claims only when move quality says the move allowed or worsened
+  forced mate against the player
+
 ## Pitfalls To Prevent
 
 - recommending hard engine moves as obvious

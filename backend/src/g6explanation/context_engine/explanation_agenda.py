@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import chess
 
+from g6explanation.context_engine.concept_evidence import build_move_concept_claims
 from g6explanation.context_engine.contracts import (
     CandidateMove,
     ConceptClaim,
@@ -186,15 +187,48 @@ def build_concept_claims(
                 move_san=played.san,
             )
         )
+    if played.is_check:
+        claims.append(
+            ConceptClaim(
+                kind="initiative",
+                subject="played_move",
+                claim=f"{played.san} forced the opponent to respond to check",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        )
+    if quality.label in BAD_QUALITY_LABELS and "forced mate against the player" in (
+        quality.severity_text
+    ):
+        claims.append(
+            ConceptClaim(
+                kind="king_safety",
+                subject="position",
+                claim=f"{played.san} left the king vulnerable to forced mate",
+                source="quality_classification",
+                move_san=played.san,
+            )
+        )
+    claims.extend(build_move_concept_claims(board, played.uci, played.san, "played_move"))
 
     if featured_candidate is not None:
         claims.extend(
             _featured_concept_claims(played, quality, quality_claim, featured_candidate, analysis)
         )
         claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
+        claims.extend(
+            build_move_concept_claims(
+                board, featured_candidate.uci, featured_candidate.san, "featured_move"
+            )
+        )
 
     if engine_best_candidate is not None:
         claims.extend(_candidate_policy_concept_claims(engine_best_candidate, "engine_best_move"))
+        claims.extend(
+            build_move_concept_claims(
+                board, engine_best_candidate.uci, engine_best_candidate.san, "engine_best_move"
+            )
+        )
 
     if practical_alternative is not None:
         claims.append(
@@ -208,6 +242,14 @@ def build_concept_claims(
         )
         claims.extend(
             _candidate_policy_concept_claims(practical_alternative, "practical_alternative")
+        )
+        claims.extend(
+            build_move_concept_claims(
+                board,
+                practical_alternative.uci,
+                practical_alternative.san,
+                "practical_alternative",
+            )
         )
 
     if key_candidate is not None:
@@ -361,7 +403,14 @@ def _featured_concept_claims(
                 claim=f"{quality_claim}; it gave check in a critical position.",
                 source="played_move_fact",
                 move_san=played.san,
-            )
+            ),
+            ConceptClaim(
+                kind="initiative",
+                subject="featured_move",
+                claim=f"{played.san} kept the initiative with check",
+                source="deterministic_detector",
+                move_san=played.san,
+            ),
         ]
     if played.is_capture:
         return [
@@ -422,6 +471,15 @@ def _key_candidate_concept_claims(
                     move_san=key_candidate.san,
                 )
             )
+            claims.append(
+                ConceptClaim(
+                    kind="initiative",
+                    subject="key_move",
+                    claim=f"{key_candidate.san} kept the initiative with check",
+                    source="deterministic_detector",
+                    move_san=key_candidate.san,
+                )
+            )
         claims.append(
             ConceptClaim(
                 kind="better_alternative",
@@ -433,6 +491,9 @@ def _key_candidate_concept_claims(
         )
 
     claims.extend(_candidate_policy_concept_claims(key_candidate, "key_move"))
+    claims.extend(
+        build_move_concept_claims(board, key_candidate.uci, key_candidate.san, "key_move")
+    )
     return claims
 
 

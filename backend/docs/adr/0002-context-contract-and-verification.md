@@ -43,6 +43,9 @@ output is product-ready.
   forcing concepts by themselves.
 - Legal played-move facts such as castling, en passant, and promotion are typed
   concept claims when exposed to the LLM.
+- Supported concept claims include conservative deterministic evidence for
+  material, king safety, development, open files, passed pawns, outposts,
+  initiative, and forcing move facts.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when

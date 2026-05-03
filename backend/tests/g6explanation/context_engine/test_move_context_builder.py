@@ -227,6 +227,90 @@ def test_special_played_move_concept_claims(
     assert expected_kind in _concept_kinds(result)
 
 
+@pytest.mark.parametrize(
+    ("fen", "played_uci", "expected_san", "expected_kind"),
+    [
+        ("8/8/8/8/8/3p4/4P3/4K2k w - - 0 1", "e2d3", "exd3", "material"),
+        ("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1", "g1f3", "Nf3", "development"),
+        ("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1", "a1d1", "Rd1", "open_file"),
+        ("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1", "e4e5", "e5", "passed_pawn"),
+        ("4k3/8/8/8/2P1PN2/8/8/4K3 w - - 0 1", "f4d5", "Nd5", "weak_square"),
+        ("4k3/8/8/8/8/8/4Q3/4K3 w - - 0 1", "e2e7", "Qe7+", "initiative"),
+    ],
+)
+def test_deterministic_concept_claims_for_concrete_chess_features(
+    fen: str,
+    played_uci: str,
+    expected_san: str,
+    expected_kind: str,
+) -> None:
+    board = chess.Board(fen)
+    engine_analysis = analysis(
+        board,
+        played_uci=played_uci,
+        top_scores=[(played_uci, 100)],
+        played_score=100,
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move=played_uci,
+        player_color="white",
+        player_level=PlayerLevel.rating(1600),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.played.san == expected_san
+    assert expected_kind in _concept_kinds(result)
+
+
+def test_mate_transition_adds_king_safety_concept_claim() -> None:
+    board = chess.Board("rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2")
+    after_board = board.copy(stack=False)
+    after_board.push(chess.Move.from_uci("g2g4"))
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=1),
+        top_lines=[
+            EngineLine(
+                move_uci="e2e4",
+                move_san="e4",
+                score=Score.cp(20),
+                rank=1,
+                pv_uci=["e2e4"],
+                pv_san=["e4"],
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="g2g4",
+            move_san="g4",
+            score=Score.mate(mate_in=1, mate_for="opponent"),
+            rank=None,
+            pv_uci=["g2g4"],
+            pv_san=["g4"],
+        ),
+        after_line=EngineLine(
+            move_uci="d8h4",
+            move_san=after_board.san(chess.Move.from_uci("d8h4")),
+            score=Score.mate(mate_in=1, mate_for="opponent"),
+            rank=1,
+            pv_uci=["d8h4"],
+            pv_san=[after_board.san(chess.Move.from_uci("d8h4"))],
+        ),
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="g2g4",
+        player_color="white",
+        player_level=PlayerLevel.rating(900),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.quality.label == "blunder"
+    assert "king_safety" in _concept_kinds(result)
+
+
 def test_only_legal_move_is_forced_not_blunder() -> None:
     board = chess.Board("1Q2kb1r/p2n1ppp/4q3/4p1B1/4P3/8/PPP2PPP/2KR4 b k - 1 16")
     engine_analysis = EngineAnalysis(
