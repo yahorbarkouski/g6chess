@@ -114,6 +114,44 @@ uv run uvicorn g6explanation.visualization.http_api:app --reload
 The context endpoint needs local Stockfish and Maia setup. Catalog metadata tests
 use deterministic fixtures and do not require those optional tools.
 
+## Start Local Game Analysis
+
+Start Redis:
+
+```text
+redis-server
+```
+
+Start the API:
+
+```text
+uv run uvicorn g6explanation.visualization.http_api:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Submit a game-analysis job:
+
+```text
+curl -X POST http://127.0.0.1:8001/api/game-analysis \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "pgn": "[Event \"Example\"]\n\n1. e4 e5 2. Nf3 Nc6 *",
+    "player_level": {"kind": "rating", "value": 1500},
+    "time_control": "rapid",
+    "explain_significance": ["critical"],
+    "include_context": false
+  }'
+```
+
+Poll the returned `analysis_id`:
+
+```text
+curl http://127.0.0.1:8001/api/game-analysis/<analysis_id>
+```
+
+The polling response is a partial `GameAnalysisSnapshot` while the job is
+running. Completed moves already include SAN, UCI, quality, significance,
+beauty, and explanations when they are ready.
+
 ## Required Checks
 
 Run before checkpoint commits:
