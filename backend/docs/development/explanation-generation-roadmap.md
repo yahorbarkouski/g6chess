@@ -39,7 +39,7 @@ Completed foundation:
 Active phase:
 
 ```text
-finish broader eval suite -> manual review loop -> concept detectors
+concept detectors -> verifier hardening -> prompt changes only from eval failures
 ```
 
 ## Ten-Step Track
@@ -47,7 +47,7 @@ finish broader eval suite -> manual review loop -> concept detectors
 | # | Step | Status | Exit criteria |
 |---|---|---|---|
 | 1 | Expand the real eval suite | Partial | No-mock cases include quiet positional moves, missed wins, already-lost mate defenses, promotions, castling, en passant, low-time cases, rating ladder cases, Black-perspective cases, and more high-WDL good-not-best moves. |
-| 2 | Review eval output manually | Not started | Every failed, retried, or surprising record has a review category: context missing evidence, wrong context policy, prompt issue, verifier too weak, verifier too strict, model wording issue, or provider/runtime issue. |
+| 2 | Review eval output manually | Complete | Every failed, retried, or surprising record has a review category: context missing evidence, wrong context policy, prompt issue, verifier too weak, verifier too strict, model wording issue, or provider/runtime issue. |
 | 3 | Add structured concept evidence | Partial | Deterministic tags exist for supported material, king safety, development, open files, passed pawns, weak squares, initiative, and forcing concepts before the LLM may mention them. |
 | 4 | Harden the explanation verifier | Partial | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
 | 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
@@ -65,7 +65,13 @@ finish broader eval suite -> manual review loop -> concept detectors
   special played-move facts. Latest full real eval passed 12/12 with Stockfish
   depth 16, real Maia, and OpenRouter `openai/gpt-5.5-20260423`; no fallback
   was used. `capablanca-g4` required one retry for
-  `recommendation_policy_violation`, so it remains the first manual-review item.
+  `recommendation_policy_violation`, so it became the first manual-review item.
+- 2026-05-03: added durable manual-review annotations for real eval records.
+  `capablanca-g4` and `en-passant-intermediate` are classified as
+  `model_wording_issue` for `openai/gpt-5.5-20260423` runs with two attempts and
+  `recommendation_policy_violation`; the verifier correctly blocked the first
+  attempts and the retries were acceptable. The repeated failure code is now
+  evidence for a later prompt-policy clarification, not a context-policy change.
 
 ## Resume Checklist
 

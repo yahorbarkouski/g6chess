@@ -6,8 +6,11 @@ from typing import cast
 from g6explanation.real_game_evaluation import (
     ManualReviewCategory,
     RealExplanationEvalRecord,
+    RealExplanationManualReview,
+    apply_real_explanation_manual_reviews,
     build_real_explanation_eval_report,
     build_real_explanation_eval_report_from_jsonl,
+    load_real_explanation_manual_reviews,
     render_real_explanation_eval_report_markdown,
     summarize_real_explanation_eval_records,
     write_real_explanation_eval_report,
@@ -63,7 +66,7 @@ def test_build_real_explanation_eval_report_summarizes_records() -> None:
     assert report.latency_avg_seconds == 4.0
     assert report.latency_p50_seconds == 4.0
     assert report.latency_max_seconds == 6.0
-    assert report.review_required_case_ids == ["retried", "failed"]
+    assert report.review_required_case_ids == ["retried"]
     assert report.manual_review_counts == {
         "not_reviewed": 2,
         "provider_or_runtime_issue": 1,
@@ -118,6 +121,132 @@ def test_render_real_explanation_eval_report_markdown_lists_review_required_case
 
     assert "Review required cases: `needs-review`" in markdown
     assert "`unsupported_tactic_claim`: 1" in markdown
+
+
+def test_reviewed_retry_is_not_reported_as_needing_manual_review() -> None:
+    summary = summarize_real_explanation_eval_records(
+        [
+            _record(
+                case_id="reviewed-retry",
+                passed=True,
+                attempts=2,
+                latency_seconds=1.0,
+                failure_codes=["recommendation_policy_violation"],
+                manual_review_category="model_wording_issue",
+            )
+        ]
+    )
+
+    report = build_real_explanation_eval_report(summary)
+
+    assert report.review_required_case_ids == []
+    assert report.manual_review_counts == {"model_wording_issue": 1}
+
+
+def test_manual_review_file_can_be_loaded(tmp_path: Path) -> None:
+    review_path = tmp_path / "manual_reviews.json"
+    review_path.write_text(
+        """
+        {
+          "reviews": [
+            {
+              "case_id": "capablanca-g4",
+              "category": "model_wording_issue",
+              "notes": "Verifier correctly blocked the first attempt; retry passed.",
+              "model": "openai/gpt-5.5-20260423",
+              "attempts": 2,
+              "failure_codes": ["recommendation_policy_violation"]
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    reviews = load_real_explanation_manual_reviews(review_path)
+
+    assert reviews == {
+        "capablanca-g4": RealExplanationManualReview(
+            case_id="capablanca-g4",
+            category="model_wording_issue",
+            notes="Verifier correctly blocked the first attempt; retry passed.",
+            model="openai/gpt-5.5-20260423",
+            attempts=2,
+            failure_codes=["recommendation_policy_violation"],
+        )
+    }
+
+
+def test_manual_review_annotations_apply_only_to_matching_records() -> None:
+    review = RealExplanationManualReview(
+        case_id="capablanca-g4",
+        category="model_wording_issue",
+        notes="Verifier correctly blocked the first attempt; retry passed.",
+        model="openai/gpt-5.5-20260423",
+        attempts=2,
+        failure_codes=["recommendation_policy_violation"],
+    )
+    matching = _record(
+        case_id="capablanca-g4",
+        passed=True,
+        attempts=2,
+        latency_seconds=1.0,
+        failure_codes=["recommendation_policy_violation"],
+    )
+    changed_failure = _record(
+        case_id="capablanca-g4",
+        passed=True,
+        attempts=2,
+        latency_seconds=1.0,
+        failure_codes=["unsupported_concept_claim"],
+    )
+
+    reviewed_records = apply_real_explanation_manual_reviews(
+        [matching, changed_failure],
+        {"capablanca-g4": review},
+    )
+
+    assert reviewed_records[0].manual_review_category == "model_wording_issue"
+    assert reviewed_records[0].manual_review_notes == review.notes
+    assert reviewed_records[1].manual_review_category == "not_reviewed"
+
+
+def test_jsonl_report_builder_applies_manual_reviews(tmp_path: Path) -> None:
+    jsonl_path = tmp_path / "eval.jsonl"
+    review_path = tmp_path / "manual_reviews.json"
+    record = _record(
+        case_id="capablanca-g4",
+        passed=True,
+        attempts=2,
+        latency_seconds=1.0,
+        failure_codes=["recommendation_policy_violation"],
+    )
+    jsonl_path.write_text(record.model_dump_json() + "\n", encoding="utf-8")
+    review_path.write_text(
+        """
+        {
+          "reviews": [
+            {
+              "case_id": "capablanca-g4",
+              "category": "model_wording_issue",
+              "notes": "Verifier correctly blocked the first attempt; retry passed.",
+              "model": "openai/gpt-5.5-20260423",
+              "attempts": 2,
+              "failure_codes": ["recommendation_policy_violation"]
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    report = build_real_explanation_eval_report_from_jsonl(
+        jsonl_path,
+        manual_review_path=review_path,
+    )
+
+    assert report.review_required_case_ids == []
+    assert report.manual_review_counts == {"model_wording_issue": 1}
 
 
 def _record(

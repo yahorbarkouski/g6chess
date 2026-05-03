@@ -8,7 +8,7 @@ import os
 import shutil
 import time
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeAlias, cast
@@ -39,6 +39,9 @@ from g6explanation.real_game_evaluation.real_games import (
 )
 
 REAL_EXPLANATION_EVAL_REPORT_VERSION = "real_explanation_eval_report.v1"
+DEFAULT_REAL_EXPLANATION_MANUAL_REVIEWS_PATH = Path(
+    "docs/development/real-explanation-manual-reviews.json"
+)
 ManualReviewCategory: TypeAlias = Literal[
     "not_reviewed",
     "context_missing_evidence",
@@ -126,6 +129,15 @@ class RealExplanationEvalRecord(ContextContract):
     explanation: str | None = None
     manual_review_category: ManualReviewCategory = "not_reviewed"
     manual_review_notes: str | None = None
+
+
+class RealExplanationManualReview(ContextContract):
+    case_id: str
+    category: ManualReviewCategory
+    notes: str
+    model: str | None = None
+    attempts: int | None = None
+    failure_codes: list[str] | None = None
 
 
 class RealExplanationEvalSummary(ContextContract):
@@ -333,16 +345,24 @@ def run_real_explanation_evaluation(
     output_path: str | Path | None = None,
     report_path: str | Path | None = None,
     use_baseline_fallback: bool = False,
+    manual_review_path: str | Path | None = None,
+    manual_reviews: Mapping[str, RealExplanationManualReview] | None = None,
 ) -> RealExplanationEvalSummary:
     """Run real Stockfish, Maia, and OpenRouter explanation evaluation."""
 
+    reviews = _load_default_manual_reviews(manual_review_path)
+    if manual_reviews is not None:
+        reviews.update(manual_reviews)
     context_builder = _real_context_builder()
     service = ExplanationService(
         context_builder=context_builder,
         coach_provider=OpenRouterCoachModelProvider.from_env(),
         use_baseline_fallback=use_baseline_fallback,
     )
-    records = [_evaluate_case(case, context_builder, service) for case in cases]
+    records = apply_real_explanation_manual_reviews(
+        [_evaluate_case(case, context_builder, service) for case in cases],
+        reviews,
+    )
     if output_path is not None:
         _write_jsonl(Path(output_path), records)
     summary = summarize_real_explanation_eval_records(records)
@@ -376,6 +396,45 @@ def load_real_explanation_eval_records(path: str | Path) -> list[RealExplanation
     return records
 
 
+def load_real_explanation_manual_reviews(
+    path: str | Path,
+) -> dict[str, RealExplanationManualReview]:
+    payload: object = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        payload_mapping = cast(dict[object, object], payload)
+        if not all(isinstance(key, str) for key in payload_mapping):
+            raise ValueError("Manual review file object must use string keys.")
+        raw_reviews: object = cast(dict[str, object], payload_mapping).get("reviews")
+    else:
+        raw_reviews = payload
+    if not isinstance(raw_reviews, list):
+        raise ValueError("Manual review file must contain a list or a {'reviews': [...]} object.")
+
+    reviews: dict[str, RealExplanationManualReview] = {}
+    for index, raw_review in enumerate(cast(list[object], raw_reviews), 1):
+        if not isinstance(raw_review, dict):
+            raise ValueError(f"Manual review #{index} must be an object with string keys.")
+        raw_review_mapping = cast(dict[object, object], raw_review)
+        if not all(isinstance(key, str) for key in raw_review_mapping):
+            raise ValueError(f"Manual review #{index} must be an object with string keys.")
+        review = RealExplanationManualReview.model_validate(
+            cast(dict[str, object], raw_review_mapping)
+        )
+        if review.case_id in reviews:
+            raise ValueError(f"Duplicate manual review for case {review.case_id!r}.")
+        if review.category == "not_reviewed":
+            raise ValueError(f"Manual review #{index} cannot use category 'not_reviewed'.")
+        reviews[review.case_id] = review
+    return reviews
+
+
+def apply_real_explanation_manual_reviews(
+    records: Sequence[RealExplanationEvalRecord],
+    reviews: Mapping[str, RealExplanationManualReview],
+) -> list[RealExplanationEvalRecord]:
+    return [_apply_manual_review(record, reviews) for record in records]
+
+
 def build_real_explanation_eval_report(
     summary: RealExplanationEvalSummary,
 ) -> RealExplanationEvalReport:
@@ -387,11 +446,7 @@ def build_real_explanation_eval_report(
     review_required = [
         record.case_id
         for record in records
-        if not record.passed
-        or record.used_fallback is True
-        or record.attempts > 1
-        or bool(record.failure_codes)
-        or bool(record.error)
+        if _needs_manual_review(record) and record.manual_review_category == "not_reviewed"
     ]
     return RealExplanationEvalReport(
         total_cases=summary.total_cases,
@@ -435,10 +490,18 @@ def build_real_explanation_eval_report(
     )
 
 
-def build_real_explanation_eval_report_from_jsonl(path: str | Path) -> RealExplanationEvalReport:
-    return build_real_explanation_eval_report(
-        summarize_real_explanation_eval_records(load_real_explanation_eval_records(path))
+def build_real_explanation_eval_report_from_jsonl(
+    path: str | Path,
+    manual_review_path: str | Path | None = None,
+    manual_reviews: Mapping[str, RealExplanationManualReview] | None = None,
+) -> RealExplanationEvalReport:
+    reviews = _load_default_manual_reviews(manual_review_path)
+    if manual_reviews is not None:
+        reviews.update(manual_reviews)
+    records = apply_real_explanation_manual_reviews(
+        load_real_explanation_eval_records(path), reviews
     )
+    return build_real_explanation_eval_report(summarize_real_explanation_eval_records(records))
 
 
 def write_real_explanation_eval_report(
@@ -559,6 +622,57 @@ def _evaluate_case(
             error=f"{type(exc).__name__}: {exc}",
             latency_seconds=round(time.perf_counter() - start, 3),
         )
+
+
+def _load_default_manual_reviews(
+    manual_review_path: str | Path | None,
+) -> dict[str, RealExplanationManualReview]:
+    review_path = manual_review_path
+    if review_path is None:
+        review_path = os.getenv("G6EXPLANATION_REAL_LLM_EVAL_MANUAL_REVIEWS")
+    if review_path is None and DEFAULT_REAL_EXPLANATION_MANUAL_REVIEWS_PATH.exists():
+        review_path = DEFAULT_REAL_EXPLANATION_MANUAL_REVIEWS_PATH
+    if review_path is None:
+        return {}
+    return load_real_explanation_manual_reviews(review_path)
+
+
+def _apply_manual_review(
+    record: RealExplanationEvalRecord,
+    reviews: Mapping[str, RealExplanationManualReview],
+) -> RealExplanationEvalRecord:
+    review = reviews.get(record.case_id)
+    if review is None or not _manual_review_matches(record, review):
+        return record
+    return record.model_copy(
+        update={
+            "manual_review_category": review.category,
+            "manual_review_notes": review.notes,
+        }
+    )
+
+
+def _manual_review_matches(
+    record: RealExplanationEvalRecord,
+    review: RealExplanationManualReview,
+) -> bool:
+    if review.model is not None and record.model != review.model:
+        return False
+    if review.attempts is not None and record.attempts != review.attempts:
+        return False
+    return review.failure_codes is None or sorted(record.failure_codes) == sorted(
+        review.failure_codes
+    )
+
+
+def _needs_manual_review(record: RealExplanationEvalRecord) -> bool:
+    return (
+        not record.passed
+        or record.used_fallback is True
+        or record.attempts > 1
+        or bool(record.failure_codes)
+        or bool(record.error)
+    )
 
 
 def _real_context_builder() -> MoveContextBuilder:

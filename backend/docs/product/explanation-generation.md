@@ -196,7 +196,9 @@ uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_eva
 The report summarizes pass, fallback, retry, failure-code, latency, model,
 Stockfish, Maia, and manual-review fields. Review categories should be used for
 failed, retried, or surprising records before changing context policy, prompt
-rules, or verifier behavior.
+rules, or verifier behavior. Durable annotations live in
+`docs/development/real-explanation-manual-reviews.json` and apply only when the
+case id, model, attempts, and failure codes still match the reviewed record.
 
 Metrics:
 

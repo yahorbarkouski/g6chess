@@ -80,6 +80,9 @@ OpenRouter:
   `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl`.
 - Real eval summary reports can be written with
   `G6EXPLANATION_REAL_LLM_EVAL_REPORT=.evals/real-explanations.md`.
+- Real eval manual-review annotations default to
+  `docs/development/real-explanation-manual-reviews.json`; override them with
+  `G6EXPLANATION_REAL_LLM_EVAL_MANUAL_REVIEWS`.
 
 ## Unit Tests
 
