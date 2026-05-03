@@ -41,6 +41,8 @@ Do not move chess truth into the generation layer.
 - Documentation map: `docs/README.md`
 - Product concepts and boundary: `docs/product/product-understanding.md`
 - Current next slice: `docs/product/explanation-generation.md`
+- Real-world game-analysis integration:
+  `docs/development/game-analysis-integration.md`
 - Development flow and checks: `docs/development/development-flow.md`
 
 Read the slice-specific docs named in `AGENTS.md` before implementation work.

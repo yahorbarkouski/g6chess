@@ -27,6 +27,8 @@ durable decisions.
   model gates.
 - `development/explanation-generation-roadmap.md`: durable implementation
   ledger for the verified explanation-generation track.
+- `development/game-analysis-integration.md`: real-world integration guide for
+  the Redis-backed async game-analysis API.
 - `development/training-data.md`: source-rights, acceptance, and manifest gates
   for future supervised training data.
 - `development/testing-playbook.md`: unit, integration, golden, adversarial, and
