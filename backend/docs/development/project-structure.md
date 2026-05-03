@@ -21,11 +21,13 @@
         candidate_moves/
         signals/
       explanation_generation/
+      real_game_evaluation/
       visualization/
   tests/
     g6explanation/
       context_engine/
       explanation_generation/
+      real_game_evaluation/
       visualization/
 ```
 
@@ -63,6 +65,9 @@
 - Use `explanation_generation/` for output contracts, baseline rendering,
   explanation verification, provider protocol, concrete model adapters, and the
   `explain_move` orchestration service.
+- Use `real_game_evaluation/` for curated PGNs, no-mock real-provider eval
+  cases, and JSONL evaluation records. It must stay downstream of
+  `context_engine` and `explanation_generation`.
 - Delete obsolete internal modules during package refactors instead of leaving
   compatibility wrappers. Only documented public exports may preserve backward
   compatibility.

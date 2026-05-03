@@ -74,6 +74,10 @@ OpenRouter:
 - Real provider smoke is opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
 - Real provider plus Stockfish smoke is opt-in with
   `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.
+- Real Stockfish plus Maia plus OpenRouter eval is opt-in with
+  `G6EXPLANATION_RUN_REAL_LLM_EVAL=1`.
+- Real eval records can be written with
+  `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl`.
 
 ## Unit Tests
 
@@ -153,6 +157,9 @@ Before calling a real model, add tests for:
 - frozen Opera Game and Game of the Century contexts as representative evals
 - opt-in real OpenRouter smoke where raw model output must pass deterministic
   verification without fallback
+- opt-in no-mock real-game eval over Opera Game, Game of the Century,
+  Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move cases, and
+  synthetic blunder cases using real Stockfish, real Maia, and real OpenRouter
 
 ## Test Names
 

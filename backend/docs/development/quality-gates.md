@@ -103,10 +103,16 @@ Run these gates only when work depends on actual LLM provider behavior:
 ```text
 G6EXPLANATION_RUN_OPENROUTER=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q
 G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q
+G6EXPLANATION_RUN_REAL_LLM_EVAL=1 uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_evaluation.py -q -s
 ```
 
-They require `OPENROUTER_API_KEY` in the environment or `.env`. The Stockfish
-variant also requires a local Stockfish binary.
+They require `OPENROUTER_API_KEY` in the environment or `.env`. The real LLM eval
+also requires local Stockfish, `maia2`, and local Maia model files. It disables
+deterministic fallback, so every passing case used real model output.
+
+Use `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl` to keep
+JSONL records for manual review. Use `G6EXPLANATION_REAL_LLM_EVAL_CASES` only for
+local debugging; the product gate should run the full curated case list.
 
 ## Completion Note
 

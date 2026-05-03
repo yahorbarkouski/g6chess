@@ -13,8 +13,8 @@ durable decisions.
 - `product/product-understanding.md`: domain boundaries and failure modes.
 - `product/prompt-guidelines.md`: prompt rules, claim limits, and verification
   loop.
-- `product/explanation-generation.md`: next product slice for verified
-  explanation generation, provider boundaries, verifier checks, and evals.
+- `product/explanation-generation.md`: verified explanation generation,
+  provider boundaries, verifier checks, and real-provider evals.
 
 ## Development Docs
 

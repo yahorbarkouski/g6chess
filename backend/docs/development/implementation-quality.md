@@ -23,10 +23,12 @@ src/g6explanation/
     candidate_moves/
     signals/
   explanation_generation/
+  real_game_evaluation/
   visualization/
 
 tests/g6explanation/context_engine/
 tests/g6explanation/explanation_generation/
+tests/g6explanation/real_game_evaluation/
 tests/g6explanation/visualization/
 ```
 
@@ -36,10 +38,13 @@ The implemented bounded contexts are:
   context, and evidence verification
 - `g6explanation.explanation_generation`: verified explanation output, prompt
   construction, model provider I/O, retry behavior, and fallback behavior
+- `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and LLM
+  eval cases, runner, and JSONL records
 - `g6explanation.visualization`: local inspection API over current context
   packets
 
-Keep explanation generation downstream of `context_engine`.
+Keep explanation generation downstream of `context_engine`; keep real-game
+evaluation downstream of both.
 
 Do not add a web server, database, model server, user accounts, or broad app
 scaffolding until a concrete vertical slice requires it.
@@ -87,7 +92,8 @@ depth-limited Stockfish integration/evaluation/visualization context at depth 16
 or deeper. Do not reduce real Stockfish depth for speed; replace the test with a
 static provider when the expensive engine call is not the behavior under test.
 Use the opt-in real Maia gate only for integration/evaluation work that needs
-the actual optional runtime.
+the actual optional runtime. Use the real LLM evaluation gate when prompt,
+verifier, or generation changes need proof against actual OpenRouter output.
 
 ## Required Checks
 

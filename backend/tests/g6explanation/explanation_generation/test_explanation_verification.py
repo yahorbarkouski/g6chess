@@ -46,6 +46,16 @@ def test_verifier_rejects_uci_move_mentions() -> None:
     assert "uci_move_mentioned" in _failure_codes(verification)
 
 
+def test_verifier_rejects_explanation_that_omits_played_move() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(explanation="This was a mistake because Nf3 was better.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "played_move_missing" in _failure_codes(verification)
+
+
 def test_verifier_rejects_unsupported_pv_continuation() -> None:
     context = mistake_context_with_practical_alternative()
     output = ExplanationOutput(explanation="g4 was a mistake; the line then goes e5 and Nc6.")

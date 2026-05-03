@@ -88,6 +88,11 @@ fallback renderer, retry behavior, and an OpenRouter model adapter that defaults
 to `openai/gpt-5.5`. The fallback renderer is not a judge for model quality; raw
 model output must pass deterministic verification against the context packet.
 
+The real-game evaluation layer is implemented downstream of context and
+generation. Its opt-in gate uses real Stockfish, real Maia, and real OpenRouter
+with fallback disabled; use it for prompt, verifier, and model-behavior changes
+that need actual provider evidence.
+
 ## Context Intake Protocol
 
 When starting work:

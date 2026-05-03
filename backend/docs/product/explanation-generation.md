@@ -171,6 +171,15 @@ Current opt-in smoke tests:
 - `G6EXPLANATION_RUN_OPENROUTER=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q`
 - `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1 uv run pytest tests/g6explanation/explanation_generation/test_real_openrouter_generation.py -q`
 
+Current no-mock real eval:
+
+- `G6EXPLANATION_RUN_REAL_LLM_EVAL=1 uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_evaluation.py -q -s`
+
+This eval uses real Stockfish, real Maia, and real OpenRouter output with
+fallback disabled. It covers Opera Game, Game of the Century,
+Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, and synthetic
+ordinary-blunder edge cases.
+
 Metrics:
 
 - schema pass rate

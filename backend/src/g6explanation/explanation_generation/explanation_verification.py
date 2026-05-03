@@ -88,6 +88,7 @@ class ExplanationVerifier:
 
         allowed_aliases = _allowed_move_aliases(context_result)
         mentions = _move_mentions(explanation)
+        _verify_played_move_mentioned(context_result, mentions, issues)
         _verify_move_mentions(mentions, allowed_aliases, issues)
         _verify_quality(context_result, explanation, issues)
         _verify_supported_claim_terms(context_result, explanation, issues)
@@ -198,6 +199,21 @@ def _verify_move_mentions(
                 mention.path,
                 f"Explanation mentioned {mention.token}, which is not supplied in the context.",
             )
+
+
+def _verify_played_move_mentioned(
+    context_result: ContextResult,
+    mentions: list[_MoveMention],
+    issues: _IssueCollector,
+) -> None:
+    played_aliases = _san_aliases(context_result.llm_context.played)
+    mentioned_aliases = {mention.normalized for mention in mentions if not mention.is_uci}
+    if not _aliases_mentioned(played_aliases, mentioned_aliases):
+        issues.fail(
+            "played_move_missing",
+            "$.explanation",
+            f"Explanation does not mention the played move {context_result.llm_context.played}.",
+        )
 
 
 def _verify_quality(

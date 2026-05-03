@@ -14,6 +14,7 @@ PROMPT_VERSION = "single_move_coach.v1"
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",
+    "played_move_missing",
     "quality_label_missing",
     "quality_label_conflict",
     "mentioned_move_unsupported",

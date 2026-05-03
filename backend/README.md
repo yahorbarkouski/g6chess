@@ -20,14 +20,15 @@ Implemented:
 - `g6explanation.explanation_generation`: turns verified context into one
   schema-valid, deterministically verified explanation string. The OpenRouter
   adapter defaults to `openai/gpt-5.5`.
+- `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and
+  OpenRouter explanation evals with JSONL records.
 - `g6explanation.visualization`: local inspection API for real-game experiment
   metadata and fresh per-ply context packets.
 
 Next:
 
-- broaden real-game LLM evals across Opera Game, Game of the Century, quiet
-  positional games, forced moves, mates, practical alternatives, and ordinary
-  blunders.
+- review real LLM eval records, harden verifier gaps, and broaden the case list
+  where failures reveal missing context or unsupported wording.
 
 Do not move chess truth into the generation layer.
 
@@ -87,6 +88,9 @@ OpenRouter:
 - Real OpenRouter tests are opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
 - Real OpenRouter plus Stockfish tests are opt-in with
   `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.
+- Real Stockfish plus Maia plus OpenRouter eval is opt-in with
+  `G6EXPLANATION_RUN_REAL_LLM_EVAL=1`.
+- Write real eval JSONL records with `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT`.
 
 Visualization API:
 
