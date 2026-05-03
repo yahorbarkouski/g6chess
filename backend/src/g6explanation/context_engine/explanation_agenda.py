@@ -41,12 +41,17 @@ def build_main_point(
             )
         if quality.label == "best":
             return MainPoint(
-                concept="move quality",
-                claim=f"{quality_claim}; no sharper alternative is needed for this moment.",
+                concept="move purpose",
+                claim=_non_bad_quality_claim(board, played, quality),
+            )
+        if quality.label in {"excellent", "good", "neutral"}:
+            return MainPoint(
+                concept="move purpose",
+                claim=_non_bad_quality_claim(board, played, quality),
             )
         return MainPoint(
             concept="move quality",
-            claim=f"{quality_claim}; it did not lose meaningful value versus the engine choice.",
+            claim=f"{quality_claim}; it did not give up meaningful value.",
         )
 
     key_move = chess.Move.from_uci(key_candidate.uci)
@@ -55,7 +60,7 @@ def build_main_point(
             concept="practical alternative",
             claim=(
                 f"{quality_claim}; {key_candidate.san} was a practical alternative "
-                "close to the engine best move."
+                "that stayed close to best play."
             ),
         )
 
@@ -81,13 +86,14 @@ def build_main_point(
 
 
 def build_allowed_claims(
+    board: chess.Board,
     played: PlayedMoveFacts,
     quality: MoveQuality,
     key_candidate: CandidateMove | None,
     featured_candidate: CandidateMove | None,
     analysis: EngineAnalysis,
 ) -> list[str]:
-    claims = [build_quality_claim(played, quality)]
+    claims = [_allowed_quality_claim(board, played, quality)]
     if key_candidate:
         claims.append(f"{key_candidate.san} was the key alternative")
         if key_candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
@@ -323,6 +329,59 @@ def build_quality_claim(played: PlayedMoveFacts, quality: MoveQuality) -> str:
     return f"{played.san} was {article(quality.label)} {quality.label}"
 
 
+def _allowed_quality_claim(
+    board: chess.Board, played: PlayedMoveFacts, quality: MoveQuality
+) -> str:
+    if quality.label in BAD_QUALITY_LABELS or quality.label == "forced":
+        return build_quality_claim(played, quality)
+    return _non_bad_quality_claim(board, played, quality)
+
+
+def _non_bad_quality_claim(
+    board: chess.Board, played: PlayedMoveFacts, quality: MoveQuality
+) -> str:
+    if purpose_claim := _primary_played_purpose_claim(board, played):
+        return purpose_claim
+    if quality.label == "best":
+        return f"{played.san} fits the position"
+    if quality.label == "excellent":
+        return f"{played.san} kept the position very strong"
+    if quality.label == "good":
+        return f"{played.san} kept the position solid"
+    return f"{played.san} held the position"
+
+
+def _primary_played_purpose_claim(board: chess.Board, played: PlayedMoveFacts) -> str | None:
+    move = chess.Move.from_uci(played.uci)
+    if move not in board.legal_moves:
+        return None
+    if board.is_castling(move):
+        return f"{played.san} castled"
+    if board.is_en_passant(move):
+        return f"{played.san} was an en passant capture"
+    if played.promotion is not None:
+        return f"{played.san} promoted to {played.promotion}"
+
+    claims = build_move_concept_claims(board, played.uci, played.san, "played_move")
+    priority = (
+        "forced_mate",
+        "forcing_move",
+        "material",
+        "center",
+        "development",
+        "open_file",
+        "passed_pawn",
+        "weak_square",
+    )
+    by_kind = {claim.kind: claim.claim for claim in claims}
+    for kind in priority:
+        if kind in by_kind:
+            return by_kind[kind]
+    if played.is_capture:
+        return f"{played.san} captured"
+    return None
+
+
 def article(label: str) -> str:
     return "an" if label[0].lower() in {"a", "e", "i", "o", "u"} else "a"
 
@@ -333,13 +392,13 @@ def _key_move_reason(candidate: CandidateMove) -> str:
     if candidate.practicality == "only_move":
         return "it is the only legal move"
     if candidate.practicality == "practical_try":
-        return "it is close to the engine best move and more practical for the player"
+        return "it stays close to best play while being more practical for the player"
     if candidate.recommendation_policy == "explain_as_hidden_resource":
         return "it is an important hidden resource that becomes more visible with stronger play"
     if candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
         return "it is objectively important but hard to find"
     if candidate.score_loss_vs_best_cp == 0:
-        return "it is the engine's best move"
+        return "it is the strongest move in the position"
     return "it is a better practical move"
 
 
@@ -353,7 +412,7 @@ def _featured_best_concept(played: PlayedMoveFacts, analysis: EngineAnalysis) ->
         return "forcing move"
     if played.is_capture:
         return "capture"
-    return "critical best move"
+    return "critical move"
 
 
 def _featured_best_claim(
@@ -363,14 +422,14 @@ def _featured_best_claim(
         analysis.played_line.score.kind == "mate"
         and analysis.played_line.score.mate_for == "player"
     ):
-        return f"{quality_claim}; it delivered forced mate."
+        return f"{played.san} delivered forced mate."
     if played.is_check:
-        return f"{quality_claim}; it gave check in a critical position."
+        return f"{played.san} gave check in a critical position."
     if played.is_capture:
-        return f"{quality_claim}; it captured in a critical position."
+        return f"{played.san} captured in a critical position."
     if analysis.after_line is not None:
-        return f"{quality_claim}; this was the critical move before {analysis.after_line.move_san}."
-    return f"{quality_claim}; this was the critical move in the position."
+        return f"{played.san} was the critical move before {analysis.after_line.move_san}."
+    return f"{played.san} was the critical move in the position."
 
 
 def _featured_concept_claims(

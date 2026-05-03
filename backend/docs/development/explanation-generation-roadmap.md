@@ -186,6 +186,18 @@ accept seed records, then prepare training manifests
   squares, and narrower space aliases. Final no-mock checks passed 20/20 with
   0 retries/fallbacks, Opera full-chain passed 33/33 with 0 retries/fallbacks,
   and a Capablanca strategic segment passed 12/12 with 0 retries/fallbacks.
+- 2026-05-03: tightened the every-move style target after full-chain review
+  showed v4 was still too verdict-first. Prompt v8 now asks for compact
+  game-review explanations, blocks engine-meta wording, avoids repeated
+  `MOVE was QUALITY because ...` phrasing, avoids "critical best move" and
+  "no sharper alternative needed" as default endings, and prefers concrete
+  chess functions for non-bad moves. The LLM-facing agenda now reuses
+  deterministic played-move concept evidence, such as center, development,
+  open files, material, outposts, castling, en passant, and promotion, before
+  falling back to generic position-fit wording. Final no-mock checks passed
+  20/20 with 0 retries/fallbacks; Opera full-chain passed 33/33 with
+  0 retries/fallbacks; Capablanca strategic chain passed 12/12 with
+  0 retries/fallbacks.
 
 ## Resume Checklist
 

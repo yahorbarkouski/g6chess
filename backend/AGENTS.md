@@ -153,6 +153,8 @@ The coach model may:
 - adapt wording to rating level
 - state serious move-quality labels clearly when the context requires them
 - explain the better move or idea when supported by evidence
+- use natural, varied game-review phrasing for ordinary good moves instead of
+  repeating verdict-first templates
 
 The coach model may not:
 
@@ -161,6 +163,8 @@ The coach model may not:
 - make unsupported tactic claims
 - silently change the best move
 - convert mate claims into centipawn claims
+- expose internal or engine-meta wording such as "engine best move", "engine
+  choice", prompt fields, schema fields, or verifier fields
 
 ## Quality Bar
 

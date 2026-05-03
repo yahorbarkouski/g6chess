@@ -53,11 +53,11 @@ def test_service_returns_verified_model_output_without_baseline_comparison() -> 
         [
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             ),
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             ),
         ]
     )
@@ -80,11 +80,11 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
         [
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             ),
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             ),
         ]
     )
@@ -96,14 +96,21 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v4"
+    assert result.prompt_version == "single_move_coach.v8"
     assert "Use a neutral explanatory voice" in prompt_payload
-    assert "Prefer one compact sentence" in prompt_payload
+    assert "Write like a compact game-review note" in prompt_payload
     assert "Avoid rigid templates" in prompt_payload
+    assert "avoid repeated 'MOVE was QUALITY because'" in prompt_payload
+    assert "usually lead with the concrete chess function" in prompt_payload
+    assert "For routine best moves" in prompt_payload
+    assert "avoid the phrase 'critical best move'" in prompt_payload
+    assert "Do not use generic value-preservation filler" in prompt_payload
+    assert "Do not lean on 'no sharper alternative needed'" in prompt_payload
     assert "Choose the smallest sufficient teaching point" in prompt_payload
     assert "For low-significance best" in prompt_payload
     assert "Do not call a practical_alternative a better move" in prompt_payload
     assert "Do not expose internal wording" in prompt_payload
+    assert "engine best move" in prompt_payload
     assert "recommend_directly allows direct advice" in prompt_payload
     assert "do_not_recommend must not be called" in prompt_payload
     assert "Do not use named tactic labels" in prompt_payload
@@ -116,7 +123,7 @@ def test_service_retries_with_verifier_failures() -> None:
             '{"explanation":"g4 was a mistake, and a3 was the better move."}',
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             ),
         ]
     )
@@ -186,7 +193,7 @@ def test_public_explain_move_accepts_fen_played_move_and_rating() -> None:
         [
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             )
         ]
     )
@@ -214,7 +221,7 @@ def test_public_explain_move_accepts_existing_request() -> None:
         [
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             )
         ]
     )
@@ -236,7 +243,7 @@ def test_public_explain_move_accepts_explicit_pgn_ply() -> None:
         [
             (
                 '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative close to the engine best move."}'
+                'Nf3 was a practical alternative that stayed close to best play."}'
             )
         ]
     )

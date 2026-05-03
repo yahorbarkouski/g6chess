@@ -38,7 +38,8 @@ INTERNAL_LANGUAGE_RE = re.compile(
     r"\b(?:"
     r"featured move|move quality|quality label|verified context|supplied context|"
     r"allowed_claims|concept_claims|recommendation_policy|engine[- ]listed|"
-    r"engine's listed|deterministic evidence|schema-valid|json object"
+    r"engine's listed|engine best move|engine's best move|engine choice|"
+    r"engine line|deterministic evidence|schema-valid|json object"
     r")\b",
     re.IGNORECASE,
 )

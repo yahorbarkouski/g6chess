@@ -127,7 +127,12 @@ class MoveContextBuilder:
             analysis,
         )
         allowed_claims = build_allowed_claims(
-            reconstructed.played, quality, key_candidate, featured_candidate, analysis
+            board,
+            reconstructed.played,
+            quality,
+            key_candidate,
+            featured_candidate,
+            analysis,
         )
         concept_claims = build_concept_claims(
             board,

@@ -32,7 +32,7 @@ def test_verifier_accepts_grounded_model_explanation() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it let the opponent improve with e5. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -136,7 +136,7 @@ def test_verifier_rejects_mating_move_claim_from_position_mate_evidence_only() -
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because g4 checkmated the opponent. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -168,7 +168,7 @@ def test_verifier_accepts_mating_move_claim_when_move_has_mate_evidence() -> Non
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake, and g4 checkmates the opponent. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -220,7 +220,7 @@ def test_verifier_accepts_mating_opponent_reply_from_after_line() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it allowed Qh4#, an immediate checkmate. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -251,7 +251,7 @@ def test_verifier_does_not_treat_square_reference_as_move() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it lost the h2 pawn. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -284,7 +284,7 @@ def test_verifier_accepts_multiple_verified_immediate_mates() -> None:
                     "played": "e4#",
                     "allowed_claims": [
                         *context.llm_context.allowed_claims,
-                        "the engine's listed best move is Rd8#",
+                        "Rd8# was another immediate mate",
                     ],
                 }
             ),
@@ -334,7 +334,7 @@ def test_verifier_accepts_supported_material_claim() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it lost material. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -365,7 +365,7 @@ def test_verifier_rejects_specific_material_claim_not_in_material_evidence() -> 
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it lost a queen. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -397,7 +397,7 @@ def test_verifier_accepts_specific_material_claim_when_evidence_matches() -> Non
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake even though it won a pawn. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -447,7 +447,7 @@ def test_verifier_accepts_supported_tactic_claim() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it walked into a fork. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -478,7 +478,7 @@ def test_verifier_rejects_tactic_claim_not_named_by_tactic_evidence() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it walked into a fork. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -493,7 +493,7 @@ def test_verifier_rejects_unsupported_concept_claim() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -525,7 +525,7 @@ def test_verifier_accepts_supported_concept_claim() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -609,7 +609,7 @@ def test_verifier_does_not_accept_concept_from_allowed_claims_alone() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -635,7 +635,7 @@ def test_verifier_rejects_unsupported_special_move_concepts(
     output = ExplanationOutput(
         explanation=(
             f"g4 was a mistake because the {phrase} detail mattered. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -678,7 +678,7 @@ def test_verifier_accepts_supported_special_move_concepts(
     output = ExplanationOutput(
         explanation=(
             f"g4 was a mistake because the {phrase} detail mattered. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -726,6 +726,27 @@ def test_verifier_rejects_internal_prompt_language() -> None:
 
     assert not verification.passed
     assert "internal_language" in _failure_codes(verification)
+
+
+def test_verifier_rejects_engine_meta_language() -> None:
+    context = best_context()
+    output = ExplanationOutput(explanation="e4 was the engine best move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "internal_language" in _failure_codes(verification)
+
+
+def test_verifier_allows_engine_like_findability_caveat() -> None:
+    context = hard_engine_best_context()
+    output = ExplanationOutput(
+        explanation="a3 was a blunder; e4 was an engine-like hidden resource."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
 
 
 def test_verifier_rejects_best_move_inconsistency() -> None:
@@ -819,7 +840,7 @@ def test_verifier_still_rejects_recommending_bad_played_move() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake, but you should play g4 anyway. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 
@@ -845,7 +866,7 @@ def test_verifier_allows_negative_advice_about_bad_played_move() -> None:
     output = ExplanationOutput(
         explanation=(
             "g4 was a mistake; do not play g4 in this structure. "
-            "Nf3 was a practical alternative close to the engine best move."
+            "Nf3 was a practical alternative that stayed close to best play."
         )
     )
 

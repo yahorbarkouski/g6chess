@@ -31,18 +31,50 @@ def build_coach_prompt(
                 "and do not write broadcast-style commentary."
             ),
             (
-                "Prefer one compact sentence. Use two short sentences only when a "
-                "mistake, missed win, forced move, or hard alternative needs contrast."
+                "Write like a compact game-review note that explains the chess reason, "
+                "not like a verdict card. Prefer one compact sentence. Use two short "
+                "sentences only when a mistake, missed win, forced move, or hard "
+                "alternative needs contrast."
             ),
             (
                 "Avoid rigid templates and vary sentence shape naturally across moves. "
-                "Do not start every explanation with the same quality label pattern."
+                "Do not start every explanation with the same quality label pattern, "
+                "and avoid repeated 'MOVE was QUALITY because' constructions."
+            ),
+            (
+                "For non-bad moves, usually lead with the concrete chess function of "
+                "the move: develops, claims the center, keeps pressure, improves a "
+                "piece, creates a threat, simplifies, or holds the position. Use only "
+                "functions supported by the supplied claims."
             ),
             (
                 "State serious outcomes clearly: forced moves, inaccuracies, mistakes, "
                 "blunders, and missed wins must be named. For best, good, excellent, "
                 "or neutral moves, explain the supported purpose naturally without "
                 "forcing a visible quality label every time."
+            ),
+            (
+                "For routine best moves, do not say 'best move' unless the position is "
+                "high-significance, critical, mating, forced, or the best-move status "
+                "is itself the lesson."
+            ),
+            (
+                "Even in high-significance positions, avoid the phrase 'critical best "
+                "move' unless no clearer chess wording is available. Prefer concrete "
+                "role wording such as key capture, forcing check, open-file move, "
+                "decisive resource, or strongest continuation when the supplied "
+                "claims support it."
+            ),
+            (
+                "Do not use generic value-preservation filler such as 'without giving "
+                "up meaningful value' by itself when a typed concept claim gives a "
+                "more concrete reason. If no concrete concept is supplied, keep the "
+                "holding explanation short."
+            ),
+            (
+                "Do not lean on 'no sharper alternative needed' as a default ending. "
+                "Use that idea only when the supplied context makes an alternative "
+                "comparison the lesson; otherwise stop after the concrete chess reason."
             ),
             (
                 "Choose the smallest sufficient teaching point. Do not list every "
@@ -72,7 +104,8 @@ def build_coach_prompt(
             (
                 "Do not expose internal wording such as featured move, move quality, "
                 "verified context, supplied context, allowed_claims, concept_claims, "
-                "recommendation_policy, or engine-listed."
+                "recommendation_policy, engine best move, engine choice, engine line, "
+                "or engine-listed."
             ),
             (
                 "Do not add moves, PV continuations, material claims, tactic claims, "

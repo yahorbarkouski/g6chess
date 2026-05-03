@@ -99,7 +99,7 @@ def test_key_move_context_contract_is_strict() -> None:
         move="e4",
         practicality="clear_recommendation",
         findability="findable",
-        reason="it is the engine's best move",
+        reason="it is the strongest move in the position",
         recommendation_policy="recommend_directly",
     )
 
@@ -111,7 +111,7 @@ def test_key_move_context_contract_is_strict() -> None:
                 "move": "e4",
                 "practicality": "clear_recommendation",
                 "findability": "findable",
-                "reason": "it is the engine's best move",
+                "reason": "it is the strongest move in the position",
                 "recommendation_policy": "recommend_directly",
                 "unsupported": True,
             }

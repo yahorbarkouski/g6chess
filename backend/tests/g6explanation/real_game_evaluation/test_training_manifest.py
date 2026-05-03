@@ -36,8 +36,8 @@ def test_training_manifest_includes_only_manually_accepted_verified_records() ->
     assert manifest.entries[0].case_id == "accepted"
     assert manifest.entries[0].source == PROJECT_SYNTHETIC_SOURCE
     assert manifest.entries[0].llm_context == accepted.llm_context
-    assert manifest.entries[0].prompt_version == "single_move_coach.v4"
-    assert manifest.entries[0].explanation == "e4 was the best move."
+    assert manifest.entries[0].prompt_version == "single_move_coach.v8"
+    assert manifest.entries[0].explanation == "e4 claims the center and opens lines for White."
     assert manifest.excluded_counts == {
         "fallback_or_unknown_finish": 1,
         "insufficient_stockfish_depth": 1,
@@ -109,10 +109,10 @@ def _record(
     used_fallback: bool = False,
     stockfish_depth: int | None = 16,
     model: str | None = "openai/gpt-5.5-20260423",
-    explanation: str | None = "e4 was the best move.",
+    explanation: str | None = "e4 claims the center and opens lines for White.",
     source: ExplanationDataSource | None = PROJECT_SYNTHETIC_SOURCE,
     llm_context: LLMContext | None | object = _DEFAULT_LLM_CONTEXT,
-    prompt_version: str | None = "single_move_coach.v4",
+    prompt_version: str | None = "single_move_coach.v8",
 ) -> RealExplanationEvalRecord:
     resolved_llm_context = (
         best_context().llm_context if llm_context is _DEFAULT_LLM_CONTEXT else llm_context

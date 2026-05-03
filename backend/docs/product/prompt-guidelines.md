@@ -27,12 +27,34 @@ The static prompt should say:
 - Return exactly one concise explanation string.
 - Use a concise, neutral explanatory voice rather than direct address or
   broadcast commentary.
+- Write like a compact game-review note that explains the chess reason, not like
+  a verdict card.
 - Do not force a rigid sentence template. One compact sentence is preferred,
   with two short sentences only when contrast is useful.
+- Avoid repeated `MOVE was QUALITY because ...` constructions in full-game
+  chains. The move may still be mentioned directly, but the sentence should
+  usually be shaped around the concrete chess function.
+- For non-bad moves, usually lead with the supported chess function: development,
+  center control, pressure, piece improvement, a threat, simplification, holding
+  the position, or another typed concept claim.
 - State serious outcomes clearly: forced moves, inaccuracies, mistakes,
   blunders, and missed wins must be named. For best, good, excellent, or
   neutral moves, explain the supported purpose naturally instead of forcing a
   visible label every time.
+- For routine best moves, do not say "best move" unless the position is
+  high-significance, critical, mating, forced, or the best-move status is itself
+  the lesson.
+- Even in high-significance positions, avoid the phrase "critical best move"
+  when clearer chess wording is available. Prefer concrete roles such as key
+  capture, forcing check, open-file move, decisive resource, or strongest
+  continuation when supported.
+- Do not use generic value-preservation filler such as "without giving up
+  meaningful value" by itself when a typed concept claim gives a concrete chess
+  reason. If no concrete concept is supplied, keep the holding explanation
+  short.
+- Do not lean on "no sharper alternative needed" as a default ending. Use it
+  only when alternative comparison is the lesson; otherwise stop after the
+  concrete chess reason.
 - Explain the main reason and key move or idea when supplied.
 - Choose the smallest sufficient teaching point. Do not list every supplied
   candidate or concept.
@@ -64,7 +86,8 @@ The static prompt should say:
   `recommendation_policy` allows it.
 - Do not expose internal field names or workflow language such as
   `featured_move`, `move_quality`, `allowed_claims`, `concept_claims`,
-  `recommendation_policy`, "verified context", or "engine-listed".
+  `recommendation_policy`, "verified context", "engine best move", "engine
+  choice", "engine line", or "engine-listed".
 
 ## Dynamic Context Rules
 
@@ -73,7 +96,7 @@ Per-request context should provide:
 - played move, quality, and severity
 - player level and time situation
 - main point
-- engine best move, practical alternative, featured move, or key idea
+- objective best move, practical alternative, featured move, or key idea
 - candidate practicality and findability
 - typed concept claims
 - allowed claims

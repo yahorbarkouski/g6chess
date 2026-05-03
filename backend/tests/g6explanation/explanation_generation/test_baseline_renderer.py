@@ -16,7 +16,7 @@ def test_baseline_renderer_outputs_verified_best_move_explanation() -> None:
     verification = ExplanationVerifier().verify(context, output)
 
     assert verification.passed
-    assert "best" in output.explanation.lower()
+    assert "e4" in output.explanation
 
 
 def test_baseline_renderer_caveats_hard_engine_move() -> None:

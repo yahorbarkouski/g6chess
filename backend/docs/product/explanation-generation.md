@@ -57,7 +57,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
 
-Current prompt version: `single_move_coach.v4`. Version 2 made
+Current prompt version: `single_move_coach.v8`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -66,7 +66,22 @@ instructions after real evals showed unsupported tactic labels and
 recommendation-policy retries. Version 4 makes the style contract concise,
 neutral, and non-template-rigid: serious labels remain explicit, while good or
 quiet moves may explain the supported purpose without repeating a visible
-quality label every ply.
+quality label every ply. Version 5 pushes the model further away from
+verdict-first templates for every-move chains: non-bad moves should usually
+lead with the concrete chess function, routine best moves should not say "best
+move" unless that status is the lesson, and final prose must not expose
+engine-meta phrases such as "engine best move" or "engine choice".
+Version 6 also reduces verdict-first wording in the LLM-facing agenda itself:
+non-bad `main_point` and `allowed_claims` prefer purpose/value-preservation
+phrases over visible quality labels, and the prompt avoids "critical best move"
+when a concrete chess role can say the same thing.
+Version 7 removes "no sharper alternative needed" as the default non-bad
+closing phrase; the model should stop after the concrete chess reason unless
+the supplied context makes an alternative comparison the lesson.
+Version 8 lets the non-bad agenda reuse deterministic played-move concept
+claims, such as center, development, open-file, material, castling, en passant,
+promotion, or outpost evidence, before falling back to generic "fits the
+position" wording.
 
 ## Contracts
 
@@ -145,7 +160,8 @@ Minimum checks:
   conflict with the context quality
 - no internal prompt or context language such as "featured move", "move
   quality", "supplied context", `allowed_claims`, `concept_claims`, or
-  `recommendation_policy`
+  `recommendation_policy`; no engine-meta wording such as "engine best move",
+  "engine choice", or "engine line"
 - best move and practical alternative consistency
 - side-to-move and player-perspective sanity
 - no direct recommendation of a `do_not_recommend` move
