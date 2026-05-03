@@ -93,6 +93,14 @@ generation. Its opt-in gate uses real Stockfish, real Maia, and real OpenRouter
 with fallback disabled; use it for prompt, verifier, and model-behavior changes
 that need actual provider evidence.
 
+When running batched real OpenRouter generation or evaluation work, parallelize
+heavily. Independent OpenRouter explanation requests should be sent with bounded
+high concurrency, targeting about 30 in-flight requests when provider limits and
+local resources allow it. Preserve deterministic verification, per-record
+metadata, output ordering, retry limits, and rate-limit/backoff handling; do not
+serialize large no-mock eval batches unless a dependency or provider limit
+requires it.
+
 ## Context Intake Protocol
 
 When starting work:
