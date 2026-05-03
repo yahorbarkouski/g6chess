@@ -33,6 +33,12 @@ def build_coach_prompt(
                 "concept_claims, allowed_claims, or candidates."
             ),
             (
+                "Do not use named tactic labels such as fork, pin, skewer, "
+                "deflection, decoy, overload, discovered attack, zwischenzug, "
+                "intermezzo, or back rank unless concept_claims includes kind "
+                "tactic naming that same idea."
+            ),
+            (
                 "Treat engine_best_move as objective truth and practical_alternative "
                 "as a coaching option."
             ),
@@ -53,6 +59,7 @@ def build_coach_prompt(
     }
     if retry_issues:
         payload["previous_verifier_failures"] = [issue.to_dict() for issue in retry_issues]
+        payload["retry_repair_instructions"] = _retry_repair_instructions(retry_issues)
 
     return CoachPrompt(
         prompt_id=PROMPT_ID,
@@ -82,3 +89,36 @@ def build_coach_prompt(
             },
         },
     )
+
+
+def _retry_repair_instructions(
+    retry_issues: list[ExplanationVerificationIssue],
+) -> list[str]:
+    codes = {issue.code for issue in retry_issues}
+    instructions: list[str] = []
+    if "unsupported_tactic_claim" in codes:
+        instructions.append(
+            "Remove named tactic labels unless a supplied tactic concept_claim names the tactic."
+        )
+    if "recommendation_policy_violation" in codes:
+        instructions.append(
+            "Attach recommendation wording only to moves marked recommend_directly or "
+            "use_as_practical_alternative."
+        )
+    if "unsupported_mate_claim" in codes:
+        instructions.append(
+            "Use mate wording only for supplied forced_mate claims or verified "
+            "immediate mate moves."
+        )
+    if "unsupported_material_claim" in codes:
+        instructions.append(
+            "Use material wording only when a supplied material concept_claim names the material."
+        )
+    if "mentioned_move_unsupported" in codes or "unsupported_pv" in codes:
+        instructions.append(
+            "Mention only the played move, supplied candidate moves, and explicitly "
+            "allowed replies."
+        )
+    if not instructions:
+        instructions.append("Rewrite using only the supplied allowed_claims and concept_claims.")
+    return instructions

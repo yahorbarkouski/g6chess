@@ -4,7 +4,12 @@ from typing import cast
 
 import pytest
 
-from g6explanation.context_engine.contracts import CandidateMove, ConceptClaim, ConceptClaimKind
+from g6explanation.context_engine.contracts import (
+    CandidateMove,
+    ConceptClaim,
+    ConceptClaimKind,
+    Score,
+)
 from g6explanation.explanation_generation.contracts import (
     ExplanationOutput,
     ExplanationVerificationResult,
@@ -79,6 +84,121 @@ def test_verifier_rejects_unsupported_mate_claim() -> None:
 
     assert not verification.passed
     assert "unsupported_mate_claim" in _failure_codes(verification)
+
+
+def test_verifier_rejects_mating_move_claim_from_position_mate_evidence_only() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="forced_mate",
+        subject="position",
+        claim="g4 allowed forced mate against the player",
+        source="quality_classification",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because g4 checkmated the opponent. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_mate_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_mating_move_claim_when_move_has_mate_evidence() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="forced_mate",
+        subject="played_move",
+        claim="g4 checkmates the opponent",
+        source="engine_line",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake, and g4 checkmates the opponent. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_mating_opponent_reply_from_after_line() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="opponent_resource",
+        subject="opponent_reply",
+        claim="the opponent's key reply after g4 was Qh4#",
+        source="engine_line",
+        move_san="Qh4#",
+    )
+    after_line = context.evidence.engine.after_line
+    assert after_line is not None
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={
+                    "engine": context.evidence.engine.model_copy(
+                        update={
+                            "after_line": after_line.model_copy(
+                                update={
+                                    "move_uci": "d8h4",
+                                    "move_san": "Qh4#",
+                                    "score": Score.mate(mate_in=1, mate_for="opponent"),
+                                }
+                            )
+                        }
+                    ),
+                    "concept_claims": [*context.evidence.concept_claims, claim],
+                }
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "allowed_claims": [
+                        *context.llm_context.allowed_claims,
+                        "the opponent's key reply after g4 was Qh4#",
+                    ],
+                    "concept_claims": [*context.llm_context.concept_claims, claim],
+                }
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it allowed Qh4#, an immediate checkmate. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
 
 
 def test_verifier_rejects_unsupported_material_claim() -> None:
@@ -483,6 +603,31 @@ def test_verifier_still_rejects_recommending_bad_played_move() -> None:
 
     assert not verification.passed
     assert "recommendation_policy_violation" in _failure_codes(verification)
+
+
+def test_verifier_allows_recommendation_language_for_different_move_near_bad_move() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        explanation="g4 was a mistake; you should play Nf3 as the practical alternative."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_allows_negative_advice_about_bad_played_move() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake; do not play g4 in this structure. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
 
 
 def _failure_codes(verification: ExplanationVerificationResult) -> set[str]:

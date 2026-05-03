@@ -37,6 +37,11 @@ The static prompt should say:
 - Do not mention moves, lines, tactics, positional concepts, material wins, or
   mate claims that are not present in typed `concept_claims`, allowed claim text,
   or supplied candidates.
+- Do not use named tactic labels such as fork, pin, skewer, back rank, or
+  discovered attack unless a typed `tactic` concept claim names that same idea.
+- On retries, repair the exact verifier issue instead of paraphrasing broadly;
+  keep recommendation wording attached only to moves whose
+  `recommendation_policy` allows it.
 
 ## Dynamic Context Rules
 

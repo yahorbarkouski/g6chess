@@ -104,6 +104,31 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   skewer, or back-rank requires a trusted `tactic` concept claim naming that
   tactic. Full no-mock eval passed 12/12 with 0 fallbacks and 0 retries after
   this verifier change.
+- 2026-05-03: hardened mate verification so direct "this move checkmates"
+  wording needs a mating claim for that move, not just position-level
+  forced-mate evidence. The first full no-mock eval exposed the opposite edge:
+  `fools-mate-g4-blunder` has a supported opponent reply `Qh4#`, but the
+  verifier did not yet trust immediate-mate `after_line` evidence. Added that
+  verifier rule and a focused real eval passed 1/1 with no fallback or retry.
+- 2026-05-03: the next full no-mock eval passed `fools-mate-g4-blunder` but
+  exposed a separate `black-missed-mate-nf6` retry failure:
+  `unsupported_tactic_claim` followed by `recommendation_policy_violation`.
+  This is being handled as Step 4 + Step 5 evidence: narrow recommendation
+  verification so "you should play Qh4#" is not misread as recommending the
+  nearby bad played move `Nf6`, and bump the prompt to
+  `single_move_coach.v3` with explicit named-tactic and retry repair rules.
+- 2026-05-03: prompt v3 plus the narrowed recommendation verifier passed the
+  focused `black-missed-mate-nf6` no-mock eval 1/1 with no fallback or retry.
+  The full 12-case no-mock eval then passed 12/12 with Stockfish depth 16, real
+  Maia, and OpenRouter `openai/gpt-5.5-20260423`; no fallback was used. One
+  `forced-only-legal-defense` retry for `unsupported_concept_claim` was reviewed
+  as `model_wording_issue`. The report has no unreviewed required cases, and
+  the next reporting improvement should persist failed-attempt explanation text
+  so manual review can inspect the exact rejected wording.
+- 2026-05-03: added a recommendation-policy regression for negative advice
+  about the bad played move, so "do not play g4" is not misclassified as
+  recommending `g4`. After that final verifier change, the full 12-case
+  no-mock eval passed 12/12 with 0 fallbacks and 0 retries.
 
 ## Resume Checklist
 

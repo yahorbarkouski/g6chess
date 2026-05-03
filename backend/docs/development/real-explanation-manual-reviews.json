@@ -29,6 +29,16 @@
       "failure_codes": [
         "unsupported_tactic_claim"
       ]
+    },
+    {
+      "case_id": "forced-only-legal-defense",
+      "category": "model_wording_issue",
+      "notes": "2026-05-03 prompt-v3 full no-mock eval: the first attempt was rejected for unsupported_concept_claim. The verifier correctly blocked unsupported concept wording, and the retry stayed within the forced-move, capture, material, and forced-mate evidence. This exposes a reporting gap: future eval records should persist failed attempt text for richer manual review.",
+      "model": "openai/gpt-5.5-20260423",
+      "attempts": 2,
+      "failure_codes": [
+        "unsupported_concept_claim"
+      ]
     }
   ]
 }

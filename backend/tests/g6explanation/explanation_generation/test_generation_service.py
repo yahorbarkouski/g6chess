@@ -71,9 +71,10 @@ def test_prompt_spells_out_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v2"
+    assert result.prompt_version == "single_move_coach.v3"
     assert "recommend_directly allows direct advice" in prompt_payload
     assert "do_not_recommend must not be called" in prompt_payload
+    assert "Do not use named tactic labels" in prompt_payload
 
 
 def test_service_retries_with_verifier_failures() -> None:
@@ -98,6 +99,7 @@ def test_service_retries_with_verifier_failures() -> None:
     assert [attempt.verification_passed for attempt in result.attempts] == [False, True]
     assert len(provider.prompts) == 2
     assert "previous_verifier_failures" in provider.prompts[1].messages[1]["content"]
+    assert "retry_repair_instructions" in provider.prompts[1].messages[1]["content"]
 
 
 def test_service_uses_verified_fallback_after_unverified_model_attempts() -> None:

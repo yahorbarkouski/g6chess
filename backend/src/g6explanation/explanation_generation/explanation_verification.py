@@ -9,6 +9,7 @@ from g6explanation.context_engine.contracts import (
     CandidateMove,
     ConceptClaim,
     ContextResult,
+    EngineLine,
     KeyMoveContext,
 )
 from g6explanation.explanation_generation.contracts import (
@@ -39,6 +40,7 @@ MATERIAL_RE = re.compile(
     r"(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange)\b",
     re.IGNORECASE,
 )
+MATE_RE = re.compile(r"\b(?:checkmate|checkmates|checkmated|mate|mates|mating)\b|#")
 MATERIAL_TERM_ALIASES: dict[str, tuple[str, ...]] = {
     "pawn": ("pawn", "pawns"),
     "queen": ("queen", "queens"),
@@ -126,14 +128,6 @@ CAVEAT_TERMS = {
     "tough",
     "not easy",
 }
-RECOMMENDATION_TERMS = {
-    "should",
-    "needed",
-    "had to",
-    "play",
-    "try",
-    "recommend",
-}
 HARD_FINDABILITY = {"hard", "very_hard", "engine_like"}
 NON_BAD_QUALITY_LABELS = {"best", "forced", "excellent", "good", "neutral"}
 
@@ -157,7 +151,7 @@ class ExplanationVerifier:
         _verify_played_move_mentioned(context_result, mentions, issues)
         _verify_move_mentions(mentions, allowed_aliases, issues)
         _verify_quality(context_result, explanation, issues)
-        _verify_supported_claim_terms(context_result, explanation, issues)
+        _verify_supported_claim_terms(context_result, explanation, mentions, issues)
         _verify_best_move_consistency(context_result, explanation, mentions, issues)
         _verify_recommendation_policy(context_result, explanation, mentions, issues)
         _verify_hard_move_caveats(context_result, explanation, mentions, issues)
@@ -312,15 +306,24 @@ def _verify_quality(
 def _verify_supported_claim_terms(
     context_result: ContextResult,
     explanation: str,
+    mentions: list[_MoveMention],
     issues: _IssueCollector,
 ) -> None:
     text = explanation.lower()
     support = _support_text(context_result)
-    if ("mate" in text or "checkmate" in text or "#" in explanation) and "mate" not in support:
+    has_mate_claim = MATE_RE.search(text) is not None
+    if has_mate_claim and not _has_mate_support(context_result):
         issues.fail(
             "unsupported_mate_claim",
             "$.explanation",
             "Explanation includes a mate claim not present in supplied claims.",
+        )
+    unsupported_mating_move = _unsupported_mating_move_claim(text, mentions, context_result)
+    if unsupported_mating_move is not None:
+        issues.fail(
+            "unsupported_mate_claim",
+            "$.explanation",
+            f"Explanation says {unsupported_mating_move} checkmates without supplied evidence.",
         )
     if MATERIAL_RE.search(explanation):
         material_support = _trusted_claim_text(context_result, {"material"})
@@ -550,17 +553,29 @@ def _aliases_mentioned(aliases: set[str], mentioned: set[str]) -> bool:
 
 def _has_recommendation_language(text: str, aliases: set[str]) -> bool:
     for alias in aliases:
-        if re.search(rf"\b{re.escape(alias)}\s+was\s+(?:the\s+|a\s+)?better\b", text) or re.search(
-            rf"\bbetter\s+move\s+was\s+{re.escape(alias)}\b", text
-        ):
-            return True
-        for match in re.finditer(rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])", text):
-            start = max(0, match.start() - 36)
-            end = min(len(text), match.end() + 36)
-            window = text[start:end]
-            if any(term in window for term in RECOMMENDATION_TERMS):
+        escaped = re.escape(alias)
+        direct_patterns = (
+            rf"\b{escaped}\s+was\s+(?:the\s+|a\s+)?(?:better|recommendation)\b",
+            rf"\b{escaped}\s+was\s+the\s+move\s+to\s+play\b",
+            rf"\bbetter\s+move\s+was\s+{escaped}\b",
+            rf"\brecommendation\s+was\s+{escaped}\b",
+            rf"\bmove\s+to\s+play\s+was\s+{escaped}\b",
+            rf"\b(?:should|needed\s+to|had\s+to)\s+(?:have\s+)?(?:play|played|try|tried)\s+{escaped}\b",
+            rf"\b(?:recommend|recommended|recommends|recommending)\s+{escaped}\b",
+            rf"\btry\s+{escaped}\b",
+            rf"\bplay\s+{escaped}\b",
+        )
+        for pattern in direct_patterns:
+            for match in re.finditer(pattern, text):
+                if _recommendation_match_is_negated(text, match.start()):
+                    continue
                 return True
     return False
+
+
+def _recommendation_match_is_negated(text: str, start: int) -> bool:
+    prefix = text[max(0, start - 16) : start]
+    return prefix.endswith(("not ", "do not ", "don't ", "dont ", "never "))
 
 
 def _unsupported_concept_claim(
@@ -576,6 +591,8 @@ def _unsupported_concept_claim(
         if not any(_contains_phrase(text, alias) for alias in aliases):
             continue
         if kind in supported_kinds:
+            continue
+        if kind == "forced_mate" and _has_mate_support(context_result):
             continue
         if not has_structured_concepts and any(
             _contains_phrase(support, alias) for alias in aliases
@@ -595,6 +612,66 @@ def _trusted_claim_text(context_result: ContextResult, kinds: set[str]) -> str:
         if claim.kind in kinds:
             parts.extend([claim.kind.replace("_", " "), claim.claim])
     return " ".join(parts).lower()
+
+
+def _has_mate_support(context_result: ContextResult) -> bool:
+    if "forced_mate" in _trusted_concept_kinds(context_result):
+        return True
+    return bool(_trusted_mating_move_aliases(context_result))
+
+
+def _unsupported_mating_move_claim(
+    text: str,
+    mentions: list[_MoveMention],
+    context_result: ContextResult,
+) -> str | None:
+    mating_move_aliases = _trusted_mating_move_aliases(context_result)
+    for mention in mentions:
+        if mention.is_uci:
+            continue
+        aliases = _san_aliases(mention.token)
+        if not _has_direct_mate_language(text, mention.token, aliases):
+            continue
+        if any(alias in mating_move_aliases for alias in aliases):
+            continue
+        return mention.token
+    return None
+
+
+def _trusted_mating_move_aliases(context_result: ContextResult) -> set[str]:
+    aliases: set[str] = set()
+    for claim in _trusted_concept_claims(context_result):
+        if claim.kind != "forced_mate" or claim.move_san is None:
+            continue
+        claim_text = claim.claim.lower()
+        if not any(term in claim_text for term in {"checkmates", "checkmated", "delivered"}):
+            continue
+        aliases.update(_san_aliases(claim.move_san))
+    after_line = context_result.evidence.engine.after_line
+    if (
+        after_line is not None
+        and _line_is_immediate_mate(after_line)
+        and _move_is_allowed_by_claims(after_line.move_san, context_result)
+    ):
+        aliases.update(_san_aliases(after_line.move_san))
+    return aliases
+
+
+def _line_is_immediate_mate(line: EngineLine) -> bool:
+    return line.score.kind == "mate" and line.score.mate_in == 1 and "#" in line.move_san
+
+
+def _has_direct_mate_language(text: str, token: str, aliases: set[str]) -> bool:
+    if "#" in token:
+        return True
+    for alias in aliases:
+        if re.search(
+            rf"\b{re.escape(alias)}\s+"
+            r"(?:checkmates?|checkmated|mates?|delivered\s+(?:forced\s+)?mate|was\s+(?:forced\s+)?mate)\b",
+            text,
+        ):
+            return True
+    return False
 
 
 def _unsupported_material_term(text: str, material_support: str) -> str | None:

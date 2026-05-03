@@ -49,10 +49,13 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `.env`, uses `openai/gpt-5.5` by default, and can be overridden with
 `G6EXPLANATION_OPENROUTER_MODEL`.
 
-Current prompt version: `single_move_coach.v2`. Version 2 makes
+Current prompt version: `single_move_coach.v3`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
-`do_not_recommend` moves are never described as recommendations.
+`do_not_recommend` moves are never described as recommendations. Version 3 adds
+stricter named-tactic wording rules and issue-specific retry repair
+instructions after real evals showed unsupported tactic labels and
+recommendation-policy retries.
 
 ## Contracts
 
@@ -105,6 +108,9 @@ Minimum checks:
   move, engine best, practical alternative, and explicitly allowed replies
 - no unsupported PV continuations
 - no unsupported mate, material, tactic, or concept claims
+- direct "this move checkmates" wording requires mate evidence for that move,
+  not only position-level forced-mate evidence; immediate-mate opponent replies
+  are allowed only when the verified `after_line` is mate-in-one
 - material prose requires a trusted typed `material` concept claim; unrelated
   words such as "piece" in development claims do not authorize material claims
 - specific material prose, such as queen, rook, bishop, knight, pawn, or
