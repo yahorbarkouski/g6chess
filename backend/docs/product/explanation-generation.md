@@ -182,6 +182,21 @@ fallback disabled. It covers Opera Game, Game of the Century,
 Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, and synthetic
 ordinary-blunder, and high-WDL non-best edge cases.
 
+Persist JSONL records and a Markdown report when running the real eval for
+review:
+
+```text
+G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl \
+G6EXPLANATION_REAL_LLM_EVAL_REPORT=.evals/real-explanations.md \
+G6EXPLANATION_RUN_REAL_LLM_EVAL=1 \
+uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_evaluation.py -q -s
+```
+
+The report summarizes pass, fallback, retry, failure-code, latency, model,
+Stockfish, Maia, and manual-review fields. Review categories should be used for
+failed, retried, or surprising records before changing context policy, prompt
+rules, or verifier behavior.
+
 Metrics:
 
 - schema pass rate

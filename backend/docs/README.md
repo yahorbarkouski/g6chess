@@ -23,6 +23,8 @@ durable decisions.
 - `development/development-flow.md`: checks, commits, and work sequencing.
 - `development/quality-gates.md`: schema, chess, explanation, dataset, and
   model gates.
+- `development/explanation-generation-roadmap.md`: durable implementation
+  ledger for the verified explanation-generation track.
 - `development/testing-playbook.md`: unit, integration, golden, adversarial, and
   eval test guidance.
 - `development/agent-capabilities.md`: agent checklists and review priorities.

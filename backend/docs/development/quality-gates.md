@@ -113,6 +113,10 @@ deterministic fallback, so every passing case used real model output.
 Use `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl` to keep
 JSONL records for manual review. Use `G6EXPLANATION_REAL_LLM_EVAL_CASES` only for
 local debugging; the product gate should run the full curated case list.
+Use `G6EXPLANATION_REAL_LLM_EVAL_REPORT=.evals/real-explanations.md` to create
+the durable summary report used for manual review and promotion comparisons.
+Failed, retried, fallback, or surprising records must be reviewed before
+changing prompt, verifier, model, or context policy.
 
 ## Completion Note
 

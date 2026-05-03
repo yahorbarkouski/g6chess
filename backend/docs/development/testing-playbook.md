@@ -78,6 +78,8 @@ OpenRouter:
   `G6EXPLANATION_RUN_REAL_LLM_EVAL=1`.
 - Real eval records can be written with
   `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT=.evals/real-explanations.jsonl`.
+- Real eval summary reports can be written with
+  `G6EXPLANATION_REAL_LLM_EVAL_REPORT=.evals/real-explanations.md`.
 
 ## Unit Tests
 
@@ -161,6 +163,8 @@ Before calling a real model, add tests for:
   Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move cases, and
   synthetic blunder and high-WDL non-best cases using real Stockfish, real Maia,
   and real OpenRouter
+- durable real-eval reporting for pass/fallback/retry rates, failure codes,
+  latency, provider metadata, and manual-review categories
 
 ## Test Names
 

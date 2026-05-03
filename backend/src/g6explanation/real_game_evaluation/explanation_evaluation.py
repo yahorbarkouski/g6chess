@@ -7,10 +7,11 @@ import json
 import os
 import shutil
 import time
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, TypeAlias, cast
 
 from pydantic import Field
 
@@ -36,6 +37,19 @@ from g6explanation.real_game_evaluation.real_games import (
     KASPAROV_TOPALOV,
     OPERA_GAME,
 )
+
+REAL_EXPLANATION_EVAL_REPORT_VERSION = "real_explanation_eval_report.v1"
+ManualReviewCategory: TypeAlias = Literal[
+    "not_reviewed",
+    "context_missing_evidence",
+    "wrong_context_policy",
+    "prompt_issue",
+    "verifier_too_weak",
+    "verifier_too_strict",
+    "model_wording_issue",
+    "provider_or_runtime_issue",
+    "accepted",
+]
 
 
 class RealEvaluationSetupError(RuntimeError):
@@ -104,6 +118,8 @@ class RealExplanationEvalRecord(ContextContract):
     failure_codes: list[str] = Field(default_factory=list[str])
     latency_seconds: float | None = None
     explanation: str | None = None
+    manual_review_category: ManualReviewCategory = "not_reviewed"
+    manual_review_notes: str | None = None
 
 
 class RealExplanationEvalSummary(ContextContract):
@@ -112,6 +128,47 @@ class RealExplanationEvalSummary(ContextContract):
     failed_cases: int
     fallback_cases: int
     records: list[RealExplanationEvalRecord]
+
+
+class RealExplanationEvalCaseReport(ContextContract):
+    case_id: str
+    passed: bool
+    used_fallback: bool | None
+    attempts: int
+    failure_codes: list[str] = Field(default_factory=list[str])
+    latency_seconds: float | None = None
+    model: str | None = None
+    stockfish_depth: int | None = None
+    maia_sources: list[str] = Field(default_factory=list[str])
+    manual_review_category: ManualReviewCategory
+    manual_review_notes: str | None = None
+
+
+class RealExplanationEvalReport(ContextContract):
+    report_version: str = REAL_EXPLANATION_EVAL_REPORT_VERSION
+    total_cases: int
+    passed_cases: int
+    failed_cases: int
+    fallback_cases: int
+    retry_cases: int
+    pass_rate: float
+    fallback_rate: float
+    retry_rate: float
+    failure_code_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    finish_reason_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    provider_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    model_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    stockfish_versions: list[str] = Field(default_factory=list[str])
+    stockfish_min_depth: int | None = None
+    maia_sources: list[str] = Field(default_factory=list[str])
+    latency_avg_seconds: float | None = None
+    latency_p50_seconds: float | None = None
+    latency_max_seconds: float | None = None
+    manual_review_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    review_required_case_ids: list[str] = Field(default_factory=list[str])
+    case_reports: list[RealExplanationEvalCaseReport] = Field(
+        default_factory=list[RealExplanationEvalCaseReport]
+    )
 
 
 REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
@@ -222,6 +279,7 @@ def select_real_explanation_eval_cases(
 def run_real_explanation_evaluation(
     cases: Sequence[RealExplanationEvalCase],
     output_path: str | Path | None = None,
+    report_path: str | Path | None = None,
     use_baseline_fallback: bool = False,
 ) -> RealExplanationEvalSummary:
     """Run real Stockfish, Maia, and OpenRouter explanation evaluation."""
@@ -235,13 +293,162 @@ def run_real_explanation_evaluation(
     records = [_evaluate_case(case, context_builder, service) for case in cases]
     if output_path is not None:
         _write_jsonl(Path(output_path), records)
+    summary = summarize_real_explanation_eval_records(records)
+    if report_path is not None:
+        write_real_explanation_eval_report(summary, Path(report_path))
+    return summary
+
+
+def summarize_real_explanation_eval_records(
+    records: Sequence[RealExplanationEvalRecord],
+) -> RealExplanationEvalSummary:
     return RealExplanationEvalSummary(
         total_cases=len(records),
         passed_cases=sum(record.passed for record in records),
         failed_cases=sum(not record.passed for record in records),
         fallback_cases=sum(record.used_fallback is True for record in records),
-        records=records,
+        records=list(records),
     )
+
+
+def load_real_explanation_eval_records(path: str | Path) -> list[RealExplanationEvalRecord]:
+    records: list[RealExplanationEvalRecord] = []
+    for line_number, raw_line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            records.append(RealExplanationEvalRecord.model_validate_json(line))
+        except ValueError as exc:
+            raise ValueError(f"Invalid eval JSONL record at line {line_number}.") from exc
+    return records
+
+
+def build_real_explanation_eval_report(
+    summary: RealExplanationEvalSummary,
+) -> RealExplanationEvalReport:
+    records = summary.records
+    latencies = sorted(record.latency_seconds for record in records if record.latency_seconds)
+    depths = [record.stockfish_depth for record in records if record.stockfish_depth is not None]
+    retry_records = [record for record in records if record.attempts > 1]
+    failure_codes = [code for record in records for code in record.failure_codes]
+    review_required = [
+        record.case_id
+        for record in records
+        if not record.passed
+        or record.used_fallback is True
+        or record.attempts > 1
+        or bool(record.failure_codes)
+        or bool(record.error)
+    ]
+    return RealExplanationEvalReport(
+        total_cases=summary.total_cases,
+        passed_cases=summary.passed_cases,
+        failed_cases=summary.failed_cases,
+        fallback_cases=summary.fallback_cases,
+        retry_cases=len(retry_records),
+        pass_rate=_rate(summary.passed_cases, summary.total_cases),
+        fallback_rate=_rate(summary.fallback_cases, summary.total_cases),
+        retry_rate=_rate(len(retry_records), summary.total_cases),
+        failure_code_counts=dict(sorted(Counter(failure_codes).items())),
+        finish_reason_counts=_count_present(record.finish_reason for record in records),
+        provider_counts=_count_present(record.provider_name for record in records),
+        model_counts=_count_present(record.model for record in records),
+        stockfish_versions=sorted(
+            {version for record in records if (version := record.stockfish_version)}
+        ),
+        stockfish_min_depth=min(depths) if depths else None,
+        maia_sources=sorted({source for record in records for source in record.maia_sources}),
+        latency_avg_seconds=_rounded(sum(latencies) / len(latencies)) if latencies else None,
+        latency_p50_seconds=_percentile(latencies, 0.5),
+        latency_max_seconds=max(latencies) if latencies else None,
+        manual_review_counts=_count_present(record.manual_review_category for record in records),
+        review_required_case_ids=review_required,
+        case_reports=[
+            RealExplanationEvalCaseReport(
+                case_id=record.case_id,
+                passed=record.passed,
+                used_fallback=record.used_fallback,
+                attempts=record.attempts,
+                failure_codes=record.failure_codes,
+                latency_seconds=record.latency_seconds,
+                model=record.model,
+                stockfish_depth=record.stockfish_depth,
+                maia_sources=record.maia_sources,
+                manual_review_category=record.manual_review_category,
+                manual_review_notes=record.manual_review_notes,
+            )
+            for record in records
+        ],
+    )
+
+
+def build_real_explanation_eval_report_from_jsonl(path: str | Path) -> RealExplanationEvalReport:
+    return build_real_explanation_eval_report(
+        summarize_real_explanation_eval_records(load_real_explanation_eval_records(path))
+    )
+
+
+def write_real_explanation_eval_report(
+    summary: RealExplanationEvalSummary,
+    path: str | Path,
+) -> RealExplanationEvalReport:
+    report = build_real_explanation_eval_report(summary)
+    report_path = Path(path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    if report_path.suffix.lower() == ".json":
+        report_path.write_text(
+            json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        report_path.write_text(render_real_explanation_eval_report_markdown(report), "utf-8")
+    return report
+
+
+def render_real_explanation_eval_report_markdown(report: RealExplanationEvalReport) -> str:
+    lines = [
+        "# Real Explanation Evaluation Report",
+        "",
+        f"- Report version: `{report.report_version}`",
+        f"- Cases: {report.passed_cases}/{report.total_cases} passed",
+        f"- Pass rate: {_percent(report.pass_rate)}",
+        f"- Fallback rate: {_percent(report.fallback_rate)}",
+        f"- Retry rate: {_percent(report.retry_rate)}",
+        f"- Stockfish minimum depth: {report.stockfish_min_depth or 'n/a'}",
+        f"- Stockfish versions: {_join_or_none(report.stockfish_versions)}",
+        f"- Maia sources: {_join_or_none(report.maia_sources)}",
+        f"- Models: {_format_counts(report.model_counts)}",
+        f"- Latency seconds: avg={_display_number(report.latency_avg_seconds)}, "
+        f"p50={_display_number(report.latency_p50_seconds)}, "
+        f"max={_display_number(report.latency_max_seconds)}",
+        "",
+        "## Failure Codes",
+        "",
+        _format_counts(report.failure_code_counts),
+        "",
+        "## Manual Review",
+        "",
+        f"- Review counts: {_format_counts(report.manual_review_counts)}",
+        f"- Review required cases: {_join_or_none(report.review_required_case_ids)}",
+        "",
+        "## Cases",
+        "",
+        "| Case | Passed | Attempts | Fallback | Failure codes | Review |",
+        "| --- | --- | ---: | --- | --- | --- |",
+    ]
+    for case in report.case_reports:
+        lines.append(
+            "| "
+            f"{case.case_id} | "
+            f"{'yes' if case.passed else 'no'} | "
+            f"{case.attempts} | "
+            f"{'yes' if case.used_fallback else 'no'} | "
+            f"{_join_or_none(case.failure_codes)} | "
+            f"{case.manual_review_category} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _evaluate_case(
@@ -362,6 +569,49 @@ def _write_jsonl(path: Path, records: list[RealExplanationEvalRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = "\n".join(json.dumps(record.to_dict(), sort_keys=True) for record in records)
     path.write_text(f"{payload}\n", encoding="utf-8")
+
+
+def _rate(count: int, total: int) -> float:
+    if total == 0:
+        return 0.0
+    return _rounded(count / total)
+
+
+def _rounded(value: float) -> float:
+    return round(value, 4)
+
+
+def _percent(value: float) -> str:
+    return f"{value * 100:.1f}%"
+
+
+def _percentile(values: Sequence[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    index = round((len(values) - 1) * fraction)
+    return values[index]
+
+
+def _count_present(values: Iterable[str | None]) -> dict[str, int]:
+    return dict(sorted(Counter(value for value in values if value).items()))
+
+
+def _format_counts(counts: dict[str, int]) -> str:
+    if not counts:
+        return "none"
+    return ", ".join(f"`{key}`: {value}" for key, value in counts.items())
+
+
+def _join_or_none(values: Sequence[str]) -> str:
+    if not values:
+        return "none"
+    return ", ".join(f"`{value}`" for value in values)
+
+
+def _display_number(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
 def _maia_model_type() -> MaiaModelType:

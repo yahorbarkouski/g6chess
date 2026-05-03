@@ -65,15 +65,19 @@ def test_real_game_explanations_pass_with_stockfish_maia_and_openrouter(
     case_ids = _selected_case_ids()
     output_env = os.getenv("G6EXPLANATION_REAL_LLM_EVAL_OUTPUT")
     output_path = Path(output_env) if output_env else tmp_path / "real_explanation_eval.jsonl"
+    report_env = os.getenv("G6EXPLANATION_REAL_LLM_EVAL_REPORT")
+    report_path = Path(report_env) if report_env else tmp_path / "real_explanation_eval_report.md"
 
     summary = run_real_explanation_evaluation(
         select_real_explanation_eval_cases(case_ids),
         output_path=output_path,
+        report_path=report_path,
         use_baseline_fallback=False,
     )
     print(json.dumps(summary.to_dict(), indent=2, sort_keys=True), flush=True)
 
     assert output_path.exists()
+    assert report_path.exists()
     assert summary.total_cases == len(case_ids or REAL_EXPLANATION_EVAL_CASES)
     assert summary.failed_cases == 0
     assert summary.fallback_cases == 0
