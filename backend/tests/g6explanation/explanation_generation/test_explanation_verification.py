@@ -201,6 +201,79 @@ def test_verifier_accepts_mating_opponent_reply_from_after_line() -> None:
     assert verification.passed
 
 
+def test_verifier_does_not_treat_square_reference_as_move() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="material",
+        subject="played_move",
+        claim="g4 lost a pawn immediately",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "g4 was a mistake because it lost the h2 pawn. "
+            "Nf3 was a practical alternative close to the engine best move."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_multiple_verified_immediate_mates() -> None:
+    context = best_context()
+    top_line = context.evidence.engine.top_lines[0].model_copy(
+        update={"move_san": "Rd8#", "score": Score.mate(mate_in=1, mate_for="player")}
+    )
+    candidate = context.evidence.candidates[0].model_copy(update={"san": "Rd8#"})
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={
+                    "played": context.evidence.played.model_copy(
+                        update={"san": "e4#", "is_checkmate": True}
+                    ),
+                    "engine": context.evidence.engine.model_copy(
+                        update={"top_lines": [top_line, *context.evidence.engine.top_lines[1:]]}
+                    ),
+                    "candidates": [candidate, *context.evidence.candidates[1:]],
+                }
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "played": "e4#",
+                    "allowed_claims": [
+                        *context.llm_context.allowed_claims,
+                        "the engine's listed best move is Rd8#",
+                    ],
+                }
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation=(
+            "Best move. e4# was the featured move and delivered forced mate. "
+            "The engine's listed best move is Rd8#, but e4# also checkmated the opponent."
+        )
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_rejects_unsupported_material_claim() -> None:
     context = mistake_context_with_practical_alternative()
     output = ExplanationOutput(explanation="g4 was a mistake because it loses a queen.")
@@ -438,6 +511,35 @@ def test_verifier_accepts_critical_move_wording_from_best_move_significance() ->
         }
     )
     output = ExplanationOutput(explanation="e4 was the best move and a critical move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_critical_move_wording_for_critical_alternative() -> None:
+    context = mistake_context_with_practical_alternative()
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={
+                    "significance": context.evidence.significance.model_copy(
+                        update={"label": "critical", "score": 1.0}
+                    )
+                }
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "significance": context.llm_context.significance.model_copy(
+                        update={"label": "critical", "score": 1.0}
+                    )
+                }
+            ),
+        }
+    )
+    output = ExplanationOutput(
+        explanation="g4 was a mistake; the critical move was Nf3 as a practical alternative."
+    )
 
     verification = ExplanationVerifier().verify(context, output)
 

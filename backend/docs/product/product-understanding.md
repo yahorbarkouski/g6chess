@@ -78,8 +78,8 @@ A fluent explanation with unsupported chess claims is a failure.
 ## Data Policy
 
 Use clean, explicitly permitted sources for global datasets. Lichess public data
-is the expected default. Do not use Chess.com-derived data for global training
-without a license.
+is the expected default because its database exports are CC0. Do not use
+Chess.com-derived data for global training without prior written authorization.
 
 User-imported games may answer that user's request. They must not enter global
 training unless explicit rights and product policy allow it.

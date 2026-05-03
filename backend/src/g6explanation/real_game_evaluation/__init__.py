@@ -36,6 +36,13 @@ from g6explanation.real_game_evaluation.real_games import (
     read_game,
     san_at_ply,
 )
+from g6explanation.real_game_evaluation.source_rights import (
+    CHESS_COM_REQUIRES_AUTHORIZATION_SOURCE,
+    LICHESS_DATABASE_CC0_SOURCE,
+    PROJECT_HISTORICAL_GAME_SOURCE,
+    PROJECT_SYNTHETIC_SOURCE,
+    ExplanationDataSource,
+)
 from g6explanation.real_game_evaluation.training_manifest import (
     TRAINING_DATA_MANIFEST_VERSION,
     TrainingDataManifest,
@@ -46,11 +53,16 @@ from g6explanation.real_game_evaluation.training_manifest import (
 __all__ = [
     "BYRNE_FISCHER",
     "CAPABLANCA_TARTAKOWER",
+    "CHESS_COM_REQUIRES_AUTHORIZATION_SOURCE",
     "KASPAROV_TOPALOV",
+    "LICHESS_DATABASE_CC0_SOURCE",
     "OPERA_GAME",
+    "PROJECT_HISTORICAL_GAME_SOURCE",
+    "PROJECT_SYNTHETIC_SOURCE",
     "REAL_EXPLANATION_EVAL_CASES",
     "REAL_GAME_FIXTURES",
     "TRAINING_DATA_MANIFEST_VERSION",
+    "ExplanationDataSource",
     "ManualReviewCategory",
     "RealEvaluationSetupError",
     "RealExplanationEvalCase",

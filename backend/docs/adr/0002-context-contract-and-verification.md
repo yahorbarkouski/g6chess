@@ -64,6 +64,10 @@ output is product-ready.
   attribution before any model output is product-ready.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
+- Real eval records used for future training manifests must store source-rights
+  metadata, verified `LLMContext`, prompt/schema/context/verifier versions, and
+  the verified explanation text. Training manifests admit only manually accepted
+  records whose source allows global training.
 
 ## Validation
 

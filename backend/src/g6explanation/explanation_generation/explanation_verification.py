@@ -230,6 +230,8 @@ def _move_mentions(explanation: str) -> list[_MoveMention]:
         if match.span() in seen_ranges:
             continue
         token = match.group(0)
+        if _is_square_reference(explanation, match.start(), match.end(), token):
+            continue
         mentions.append(
             _MoveMention(
                 token=token,
@@ -238,6 +240,16 @@ def _move_mentions(explanation: str) -> list[_MoveMention]:
             )
         )
     return mentions
+
+
+def _is_square_reference(explanation: str, start: int, end: int, token: str) -> bool:
+    if not re.fullmatch(r"[a-h][1-8]", token):
+        return False
+    prefix = explanation[max(0, start - 12) : start].lower()
+    suffix = explanation[end : min(len(explanation), end + 14)].lower()
+    return bool(re.search(r"\b(?:on|from|at)\s+$", prefix)) or bool(
+        re.search(r"^\s+(?:pawn|piece|square)\b", suffix)
+    )
 
 
 def _verify_move_mentions(
@@ -623,9 +635,10 @@ def _has_mate_support(context_result: ContextResult) -> bool:
 
 
 def _has_critical_best_move_support(context_result: ContextResult) -> bool:
-    return (
+    return context_result.llm_context.significance.label in {"high", "critical"} and (
         context_result.llm_context.quality == "best"
-        and context_result.llm_context.significance.label in {"high", "critical"}
+        or context_result.llm_context.engine_best_move is not None
+        or context_result.llm_context.featured_move is not None
     )
 
 
@@ -649,6 +662,11 @@ def _unsupported_mating_move_claim(
 
 def _trusted_mating_move_aliases(context_result: ContextResult) -> set[str]:
     aliases: set[str] = set()
+    if context_result.evidence.played.is_checkmate:
+        aliases.update(_san_aliases(context_result.evidence.played.san))
+    for line in context_result.evidence.engine.top_lines:
+        if _line_is_immediate_mate(line):
+            aliases.update(_san_aliases(line.move_san))
     for claim in _trusted_concept_claims(context_result):
         if claim.kind != "forced_mate" or claim.move_san is None:
             continue

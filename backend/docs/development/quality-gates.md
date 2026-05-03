@@ -68,9 +68,10 @@ schemas, verifiers, provider adapters, and prompt/eval regressions.
 
 ## Gate 5: Dataset
 
-A sample can enter training only if rights are known, schemas pass, deterministic
-chess verification passes, explanation verification passes, quality review
-passes, and all generation/provider/verifier versions are recorded.
+A sample can enter training only if source rights allow global training, schemas
+pass, deterministic chess verification passes, explanation verification passes,
+quality review marks it `accepted`, `LLMContext` is stored, Stockfish depth is
+16 or deeper, and all generation/provider/verifier versions are recorded.
 
 ## Gate 6: Model Promotion
 

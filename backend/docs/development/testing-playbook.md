@@ -167,10 +167,11 @@ Before calling a real model, add tests for:
 - opt-in real OpenRouter smoke where raw model output must pass deterministic
   verification without fallback
 - opt-in no-mock real-game eval over Opera Game, Game of the Century,
-  Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move cases, and
+  Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move cases,
   synthetic blunder, high-WDL non-best, castling, en passant, promotion,
-  low-time, rating-ladder, Black-perspective, and missed-win cases using real
-  Stockfish, real Maia, and real OpenRouter
+  low-time, rating-ladder, Black-perspective, missed-win cases, and Lichess CC0
+  puzzle-source and puzzle-solution cases using real Stockfish, real Maia, and
+  real OpenRouter
 - durable real-eval reporting for pass/fallback/retry rates, failure codes,
   latency, provider metadata, and manual-review categories
 

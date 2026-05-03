@@ -22,8 +22,9 @@ verified explanation string.
 - Normalize scores from the analyzed player's point of view.
 - Keep mate scores separate from centipawns.
 - Store UCI for computation and SAN only for display.
+- Use Lichess CC0 exports as the default open source for global training data.
 - Do not train global models on user-imported games or Chess.com-derived data
-  without explicit rights.
+  without explicit rights or prior written authorization.
 
 ## Validation
 

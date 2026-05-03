@@ -22,6 +22,7 @@ from g6explanation.context_engine.contracts import (
     ContextContract,
     ContextResult,
     EngineLine,
+    LLMContext,
     MoveContextRequest,
     PlayerLevel,
 )
@@ -31,7 +32,11 @@ from g6explanation.context_engine.stockfish_analysis import (
     StockfishAnalysisProvider,
 )
 from g6explanation.explanation_generation import ExplanationService
-from g6explanation.explanation_generation.contracts import GenerationAttempt
+from g6explanation.explanation_generation.contracts import (
+    EXPLANATION_SCHEMA_VERSION,
+    PROMPT_ID,
+    GenerationAttempt,
+)
 from g6explanation.explanation_generation.exceptions import ExplanationVerificationError
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.real_game_evaluation.real_games import (
@@ -39,6 +44,12 @@ from g6explanation.real_game_evaluation.real_games import (
     CAPABLANCA_TARTAKOWER,
     KASPAROV_TOPALOV,
     OPERA_GAME,
+)
+from g6explanation.real_game_evaluation.source_rights import (
+    LICHESS_DATABASE_CC0_SOURCE,
+    PROJECT_HISTORICAL_GAME_SOURCE,
+    PROJECT_SYNTHETIC_SOURCE,
+    ExplanationDataSource,
 )
 
 REAL_EXPLANATION_EVAL_REPORT_VERSION = "real_explanation_eval_report.v1"
@@ -77,6 +88,7 @@ class RealExplanationEvalCase:
     played_move: str | None = None
     clock_before_seconds: float | None = None
     increment_seconds: float | None = None
+    source: ExplanationDataSource = PROJECT_SYNTHETIC_SOURCE
 
     def request(self) -> MoveContextRequest:
         if self.pgn is not None and self.ply is not None:
@@ -106,6 +118,7 @@ class RealExplanationEvalRecord(ContextContract):
     case_id: str
     description: str
     tags: list[str]
+    source: ExplanationDataSource | None = None
     passed: bool
     error: str | None = None
     played_san: str | None = None
@@ -124,12 +137,18 @@ class RealExplanationEvalRecord(ContextContract):
     played_findability: str | None = None
     provider_name: str | None = None
     model: str | None = None
+    schema_version: str | None = None
+    context_version: str | None = None
+    prompt_id: str | None = None
+    prompt_version: str | None = None
+    verifier_version: str | None = None
     finish_reason: str | None = None
     used_fallback: bool | None = None
     attempts: int = 0
     failure_codes: list[str] = Field(default_factory=list[str])
     generation_attempts: list[GenerationAttempt] = Field(default_factory=list[GenerationAttempt])
     latency_seconds: float | None = None
+    llm_context: LLMContext | None = None
     explanation: str | None = None
     manual_review_category: ManualReviewCategory = "not_reviewed"
     manual_review_notes: str | None = None
@@ -181,6 +200,7 @@ class RealExplanationEvalReport(ContextContract):
     finish_reason_counts: dict[str, int] = Field(default_factory=dict[str, int])
     provider_counts: dict[str, int] = Field(default_factory=dict[str, int])
     model_counts: dict[str, int] = Field(default_factory=dict[str, int])
+    source_counts: dict[str, int] = Field(default_factory=dict[str, int])
     stockfish_versions: list[str] = Field(default_factory=list[str])
     stockfish_min_depth: int | None = None
     maia_sources: list[str] = Field(default_factory=list[str])
@@ -225,6 +245,7 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="classical",
         expected_san="Rd8#",
         tags=("opera", "mate", "famous", "best"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
         case_id="opera-black-b5-inaccuracy",
@@ -236,6 +257,7 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="classical",
         expected_san="b5",
         tags=("opera", "inaccuracy", "defense"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
         case_id="century-be6",
@@ -247,6 +269,7 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="classical",
         expected_san="Be6",
         tags=("game-of-the-century", "hard-resource", "famous", "best"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
         case_id="kasparov-rxd4",
@@ -258,6 +281,7 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="classical",
         expected_san="Rxd4",
         tags=("kasparov-topalov", "sacrifice", "hard-resource", "best"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
         case_id="capablanca-g4",
@@ -269,6 +293,7 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="classical",
         expected_san="g4",
         tags=("capablanca-tartakower", "quiet-positional", "endgame"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
         case_id="forced-only-legal-defense",
@@ -348,6 +373,102 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="blitz",
         expected_san="Nf6",
         tags=("synthetic", "missed-win", "black-perspective", "beginner"),
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-00008-source-bxg3",
+        description="Lichess puzzle 00008 source-game move Bxg3",
+        fen_before="r6k/pp2r2p/4Rp1Q/3p4/8/1N1P2R1/PqP2bPP/7K b - - 0 24",
+        played_move="f2g3",
+        player_color="black",
+        player_level=PlayerLevel.rating(1800, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Bxg3",
+        tags=("lichess", "puzzle-source-move", "hanging-piece", "middlegame"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-00008-solution-rxe7",
+        description="Lichess puzzle 00008 solution move Rxe7",
+        fen_before="r6k/pp2r2p/4Rp1Q/3p4/8/1N1P2b1/PqP3PP/7K w - - 0 25",
+        played_move="e6e7",
+        player_color="white",
+        player_level=PlayerLevel.rating(1800, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Rxe7",
+        tags=("lichess", "puzzle-solution", "hanging-piece", "middlegame"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-0000d-source-qd6",
+        description="Lichess puzzle 0000D source-game move Qd6",
+        fen_before="5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 2 27",
+        played_move="d3d6",
+        player_color="white",
+        player_level=PlayerLevel.rating(1500, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Qd6",
+        tags=("lichess", "puzzle-source-move", "endgame"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-0000d-solution-rd8",
+        description="Lichess puzzle 0000D solution move Rd8",
+        fen_before="5rk1/1p3ppp/pq1Q1b2/8/8/1P3N2/P4PPP/3R2K1 b - - 3 27",
+        played_move="f8d8",
+        player_color="black",
+        player_level=PlayerLevel.rating(1500, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Rd8",
+        tags=("lichess", "puzzle-solution", "endgame"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-000rz-source-nxe6",
+        description="Lichess puzzle 000rZ source-game move Nxe6",
+        fen_before="2kr1b1r/p1p2pp1/2pqb3/7p/3N2n1/2NPB3/PPP2PPP/R2Q1RK1 w - - 2 13",
+        played_move="d4e6",
+        player_color="white",
+        player_level=PlayerLevel.rating(900, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Nxe6",
+        tags=("lichess", "puzzle-source-move", "mate-threat", "opening"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-000rz-solution-qxh2-mate",
+        description="Lichess puzzle 000rZ solution move Qxh2#",
+        fen_before="2kr1b1r/p1p2pp1/2pqN3/7p/6n1/2NPB3/PPP2PPP/R2Q1RK1 b - - 0 13",
+        played_move="d6h2",
+        player_color="black",
+        player_level=PlayerLevel.rating(900, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Qxh2#",
+        tags=("lichess", "puzzle-solution", "mate", "opening"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-001oo-source-qa4",
+        description="Lichess puzzle 001Oo source-game move Qa4",
+        fen_before="6k1/4p1bp/6p1/1p1pP3/1PpPp3/2P1P3/Q2B1KPP/3q4 b - - 2 23",
+        played_move="d1a4",
+        player_color="black",
+        player_level=PlayerLevel.rating(2000, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Qa4",
+        tags=("lichess", "puzzle-source-move", "quiet-move", "endgame"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="lichess-001kr-solution-rf8-mate",
+        description="Lichess puzzle 001KR solution move Rf8#",
+        fen_before="6k1/p1p3pp/4N3/1p6/2q1r1n1/2B5/PP4PP/3R1R1K w - - 0 29",
+        played_move="f1f8",
+        player_color="white",
+        player_level=PlayerLevel.rating(650, "lichess-puzzle-rating"),
+        time_control="rapid",
+        expected_san="Rf8#",
+        tags=("lichess", "puzzle-solution", "mate", "middlegame", "beginner"),
+        source=LICHESS_DATABASE_CC0_SOURCE,
     ),
 )
 
@@ -486,6 +607,9 @@ def build_real_explanation_eval_report(
         finish_reason_counts=_count_present(record.finish_reason for record in records),
         provider_counts=_count_present(record.provider_name for record in records),
         model_counts=_count_present(record.model for record in records),
+        source_counts=_count_present(
+            record.source.name if record.source else None for record in records
+        ),
         stockfish_versions=sorted(
             {version for record in records if (version := record.stockfish_version)}
         ),
@@ -643,6 +767,7 @@ def render_real_explanation_eval_report_markdown(report: RealExplanationEvalRepo
         f"- Stockfish versions: {_join_or_none(report.stockfish_versions)}",
         f"- Maia sources: {_join_or_none(report.maia_sources)}",
         f"- Models: {_format_counts(report.model_counts)}",
+        f"- Data sources: {_format_counts(report.source_counts)}",
         f"- Latency seconds: avg={_display_number(report.latency_avg_seconds)}, "
         f"p50={_display_number(report.latency_p50_seconds)}, "
         f"max={_display_number(report.latency_max_seconds)}",
@@ -709,6 +834,7 @@ def _evaluate_case(
             case_id=case.case_id,
             description=case.description,
             tags=list(case.tags),
+            source=case.source,
             passed=result.verification.passed and not result.used_fallback,
             played_san=context.evidence.played.san,
             played_uci=context.evidence.played.uci,
@@ -726,12 +852,18 @@ def _evaluate_case(
             played_findability=played.time_adjusted_findability if played else None,
             provider_name=result.provider_name,
             model=result.model,
+            schema_version=result.schema_version,
+            context_version=result.context_version,
+            prompt_id=result.prompt_id,
+            prompt_version=result.prompt_version,
+            verifier_version=result.verifier_version,
             finish_reason=result.finish_reason,
             used_fallback=result.used_fallback,
             attempts=len(result.attempts),
             failure_codes=failure_codes,
             generation_attempts=result.attempts,
             latency_seconds=round(time.perf_counter() - start, 3),
+            llm_context=context.llm_context,
             explanation=result.explanation,
         )
     except Exception as exc:
@@ -743,6 +875,7 @@ def _evaluate_case(
             case_id=case.case_id,
             description=case.description,
             tags=list(case.tags),
+            source=case.source,
             passed=False,
             error=f"{type(exc).__name__}: {exc}",
             attempts=len(attempts),
@@ -769,6 +902,11 @@ def _evaluate_case(
                 "maia_sources": _maia_sources(context.evidence.candidates),
                 "played_findability_source": played.findability_source if played else None,
                 "played_findability": played.time_adjusted_findability if played else None,
+                "schema_version": EXPLANATION_SCHEMA_VERSION if attempts else None,
+                "context_version": context.evidence.context_version,
+                "prompt_id": PROMPT_ID if attempts else None,
+                "prompt_version": attempts[-1].prompt_version if attempts else None,
+                "llm_context": context.llm_context,
             }
         )
 

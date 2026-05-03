@@ -26,8 +26,9 @@ Implemented pieces:
 - public `explain_move(...) -> str` wrapper for FEN + UCI move input, explicit
   PGN ply input, or an existing `MoveContextRequest`
 
-Next work is broader real-game LLM evals and verifier hardening, not training or
-fine-tuning.
+Next work is broadening real-game LLM evals, manually accepting high-quality
+records, and preparing source-rights-safe training manifests. Fine-tuning stays
+behind those gates.
 
 ## Boundary
 
@@ -216,9 +217,10 @@ Current no-mock real eval:
 
 This eval uses real Stockfish, real Maia, and real OpenRouter output with
 fallback disabled. It covers Opera Game, Game of the Century,
-Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, and synthetic
+Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, synthetic
 ordinary-blunder, high-WDL non-best, castling, en passant, promotion, low-time,
-rating-ladder, Black-perspective, and missed-win edge cases.
+rating-ladder, Black-perspective, missed-win edge cases, and Lichess CC0
+puzzle-source and puzzle-solution positions.
 
 Persist JSONL records and a Markdown report when running the real eval for
 review:
@@ -231,7 +233,8 @@ uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_eva
 ```
 
 The report summarizes pass, fallback, retry, failure-code, latency, model,
-Stockfish, Maia, failed-attempt explanation text, and manual-review fields.
+source, Stockfish, Maia, failed-attempt explanation text, and manual-review
+fields.
 Review categories should be used for failed, retried, or surprising records
 before changing context policy, prompt rules, or verifier behavior. Durable
 annotations live in
@@ -244,9 +247,11 @@ or fallback cases, lowers pass rate, increases retries, increases failure-code
 counts, or leaves manual-review-required records unresolved.
 
 Training-data manifests are conservative. A generated explanation is eligible
-only when the eval record passed verification, did not use fallback, has
-provider/model metadata, has Stockfish depth 16 or deeper, includes the verified
-explanation text, and is manually marked `accepted`.
+only when the eval record passed verification, did not use fallback, has source
+rights allowing global training, includes the verified `LLMContext`, has
+provider/model/schema/context/prompt/verifier metadata, has Stockfish depth 16 or
+deeper, includes the verified explanation text, and is manually marked
+`accepted`.
 
 Metrics:
 
@@ -259,8 +264,8 @@ Metrics:
 
 ## Non-Goals
 
-- training data generation
-- fine-tuning
+- ungated training data generation
+- ungated fine-tuning
 - model judging
 - UI wording polish beyond one verified explanation string
 - full-game review, dashboards, drills, or personalized memory

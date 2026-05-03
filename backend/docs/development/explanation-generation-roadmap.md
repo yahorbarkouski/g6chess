@@ -42,8 +42,8 @@ Completed foundation:
 Active phase:
 
 ```text
-all ten roadmap steps implemented -> keep broadening evals and tightening gates
-from new evidence
+all ten roadmap steps implemented -> broaden source-rights-safe evals, manually
+accept seed records, then prepare training manifests
 ```
 
 ## Ten-Step Track
@@ -167,6 +167,11 @@ from new evidence
   cases. Future work should now be framed as broadening coverage, adding product
   integrations, or tightening gates based on new eval evidence rather than
   finishing this initial track.
+- 2026-05-03: started the training-seed expansion phase. Added explicit
+  source-rights metadata, Lichess CC0 eval cases, persisted verified
+  `LLMContext` and generation-version metadata in eval records, and tightened
+  the verifier for square references and multiple immediate-mate moves before
+  promoting the broader no-mock suite.
 
 ## Resume Checklist
 

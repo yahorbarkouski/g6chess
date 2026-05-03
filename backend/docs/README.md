@@ -25,6 +25,8 @@ durable decisions.
   model gates.
 - `development/explanation-generation-roadmap.md`: durable implementation
   ledger for the verified explanation-generation track.
+- `development/training-data.md`: source-rights, acceptance, and manifest gates
+  for future supervised training data.
 - `development/testing-playbook.md`: unit, integration, golden, adversarial, and
   eval test guidance.
 - `development/agent-capabilities.md`: agent checklists and review priorities.
