@@ -69,6 +69,8 @@ class RealExplanationEvalCase:
     ply: int | None = None
     fen_before: str | None = None
     played_move: str | None = None
+    clock_before_seconds: float | None = None
+    increment_seconds: float | None = None
 
     def request(self) -> MoveContextRequest:
         if self.pgn is not None and self.ply is not None:
@@ -78,6 +80,8 @@ class RealExplanationEvalCase:
                 player_color=self.player_color,
                 player_level=self.player_level,
                 time_control=self.time_control,
+                clock_before_seconds=self.clock_before_seconds,
+                increment_seconds=self.increment_seconds,
             )
         if self.fen_before is not None and self.played_move is not None:
             return MoveContextRequest(
@@ -86,6 +90,8 @@ class RealExplanationEvalCase:
                 player_color=self.player_color,
                 player_level=self.player_level,
                 time_control=self.time_control,
+                clock_before_seconds=self.clock_before_seconds,
+                increment_seconds=self.increment_seconds,
             )
         raise ValueError("A real explanation eval case needs either PGN+ply or FEN+played_move.")
 
@@ -259,6 +265,52 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="rapid",
         expected_san="Qxa7",
         tags=("synthetic", "high-wdl-non-best", "winning"),
+    ),
+    RealExplanationEvalCase(
+        case_id="castling-low-time-beginner",
+        description="Beginner low-time castling notation edge case",
+        fen_before="r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+        played_move="e1g1",
+        player_color="white",
+        player_level=PlayerLevel.rating(800, "synthetic-edge"),
+        time_control="blitz",
+        clock_before_seconds=8,
+        increment_seconds=0,
+        expected_san="O-O",
+        tags=("synthetic", "castling", "low-time", "beginner"),
+    ),
+    RealExplanationEvalCase(
+        case_id="en-passant-intermediate",
+        description="Intermediate en-passant notation edge case",
+        fen_before="rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
+        played_move="e5d6",
+        player_color="white",
+        player_level=PlayerLevel.rating(1500, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="exd6",
+        tags=("synthetic", "en-passant", "intermediate"),
+    ),
+    RealExplanationEvalCase(
+        case_id="promotion-advanced",
+        description="Advanced promotion notation edge case",
+        fen_before="8/P7/8/8/8/8/8/k6K w - - 0 1",
+        played_move="a7a8q",
+        player_color="white",
+        player_level=PlayerLevel.rating(2200, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="a8=Q+",
+        tags=("synthetic", "promotion", "advanced"),
+    ),
+    RealExplanationEvalCase(
+        case_id="black-missed-mate-nf6",
+        description="Black-perspective missed immediate mate",
+        fen_before="rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2",
+        played_move="g8f6",
+        player_color="black",
+        player_level=PlayerLevel.rating(900, "synthetic-edge"),
+        time_control="blitz",
+        expected_san="Nf6",
+        tags=("synthetic", "missed-win", "black-perspective", "beginner"),
     ),
 )
 

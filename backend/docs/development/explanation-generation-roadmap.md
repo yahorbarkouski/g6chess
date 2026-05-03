@@ -31,11 +31,15 @@ Completed foundation:
 - public `explain_move(request) -> str`
 - no-mock Stockfish + Maia + OpenRouter eval harness
 - structured `concept_claims` contract for currently supported concept evidence
+- durable real-eval JSONL and Markdown reports
+- first expanded no-mock edge-case batch for castling, en passant, promotion,
+  low-time play, beginner/intermediate/advanced rating levels,
+  Black-perspective missed wins, and high-WDL good-not-best moves
 
 Active phase:
 
 ```text
-broader eval suite -> manual review loop -> concept detectors
+finish broader eval suite -> manual review loop -> concept detectors
 ```
 
 ## Ten-Step Track
@@ -52,6 +56,16 @@ broader eval suite -> manual review loop -> concept detectors
 | 8 | Define promotion gates | Partial | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
 | 9 | Broaden model/provider resilience | Partial | Provider has explicit timeout, retry/backoff policy, error taxonomy, model metadata, and optional comparison runs. |
 | 10 | Prepare training data | Not started | Only verified context plus verified explanation plus reviewed eval records can enter training-data manifests. |
+
+## Checkpoint Log
+
+- 2026-05-03: expanded the real no-mock eval suite from 8 to 12 cases with
+  castling, en passant, promotion, low-time, rating-ladder, Black-perspective,
+  and missed-win coverage. Added typed concept claims and verifier support for
+  special played-move facts. Latest full real eval passed 12/12 with Stockfish
+  depth 16, real Maia, and OpenRouter `openai/gpt-5.5-20260423`; no fallback
+  was used. `capablanca-g4` required one retry for
+  `recommendation_policy_violation`, so it remains the first manual-review item.
 
 ## Resume Checklist
 

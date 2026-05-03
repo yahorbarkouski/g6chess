@@ -188,6 +188,45 @@ def test_good_move_concept_claims_cover_exposed_alternatives() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("fen", "played_uci", "expected_san", "expected_kind"),
+    [
+        ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1", "O-O", "castling"),
+        (
+            "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
+            "e5d6",
+            "exd6",
+            "en_passant",
+        ),
+        ("8/P7/8/8/8/8/8/k6K w - - 0 1", "a7a8q", "a8=Q+", "promotion"),
+    ],
+)
+def test_special_played_move_concept_claims(
+    fen: str,
+    played_uci: str,
+    expected_san: str,
+    expected_kind: str,
+) -> None:
+    board = chess.Board(fen)
+    engine_analysis = analysis(
+        board,
+        played_uci=played_uci,
+        top_scores=[(played_uci, 100)],
+        played_score=100,
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move=played_uci,
+        player_color="white",
+        player_level=PlayerLevel.rating(1600),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.played.san == expected_san
+    assert expected_kind in _concept_kinds(result)
+
+
 def test_only_legal_move_is_forced_not_blunder() -> None:
     board = chess.Board("1Q2kb1r/p2n1ppp/4q3/4p1B1/4P3/8/PPP2PPP/2KR4 b k - 1 16")
     engine_analysis = EngineAnalysis(

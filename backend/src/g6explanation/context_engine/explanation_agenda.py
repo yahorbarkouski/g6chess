@@ -155,6 +155,37 @@ def build_concept_claims(
                 move_san=played.san,
             )
         )
+    played_move = chess.Move.from_uci(played.uci)
+    if played_move in board.legal_moves and board.is_castling(played_move):
+        claims.append(
+            ConceptClaim(
+                kind="castling",
+                subject="played_move",
+                claim=f"{played.san} was castling",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        )
+    if played_move in board.legal_moves and board.is_en_passant(played_move):
+        claims.append(
+            ConceptClaim(
+                kind="en_passant",
+                subject="played_move",
+                claim=f"{played.san} was an en passant capture",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        )
+    if played.promotion is not None:
+        claims.append(
+            ConceptClaim(
+                kind="promotion",
+                subject="played_move",
+                claim=f"{played.san} promoted to {played.promotion}",
+                source="played_move_fact",
+                move_san=played.san,
+            )
+        )
 
     if featured_candidate is not None:
         claims.extend(

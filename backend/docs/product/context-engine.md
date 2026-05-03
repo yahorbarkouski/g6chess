@@ -175,6 +175,10 @@ concepts by themselves. For example, a model may discuss king safety only after 
 deterministic detector adds a `king_safety` concept claim; adding a sentence to
 `allowed_claims` is not sufficient.
 
+Special move facts are concept claims too. Castling, en passant, and promotion
+language is allowed only when the legal played move itself provides the typed
+claim.
+
 ## Pitfalls To Prevent
 
 - recommending hard engine moves as obvious

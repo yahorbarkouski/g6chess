@@ -180,7 +180,8 @@ Current no-mock real eval:
 This eval uses real Stockfish, real Maia, and real OpenRouter output with
 fallback disabled. It covers Opera Game, Game of the Century,
 Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, and synthetic
-ordinary-blunder, and high-WDL non-best edge cases.
+ordinary-blunder, high-WDL non-best, castling, en passant, promotion, low-time,
+rating-ladder, Black-perspective, and missed-win edge cases.
 
 Persist JSONL records and a Markdown report when running the real eval for
 review:

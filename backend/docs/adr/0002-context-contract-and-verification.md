@@ -41,6 +41,8 @@ output is product-ready.
   supported concept families. Free-form `allowed_claims` remain wording support,
   but they do not authorize unsupported strategic, tactical, mate, material, or
   forcing concepts by themselves.
+- Legal played-move facts such as castling, en passant, and promotion are typed
+  concept claims when exposed to the LLM.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when

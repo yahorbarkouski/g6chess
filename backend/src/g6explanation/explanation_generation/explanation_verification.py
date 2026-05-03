@@ -64,6 +64,9 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "forced_mate": ("forced mate", "checkmate", "mate"),
     "critical_best_move": ("critical move", "critical best move"),
     "capture": ("captured", "capture"),
+    "castling": ("castled", "castling", "castle"),
+    "en_passant": ("en passant",),
+    "promotion": ("promotion", "promoted", "promotes"),
     "practical_alternative": ("practical alternative", "practical try"),
     "better_alternative": ("better move", "better alternative"),
     "opponent_resource": (

@@ -97,12 +97,23 @@ def test_real_game_explanations_pass_with_stockfish_maia_and_openrouter(
             "forced",
             "ordinary-blunder",
             "high-wdl-non-best",
+            "castling",
+            "en-passant",
+            "promotion",
+            "missed-win",
+            "low-time",
+            "black-perspective",
+            "beginner",
+            "intermediate",
+            "advanced",
         }
         high_wdl_record = _record(summary.records, "high-wdl-qxa7-good")
         assert high_wdl_record.quality == "good"
         assert high_wdl_record.score_loss_vs_best_cp is not None
         assert high_wdl_record.score_loss_vs_best_cp >= 150
         assert high_wdl_record.wdl_expected_score_loss == 0
+        missed_win_record = _record(summary.records, "black-missed-mate-nf6")
+        assert missed_win_record.quality == "missed_win"
 
 
 def _selected_case_ids() -> list[str] | None:
