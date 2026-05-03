@@ -42,18 +42,19 @@ Completed foundation:
 Active phase:
 
 ```text
-verifier hardening -> prompt changes only from eval failures -> API stabilization
+all ten roadmap steps implemented -> keep broadening evals and tightening gates
+from new evidence
 ```
 
 ## Ten-Step Track
 
 | # | Step | Status | Exit criteria |
 |---|---|---|---|
-| 1 | Expand the real eval suite | Partial | No-mock cases include quiet positional moves, missed wins, already-lost mate defenses, promotions, castling, en passant, low-time cases, rating ladder cases, Black-perspective cases, and more high-WDL good-not-best moves. |
+| 1 | Expand the real eval suite | Complete | No-mock cases include quiet positional moves, missed wins, already-lost mate defenses, promotions, castling, en passant, low-time cases, rating ladder cases, Black-perspective cases, and more high-WDL good-not-best moves. |
 | 2 | Review eval output manually | Complete | Every failed, retried, or surprising record has a review category: context missing evidence, wrong context policy, prompt issue, verifier too weak, verifier too strict, model wording issue, or provider/runtime issue. |
 | 3 | Add structured concept evidence | Complete | Deterministic tags exist for supported material, king safety, development, open files, passed pawns, weak squares, initiative, and forcing concepts before the LLM may mention them. |
-| 4 | Harden the explanation verifier | Partial | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
-| 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
+| 4 | Harden the explanation verifier | Complete | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
+| 5 | Improve prompt from eval failures | Complete | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
 | 6 | Stabilize public API shape | Complete | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
 | 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, failed-attempt text, and manual-review fields. |
 | 8 | Define promotion gates | Complete | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
@@ -160,6 +161,12 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   excluded unless they passed verification, avoided fallback, include explanation
   and model metadata, use Stockfish depth 16 or deeper, and are manually marked
   `accepted`.
+- 2026-05-03: closed the original ten-step implementation track. The current
+  full local gate passes, and the latest full no-mock real eval passed 12/12
+  with 0 fallbacks, 0 retries, no failure codes, and no manual-review-required
+  cases. Future work should now be framed as broadening coverage, adding product
+  integrations, or tightening gates based on new eval evidence rather than
+  finishing this initial track.
 
 ## Resume Checklist
 
