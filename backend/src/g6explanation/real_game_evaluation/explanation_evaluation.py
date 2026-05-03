@@ -20,6 +20,7 @@ from g6explanation.context_engine.contracts import (
     CandidateMove,
     ColorName,
     ContextContract,
+    ContextResult,
     EngineLine,
     MoveContextRequest,
     PlayerLevel,
@@ -30,6 +31,8 @@ from g6explanation.context_engine.stockfish_analysis import (
     StockfishAnalysisProvider,
 )
 from g6explanation.explanation_generation import ExplanationService
+from g6explanation.explanation_generation.contracts import GenerationAttempt
+from g6explanation.explanation_generation.exceptions import ExplanationVerificationError
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.real_game_evaluation.real_games import (
     BYRNE_FISCHER,
@@ -125,6 +128,7 @@ class RealExplanationEvalRecord(ContextContract):
     used_fallback: bool | None = None
     attempts: int = 0
     failure_codes: list[str] = Field(default_factory=list[str])
+    generation_attempts: list[GenerationAttempt] = Field(default_factory=list[GenerationAttempt])
     latency_seconds: float | None = None
     explanation: str | None = None
     manual_review_category: ManualReviewCategory = "not_reviewed"
@@ -158,6 +162,7 @@ class RealExplanationEvalCaseReport(ContextContract):
     model: str | None = None
     stockfish_depth: int | None = None
     maia_sources: list[str] = Field(default_factory=list[str])
+    failed_attempt_explanations: list[str] = Field(default_factory=list[str])
     manual_review_category: ManualReviewCategory
     manual_review_notes: str | None = None
 
@@ -482,6 +487,7 @@ def build_real_explanation_eval_report(
                 model=record.model,
                 stockfish_depth=record.stockfish_depth,
                 maia_sources=record.maia_sources,
+                failed_attempt_explanations=_failed_attempt_explanations(record),
                 manual_review_category=record.manual_review_category,
                 manual_review_notes=record.manual_review_notes,
             )
@@ -563,6 +569,16 @@ def render_real_explanation_eval_report_markdown(report: RealExplanationEvalRepo
             f"{case.manual_review_category} |"
         )
     lines.append("")
+    failed_attempt_cases = [
+        case for case in report.case_reports if case.failed_attempt_explanations
+    ]
+    if failed_attempt_cases:
+        lines.extend(["## Failed Attempt Explanations", ""])
+        for case in failed_attempt_cases:
+            lines.extend([f"### {case.case_id}", ""])
+            for index, explanation in enumerate(case.failed_attempt_explanations, 1):
+                lines.append(f"- Attempt {index}: {explanation}")
+            lines.append("")
     return "\n".join(lines)
 
 
@@ -572,6 +588,7 @@ def _evaluate_case(
     service: ExplanationService,
 ) -> RealExplanationEvalRecord:
     start = time.perf_counter()
+    context: ContextResult | None = None
     try:
         context = context_builder.build(case.request())
         if context.evidence.played.san != case.expected_san:
@@ -610,17 +627,46 @@ def _evaluate_case(
             used_fallback=result.used_fallback,
             attempts=len(result.attempts),
             failure_codes=failure_codes,
+            generation_attempts=result.attempts,
             latency_seconds=round(time.perf_counter() - start, 3),
             explanation=result.explanation,
         )
     except Exception as exc:
-        return RealExplanationEvalRecord(
+        attempts: list[GenerationAttempt] = (
+            exc.attempts if isinstance(exc, ExplanationVerificationError) else []
+        )
+        failure_codes = [code for attempt in attempts for code in attempt.failure_codes if code]
+        record = RealExplanationEvalRecord(
             case_id=case.case_id,
             description=case.description,
             tags=list(case.tags),
             passed=False,
             error=f"{type(exc).__name__}: {exc}",
+            attempts=len(attempts),
+            failure_codes=failure_codes,
+            generation_attempts=attempts,
             latency_seconds=round(time.perf_counter() - start, 3),
+        )
+        if context is None:
+            return record
+        played = _played_candidate(context.evidence.candidates)
+        return record.model_copy(
+            update={
+                "played_san": context.evidence.played.san,
+                "played_uci": context.evidence.played.uci,
+                "player_color": context.evidence.request.player_color,
+                "quality": context.evidence.quality.label,
+                "score_loss_vs_best_cp": context.evidence.quality.score_loss_vs_best_cp,
+                "wdl_expected_score_loss": context.evidence.quality.wdl_expected_score_loss,
+                "significance": context.evidence.significance.label,
+                "beauty": context.evidence.beauty.label,
+                "stockfish_version": context.evidence.engine.engine_version,
+                "stockfish_depth": _stockfish_depth(context.evidence.engine.top_lines),
+                "maia_candidate_count": _maia_candidate_count(context.evidence.candidates),
+                "maia_sources": _maia_sources(context.evidence.candidates),
+                "played_findability_source": played.findability_source if played else None,
+                "played_findability": played.time_adjusted_findability if played else None,
+            }
         )
 
 
@@ -673,6 +719,14 @@ def _needs_manual_review(record: RealExplanationEvalRecord) -> bool:
         or bool(record.failure_codes)
         or bool(record.error)
     )
+
+
+def _failed_attempt_explanations(record: RealExplanationEvalRecord) -> list[str]:
+    return [
+        attempt.explanation
+        for attempt in record.generation_attempts
+        if not attempt.verification_passed and attempt.explanation
+    ]
 
 
 def _real_context_builder() -> MoveContextBuilder:

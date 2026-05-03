@@ -594,6 +594,8 @@ def _unsupported_concept_claim(
             continue
         if kind == "forced_mate" and _has_mate_support(context_result):
             continue
+        if kind == "critical_best_move" and _has_critical_best_move_support(context_result):
+            continue
         if not has_structured_concepts and any(
             _contains_phrase(support, alias) for alias in aliases
         ):
@@ -618,6 +620,13 @@ def _has_mate_support(context_result: ContextResult) -> bool:
     if "forced_mate" in _trusted_concept_kinds(context_result):
         return True
     return bool(_trusted_mating_move_aliases(context_result))
+
+
+def _has_critical_best_move_support(context_result: ContextResult) -> bool:
+    return (
+        context_result.llm_context.quality == "best"
+        and context_result.llm_context.significance.label in {"high", "critical"}
+    )
 
 
 def _unsupported_mating_move_claim(

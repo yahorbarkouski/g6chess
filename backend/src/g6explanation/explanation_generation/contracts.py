@@ -91,6 +91,7 @@ class GenerationAttempt(ContextContract):
     finish_reason: str | None = None
     verification_passed: bool = False
     failure_codes: list[str] = Field(default_factory=list[str])
+    explanation: str | None = None
     error: str | None = None
 
 

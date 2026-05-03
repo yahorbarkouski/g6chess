@@ -40,7 +40,8 @@ Output:
 
 - public: one explanation string
 - internal: private metadata with context version, prompt version, provider
-  version, verifier version, attempts, fallback status, and failure codes
+  version, verifier version, attempts, schema-valid attempt text, fallback
+  status, and failure codes
 
 The model provider returns raw JSON to the generation layer. The public API
 returns only the verified `explanation` string.
@@ -213,9 +214,10 @@ uv run pytest tests/g6explanation/real_game_evaluation/test_real_explanation_eva
 ```
 
 The report summarizes pass, fallback, retry, failure-code, latency, model,
-Stockfish, Maia, and manual-review fields. Review categories should be used for
-failed, retried, or surprising records before changing context policy, prompt
-rules, or verifier behavior. Durable annotations live in
+Stockfish, Maia, failed-attempt explanation text, and manual-review fields.
+Review categories should be used for failed, retried, or surprising records
+before changing context policy, prompt rules, or verifier behavior. Durable
+annotations live in
 `docs/development/real-explanation-manual-reviews.json` and apply only when the
 case id, model, attempts, and failure codes still match the reviewed record.
 

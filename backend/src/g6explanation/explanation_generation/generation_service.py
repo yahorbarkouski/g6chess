@@ -89,6 +89,7 @@ class ExplanationService:
                     response=response,
                     verification_passed=verification.passed,
                     failure_codes=_failure_codes(verification.failures),
+                    explanation=output.explanation,
                 )
             )
             if verification.passed:
@@ -126,7 +127,8 @@ class ExplanationService:
 
         raise ExplanationVerificationError(
             "No model explanation passed deterministic verification: "
-            f"{_attempt_failure_summary(attempts)}"
+            f"{_attempt_failure_summary(attempts)}",
+            attempts=attempts,
         )
 
 
@@ -149,6 +151,7 @@ def _attempt_from_response(
     response: CoachModelResponse,
     verification_passed: bool,
     failure_codes: list[str],
+    explanation: str,
 ) -> GenerationAttempt:
     return GenerationAttempt(
         attempt_index=attempt_index,
@@ -160,6 +163,7 @@ def _attempt_from_response(
         finish_reason=response.finish_reason,
         verification_passed=verification_passed,
         failure_codes=failure_codes,
+        explanation=explanation,
     )
 
 

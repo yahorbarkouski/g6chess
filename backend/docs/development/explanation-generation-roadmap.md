@@ -55,7 +55,7 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
 | 4 | Harden the explanation verifier | Partial | Verification uses structured claims wherever possible for mentioned moves, concepts, material, mate, tactics, recommendation policy, side attribution, and best/practical-alternative language. |
 | 5 | Improve prompt from eval failures | Partial | Prompt changes are tied to repeated eval failures and are followed by the full real eval gate. |
 | 6 | Stabilize public API shape | Partial | Product API directly supports `explain_move(game_context, played_move, player_level) -> str` with PGN, FEN, UCI, player color, time control, and controlled failures. |
-| 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, and manual-review fields. |
+| 7 | Add durable eval reporting | Complete | JSONL eval records can produce a summary report with pass/fallback/retry rates, failure-code counts, latency, model metadata, Stockfish/Maia metadata, failed-attempt text, and manual-review fields. |
 | 8 | Define promotion gates | Partial | Prompt/model/verifier changes compare against a frozen prior report and are promotable only when default checks pass and no-mock eval matches or improves prior results. |
 | 9 | Broaden model/provider resilience | Partial | Provider has explicit timeout, retry/backoff policy, error taxonomy, model metadata, and optional comparison runs. |
 | 10 | Prepare training data | Not started | Only verified context plus verified explanation plus reviewed eval records can enter training-data manifests. |
@@ -129,6 +129,20 @@ verifier hardening -> prompt changes only from eval failures -> API stabilizatio
   about the bad played move, so "do not play g4" is not misclassified as
   recommending `g4`. After that final verifier change, the full 12-case
   no-mock eval passed 12/12 with 0 fallbacks and 0 retries.
+- 2026-05-03: closed the reporting gap exposed by manual review. Schema-valid
+  generation attempts now keep their explanation text in internal metadata, real
+  eval JSONL records persist generation attempts, controlled verification
+  failures carry attempts, and Markdown reports include failed-attempt
+  explanations for review.
+- 2026-05-03: the first real eval with failed-attempt text showed an
+  `opera-final-mate` retry where "critical move" was blocked even though the
+  context significance was already critical. Tightened the verifier policy so
+  best moves with high or critical significance support critical-best-move
+  wording without needing a duplicate concept claim.
+- 2026-05-03: final verification for the reporting and critical-significance
+  slice passed: full local gate passed, and the full no-mock eval passed 12/12
+  with Stockfish depth 16, real Maia, OpenRouter `openai/gpt-5.5-20260423`, 0
+  fallbacks, 0 retries, no failure codes, and no manual-review-required cases.
 
 ## Resume Checklist
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
+from g6explanation.explanation_generation.contracts import GenerationAttempt
 from g6explanation.real_game_evaluation import (
     ManualReviewCategory,
     RealExplanationEvalRecord,
@@ -121,6 +122,48 @@ def test_render_real_explanation_eval_report_markdown_lists_review_required_case
 
     assert "Review required cases: `needs-review`" in markdown
     assert "`unsupported_tactic_claim`: 1" in markdown
+
+
+def test_markdown_report_includes_failed_attempt_explanations() -> None:
+    summary = summarize_real_explanation_eval_records(
+        [
+            _record(
+                case_id="needs-review",
+                passed=True,
+                attempts=2,
+                latency_seconds=1.0,
+                failure_codes=["unsupported_tactic_claim"],
+                generation_attempts=[
+                    GenerationAttempt(
+                        attempt_index=1,
+                        provider_name="openrouter",
+                        model="openai/gpt-5.5-20260423",
+                        prompt_id="single_move_coach",
+                        prompt_version="single_move_coach.v3",
+                        verification_passed=False,
+                        failure_codes=["unsupported_tactic_claim"],
+                        explanation="Nf6 missed a back-rank tactic.",
+                    ),
+                    GenerationAttempt(
+                        attempt_index=2,
+                        provider_name="openrouter",
+                        model="openai/gpt-5.5-20260423",
+                        prompt_id="single_move_coach",
+                        prompt_version="single_move_coach.v3",
+                        verification_passed=True,
+                        explanation="Nf6 missed Qh4#.",
+                    ),
+                ],
+            )
+        ]
+    )
+
+    report = build_real_explanation_eval_report(summary)
+    markdown = render_real_explanation_eval_report_markdown(report)
+
+    assert report.case_reports[0].failed_attempt_explanations == ["Nf6 missed a back-rank tactic."]
+    assert "## Failed Attempt Explanations" in markdown
+    assert "- Attempt 1: Nf6 missed a back-rank tactic." in markdown
 
 
 def test_reviewed_retry_is_not_reported_as_needing_manual_review() -> None:
@@ -258,6 +301,7 @@ def _record(
     failure_codes: list[str],
     used_fallback: bool = False,
     manual_review_category: str = "not_reviewed",
+    generation_attempts: list[GenerationAttempt] | None = None,
 ) -> RealExplanationEvalRecord:
     return RealExplanationEvalRecord(
         case_id=case_id,
@@ -280,6 +324,7 @@ def _record(
         used_fallback=used_fallback,
         attempts=attempts,
         failure_codes=failure_codes,
+        generation_attempts=generation_attempts or [],
         latency_seconds=latency_seconds,
         explanation="e4 was the best move." if passed else None,
         manual_review_category=cast(ManualReviewCategory, manual_review_category),

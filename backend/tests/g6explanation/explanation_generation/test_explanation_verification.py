@@ -424,6 +424,26 @@ def test_verifier_accepts_supported_concept_claim() -> None:
     assert verification.passed
 
 
+def test_verifier_accepts_critical_move_wording_from_best_move_significance() -> None:
+    context = best_context()
+    context = context.model_copy(
+        update={
+            "llm_context": context.llm_context.model_copy(
+                update={
+                    "significance": context.llm_context.significance.model_copy(
+                        update={"label": "critical"}
+                    )
+                }
+            )
+        }
+    )
+    output = ExplanationOutput(explanation="e4 was the best move and a critical move.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_does_not_accept_concept_from_allowed_claims_alone() -> None:
     context = mistake_context_with_practical_alternative()
     context = context.model_copy(
