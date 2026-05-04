@@ -58,6 +58,17 @@ DEFAULT_REAL_LLM_EVAL_OPENROUTER_CONCURRENCY = 30
 DEFAULT_REAL_EXPLANATION_MANUAL_REVIEWS_PATH = Path(
     "docs/development/real-explanation-manual-reviews.json"
 )
+SYNTHETIC_RECAPTURE_PGN = """
+[Event "Synthetic Recapture Regression"]
+[Site "?"]
+[Date "2026.05.04"]
+[Round "?"]
+[White "Synthetic White"]
+[Black "Synthetic Black"]
+[Result "*"]
+
+1. e4 c6 2. Nf3 d5 3. exd5 cxd5 *
+""".strip()
 ManualReviewCategory: TypeAlias = Literal[
     "not_reviewed",
     "context_missing_evidence",
@@ -336,6 +347,17 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="rapid",
         expected_san="Qxa7",
         tags=("synthetic", "high-wdl-non-best", "winning"),
+    ),
+    RealExplanationEvalCase(
+        case_id="synthetic-cxd5-recapture-recovery",
+        description="Opening recapture that restores material instead of winning a pawn",
+        pgn=SYNTHETIC_RECAPTURE_PGN,
+        ply=6,
+        player_color="black",
+        player_level=PlayerLevel.rating(1200, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="cxd5",
+        tags=("synthetic", "recapture", "material-recovery", "opening"),
     ),
     RealExplanationEvalCase(
         case_id="castling-low-time-beginner",

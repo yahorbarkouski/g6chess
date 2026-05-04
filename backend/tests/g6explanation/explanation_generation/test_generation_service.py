@@ -98,7 +98,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v10"
+    assert result.prompt_version == "single_move_coach.v11"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload

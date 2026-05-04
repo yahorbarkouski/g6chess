@@ -36,8 +36,8 @@ def build_main_point(
     if key_candidate is None:
         if quality.label == "best" and featured_candidate is not None:
             return MainPoint(
-                concept=_featured_best_concept(played, analysis),
-                claim=_featured_best_claim(played, quality_claim, analysis),
+                concept=_featured_best_concept(board, played, analysis),
+                claim=_featured_best_claim(played, quality_claim, analysis, board),
             )
         if quality.label == "best":
             return MainPoint(
@@ -352,20 +352,34 @@ def _non_bad_quality_claim(
 
 
 def _primary_played_purpose_claim(board: chess.Board, played: PlayedMoveFacts) -> str | None:
+    claim = _primary_played_purpose_claim_with_kind(board, played)
+    return claim[1] if claim is not None else None
+
+
+def _primary_played_purpose_kind(board: chess.Board, played: PlayedMoveFacts) -> str | None:
+    claim = _primary_played_purpose_claim_with_kind(board, played)
+    return claim[0] if claim is not None else None
+
+
+def _primary_played_purpose_claim_with_kind(
+    board: chess.Board,
+    played: PlayedMoveFacts,
+) -> tuple[str, str] | None:
     move = chess.Move.from_uci(played.uci)
     if move not in board.legal_moves:
         return None
     if board.is_castling(move):
-        return f"{played.san} castled"
+        return ("castling", f"{played.san} castled")
     if board.is_en_passant(move):
-        return f"{played.san} was an en passant capture"
+        return ("en_passant", f"{played.san} was an en passant capture")
     if played.promotion is not None:
-        return f"{played.san} promoted to {played.promotion}"
+        return ("promotion", f"{played.san} promoted to {played.promotion}")
 
     claims = build_move_concept_claims(board, played.uci, played.san, "played_move")
     priority = (
         "forced_mate",
         "forcing_move",
+        "recapture",
         "material",
         "center",
         "development",
@@ -376,9 +390,9 @@ def _primary_played_purpose_claim(board: chess.Board, played: PlayedMoveFacts) -
     by_kind = {claim.kind: claim.claim for claim in claims}
     for kind in priority:
         if kind in by_kind:
-            return by_kind[kind]
+            return (kind, by_kind[kind])
     if played.is_capture:
-        return f"{played.san} captured"
+        return ("capture", f"{played.san} captured")
     return None
 
 
@@ -402,12 +416,18 @@ def _key_move_reason(candidate: CandidateMove) -> str:
     return "it is a better practical move"
 
 
-def _featured_best_concept(played: PlayedMoveFacts, analysis: EngineAnalysis) -> str:
+def _featured_best_concept(
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    analysis: EngineAnalysis,
+) -> str:
     if (
         analysis.played_line.score.kind == "mate"
         and analysis.played_line.score.mate_for == "player"
     ):
         return "forced mate"
+    if _primary_played_purpose_kind(board, played) == "recapture":
+        return "recapture"
     if played.is_check:
         return "forcing move"
     if played.is_capture:
@@ -416,13 +436,18 @@ def _featured_best_concept(played: PlayedMoveFacts, analysis: EngineAnalysis) ->
 
 
 def _featured_best_claim(
-    played: PlayedMoveFacts, quality_claim: str, analysis: EngineAnalysis
+    played: PlayedMoveFacts,
+    quality_claim: str,
+    analysis: EngineAnalysis,
+    board: chess.Board | None = None,
 ) -> str:
     if (
         analysis.played_line.score.kind == "mate"
         and analysis.played_line.score.mate_for == "player"
     ):
         return f"{played.san} delivered forced mate."
+    if board is not None and (purpose_claim := _primary_played_purpose_claim(board, played)):
+        return f"{purpose_claim} in a critical position."
     if played.is_check:
         return f"{played.san} gave check in a critical position."
     if played.is_capture:

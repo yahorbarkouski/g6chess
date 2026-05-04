@@ -73,6 +73,7 @@ ConceptClaimKind: TypeAlias = Literal[
     "forcing_move",
     "critical_best_move",
     "capture",
+    "recapture",
     "castling",
     "en_passant",
     "promotion",
@@ -296,6 +297,8 @@ class PositionContext(ContextContract):
     phase: str
     legal_moves_uci: list[str] = Field(default_factory=list[str])
     previous_move_uci: str | None = None
+    previous_move_san: str | None = None
+    previous_move_was_capture: bool | None = None
 
 
 class ReconstructedMoveContext(ContextContract):

@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v10`. Version 2 made
+Current prompt version: `single_move_coach.v11`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -93,7 +93,9 @@ It supplies compact line evidence to the model, asks for causal explanation
 rather than "allowed MOVE" shorthand, and keeps plain-string compatibility by
 joining segments after verification. Version 10 adds `line_card_anchor` so the
 model keeps sentence-sized prose while marking the exact short phrase a rich UI
-should highlight for each hover line card.
+should highlight for each hover line card. Version 11 adds explicit
+recapture/material-recovery wording guidance so the model does not turn a
+recapture that restores balance into a material-winning claim.
 
 ## Contracts
 
@@ -184,6 +186,11 @@ Minimum checks:
   words such as "piece" in development claims do not authorize material claims
 - specific material prose, such as queen, rook, bishop, knight, pawn, or
   exchange, must match the trusted material claim text
+- material-gain prose, such as winning, gaining, or picking up a pawn or piece,
+  requires a trusted material-gain claim; recapture or material-recovery claims
+  do not authorize gain wording
+- recapture prose requires a trusted typed `recapture` concept claim from recent
+  move history
 - tactic prose requires a trusted typed `tactic` concept claim that names the
   same tactic
 - concept language must be supported by typed `concept_claims`; free-form
@@ -279,9 +286,9 @@ Current no-mock real eval:
 This eval uses real Stockfish, real Maia, and real OpenRouter output with
 fallback disabled. It covers Opera Game, Game of the Century,
 Kasparov-Topalov, Capablanca-Tartakower, synthetic forced-move, synthetic
-ordinary-blunder, high-WDL non-best, castling, en passant, promotion, low-time,
-rating-ladder, Black-perspective, missed-win edge cases, and Lichess CC0
-puzzle-source and puzzle-solution positions.
+ordinary-blunder, high-WDL non-best, castling, en passant, promotion,
+recapture-recovery, low-time, rating-ladder, Black-perspective, missed-win edge
+cases, and Lichess CC0 puzzle-source and puzzle-solution positions.
 
 Persist JSONL records and a Markdown report when running the real eval for
 review:

@@ -62,3 +62,22 @@ def test_reconstructs_pgn_move_by_ply() -> None:
     assert move.uci() == "e7e5"
     assert context.played.san == "e5"
     assert context.position.side_to_move == "black"
+    assert context.position.previous_move_uci == "e2e4"
+    assert context.position.previous_move_san == "e4"
+    assert context.position.previous_move_was_capture is False
+
+
+def test_reconstructs_previous_capture_facts_from_pgn_stack() -> None:
+    request = MoveContextRequest(
+        pgn="1. e4 c6 2. Nf3 d5 3. exd5 cxd5",
+        ply=6,
+        played_move="c6d5",
+        player_color="black",
+        player_level=PlayerLevel.rating(1200),
+    )
+
+    _, _, context = reconstruct_move_context(request)
+
+    assert context.position.previous_move_uci == "e4d5"
+    assert context.position.previous_move_san == "exd5"
+    assert context.position.previous_move_was_capture is True

@@ -24,6 +24,7 @@ from g6explanation.context_engine.contracts import (
     PracticalityCategory,
     TimeSituation,
 )
+from g6explanation.context_engine.move_history import PreviousMoveDetails, previous_move_details
 from g6explanation.context_engine.signals.score_comparison import line_score_loss
 
 
@@ -38,7 +39,7 @@ def build_candidates(
     best = analysis.top_lines[0]
     best_move_uci = best.move_uci
     only_legal_move_uci = _only_legal_move_uci(board)
-    previous_move_uci = _previous_move_uci(board)
+    previous_move = previous_move_details(board)
     candidates: dict[str, CandidateMove] = {}
 
     for line in analysis.top_lines:
@@ -56,7 +57,7 @@ def build_candidates(
             human_likelihood=human_likelihoods.get(line.move_uci),
             board=board,
             time_situation=time_situation,
-            previous_move_uci=previous_move_uci,
+            previous_move=previous_move,
         )
 
     for line in supplemental_lines or []:
@@ -74,7 +75,7 @@ def build_candidates(
             human_likelihood=human_likelihoods.get(line.move_uci),
             board=board,
             time_situation=time_situation,
-            previous_move_uci=previous_move_uci,
+            previous_move=previous_move,
         )
 
     if analysis.played_line.move_uci in candidates:
@@ -95,7 +96,7 @@ def build_candidates(
             human_likelihood=human_likelihoods.get(analysis.played_line.move_uci),
             board=board,
             time_situation=time_situation,
-            previous_move_uci=previous_move_uci,
+            previous_move=previous_move,
         )
 
     return sorted(candidates.values(), key=candidate_sort_key)
@@ -108,13 +109,18 @@ def _candidate_from_line(
     human_likelihood: HumanMoveLikelihood | None,
     board: chess.Board,
     time_situation: TimeSituation,
-    previous_move_uci: str | None,
+    previous_move: PreviousMoveDetails | None,
 ) -> CandidateMove:
     score_loss = line_score_loss(best.score, line)
     probability = human_likelihood.player_level_probability if human_likelihood else None
     plus_400_probability = human_likelihood.plus_400_probability if human_likelihood else None
     move = chess.Move.from_uci(line.move_uci)
-    tier = forcing_tier(board, move, previous_move_uci)
+    tier = forcing_tier(
+        board,
+        move,
+        previous_move.uci if previous_move is not None else None,
+        previous_move_was_capture=previous_move.was_capture if previous_move is not None else None,
+    )
     findability, source, confidence, skill_gap = assess_findability(
         probability=probability,
         plus_400_probability=plus_400_probability,
@@ -122,7 +128,8 @@ def _candidate_from_line(
         board=board,
         move=move,
         situation=time_situation,
-        previous_move_uci=previous_move_uci,
+        previous_move_uci=previous_move.uci if previous_move is not None else None,
+        previous_move_was_capture=previous_move.was_capture if previous_move is not None else None,
     )
     candidate_practicality = _candidate_practicality(
         roles=roles,
@@ -199,9 +206,3 @@ def _only_legal_move_uci(board: chess.Board) -> str | None:
     if len(legal_moves) != 1:
         return None
     return legal_moves[0].uci()
-
-
-def _previous_move_uci(board: chess.Board) -> str | None:
-    if not board.move_stack:
-        return None
-    return board.peek().uci()

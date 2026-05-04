@@ -98,11 +98,32 @@ def test_check_improves_findability_one_bucket() -> None:
     assert label == "findable"
 
 
-def test_recapture_improves_findability_when_previous_move_is_supplied() -> None:
+def test_capture_after_non_capture_previous_move_is_not_recapture() -> None:
     board = chess.Board()
     board.push_san("e4")
     board.push_san("d5")
     move = chess.Move.from_uci("e4d5")
+    previous_move_uci = board.peek().uci()
+
+    label, _, _, _ = assess_findability(
+        probability=0.04,
+        plus_400_probability=None,
+        evidence_source=None,
+        board=board,
+        move=move,
+        situation="unknown",
+        previous_move_uci=previous_move_uci,
+    )
+
+    assert forcing_tier(board, move, previous_move_uci) == "ordinary_capture"
+    assert label == "hard"
+
+
+def test_recapture_improves_findability_when_previous_move_was_capture() -> None:
+    board = chess.Board()
+    for san in ["e4", "c6", "Nf3", "d5", "exd5"]:
+        board.push_san(san)
+    move = chess.Move.from_uci("c6d5")
     previous_move_uci = board.peek().uci()
 
     label, _, _, _ = assess_findability(

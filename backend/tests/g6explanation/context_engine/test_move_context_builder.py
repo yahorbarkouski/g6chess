@@ -265,6 +265,44 @@ def test_deterministic_concept_claims_for_concrete_chess_features(
     assert expected_kind in _concept_kinds(result)
 
 
+def test_recapture_restores_material_balance_instead_of_winning_pawn() -> None:
+    pgn = "1. e4 c6 2. Nf3 d5 3. exd5 cxd5"
+    board = chess.Board()
+    for san in ["e4", "c6", "Nf3", "d5", "exd5"]:
+        board.push_san(san)
+    engine_analysis = analysis(
+        board,
+        played_uci="c6d5",
+        top_scores=[("c6d5", 100)],
+        played_score=100,
+    )
+    request = MoveContextRequest(
+        pgn=pgn,
+        ply=6,
+        player_color="black",
+        player_level=PlayerLevel.rating(1200),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.position.previous_move_uci == "e4d5"
+    assert result.evidence.position.previous_move_san == "exd5"
+    assert result.evidence.position.previous_move_was_capture is True
+    assert "recapture" in _concept_kinds(result)
+    assert "cxd5 recaptured the pawn on d5" in {
+        claim.claim for claim in result.evidence.concept_claims
+    }
+    assert "cxd5 restored the material balance by recapturing the pawn on d5" in {
+        claim.claim for claim in result.evidence.concept_claims
+    }
+    assert "cxd5 won a pawn immediately" not in result.evidence.allowed_claims
+    assert "cxd5 won a pawn immediately" not in {
+        claim.claim for claim in result.evidence.concept_claims
+    }
+    assert result.llm_context.main_point == "cxd5 recaptured the pawn on d5"
+    assert result.llm_context.allowed_claims[0] == "cxd5 recaptured the pawn on d5"
+
+
 def test_mate_transition_adds_king_safety_concept_claim() -> None:
     board = chess.Board("rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2")
     after_board = board.copy(stack=False)

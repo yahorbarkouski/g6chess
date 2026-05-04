@@ -15,6 +15,7 @@ from g6explanation.context_engine.contracts import (
     ReconstructedMoveContext,
 )
 from g6explanation.context_engine.exceptions import AmbiguousRequestError, InvalidRequestError
+from g6explanation.context_engine.move_history import previous_move_details
 
 
 def color_name(color: chess.Color) -> ColorName:
@@ -63,6 +64,7 @@ def reconstruct_move_context(
         is_capture=is_capture,
         promotion=chess.piece_symbol(move.promotion).upper() if move.promotion else None,
     )
+    previous = previous_move_details(board)
     position = PositionContext(
         fen_before=board.fen(),
         fen_after=board_after.fen(),
@@ -71,7 +73,9 @@ def reconstruct_move_context(
         ply=board.ply(),
         phase=_phase(board),
         legal_moves_uci=[legal.uci() for legal in board.legal_moves],
-        previous_move_uci=board.peek().uci() if board.move_stack else None,
+        previous_move_uci=previous.uci if previous is not None else None,
+        previous_move_san=previous.san if previous is not None else None,
+        previous_move_was_capture=previous.was_capture if previous is not None else None,
     )
     return board, move, ReconstructedMoveContext(position=position, played=played)
 

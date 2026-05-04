@@ -154,6 +154,11 @@ def build_coach_prompt(
                 "concept_claims, allowed_claims, candidates, or line_evidence."
             ),
             (
+                "If concept_claims says a move recaptured or restored the material "
+                "balance, describe it as a recapture or recovery; do not call it "
+                "winning, gaining, or picking up material."
+            ),
+            (
                 "Do not use named tactic labels such as fork, pin, skewer, "
                 "deflection, decoy, overload, discovered attack, zwischenzug, "
                 "intermezzo, or back rank unless concept_claims includes kind "
@@ -260,7 +265,9 @@ def _retry_repair_instructions(
         )
     if "unsupported_material_claim" in codes:
         instructions.append(
-            "Use material wording only when a supplied material concept_claim names the material."
+            "Use material gain or loss wording only when a supplied material concept_claim "
+            "supports that direction and names the material; recapture or recovery claims "
+            "must stay recapture/recovery wording."
         )
     if "mentioned_move_unsupported" in codes or "unsupported_pv" in codes:
         instructions.append(

@@ -128,7 +128,8 @@ player had no choice.
 The compact context should include:
 
 - played move and quality
-- position facts, including previous move UCI when known
+- position facts, including previous move UCI, SAN, and whether it was a capture
+  when known
 - player level and time situation
 - severity from the player's point of view
 - significance and beauty signals
@@ -175,14 +176,17 @@ concepts by themselves. For example, a model may discuss king safety only after 
 deterministic detector adds a `king_safety` concept claim; adding a sentence to
 `allowed_claims` is not sufficient.
 
-Special move facts are concept claims too. Castling, en passant, and promotion
-language is allowed only when the legal played move itself provides the typed
-claim.
+Special move facts are concept claims too. Castling, en passant, promotion, and
+recapture language is allowed only when legal move facts and recent move history
+provide the typed claim.
 
 Current deterministic concept evidence is intentionally conservative:
 
-- immediate material gain or loss from the legal move, including the captured or
+- net material gain or loss from the legal move, including the captured or
   promoted material when it is known
+- recaptures that restore material balance after the opponent's previous capture;
+  these must be described as recaptures or recovery, not as winning a pawn or
+  piece
 - minor-piece development from the home rank
 - rook or queen use of a file with no pawns
 - passed-pawn advances

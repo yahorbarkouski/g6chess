@@ -520,7 +520,14 @@ def _verify_candidates(
             has_played = has_played or candidate.uci == evidence.played.uci
         if "engine_best" in candidate.roles:
             has_engine_best = has_engine_best or candidate.uci == engine_best_uci
-        _verify_candidate(candidate, board, evidence.position.previous_move_uci, issues, path)
+        _verify_candidate(
+            candidate,
+            board,
+            evidence.position.previous_move_uci,
+            evidence.position.previous_move_was_capture,
+            issues,
+            path,
+        )
 
     if evidence.candidates and not has_played:
         issues.fail(
@@ -540,6 +547,7 @@ def _verify_candidate(
     candidate: CandidateMove,
     board: chess.Board,
     previous_move_uci: str | None,
+    previous_move_was_capture: bool | None,
     issues: _IssueCollector,
     path: str,
 ) -> None:
@@ -568,7 +576,12 @@ def _verify_candidate(
             f"{path}.san",
             f"Candidate SAN {candidate.san!r} does not match {expected_san!r}.",
         )
-    expected_forcing_tier = forcing_tier(board, move, previous_move_uci)
+    expected_forcing_tier = forcing_tier(
+        board,
+        move,
+        previous_move_uci,
+        previous_move_was_capture=previous_move_was_capture,
+    )
     if candidate.forcing_tier != expected_forcing_tier:
         issues.fail(
             "candidate_forcing_tier_mismatch",

@@ -101,6 +101,8 @@ The static prompt should say:
 - Do not mention moves, lines, tactics, positional concepts, material wins, or
   mate claims that are not present in typed `concept_claims`, allowed claim text,
   supplied candidates, or supplied line evidence.
+- When a typed claim says a move recaptured or restored material balance, do not
+  describe it as winning, gaining, or picking up material.
 - Do not use named tactic labels such as fork, pin, skewer, back rank, or
   discovered attack unless a typed `tactic` concept claim names that same idea.
 - On retries, repair the exact verifier issue instead of paraphrasing broadly;
@@ -144,6 +146,7 @@ The model may not:
 - override Stockfish, tablebase, legal-move, or verifier evidence
 - turn Maia probability into quality
 - claim material gain, mate, or tactics without allowed evidence
+- turn a recapture or material recovery claim into a material-winning claim
 - claim positional concepts without typed concept-claim evidence
 - silently change the best move or recommendation policy
 - use vague claims such as "wins material" without deterministic support

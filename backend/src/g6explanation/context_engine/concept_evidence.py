@@ -5,6 +5,12 @@ from __future__ import annotations
 import chess
 
 from g6explanation.context_engine.contracts import ConceptClaim, ConceptClaimSubject
+from g6explanation.context_engine.move_history import (
+    previous_board as board_before_previous_move,
+)
+from g6explanation.context_engine.move_history import (
+    previous_move_details,
+)
 
 PIECE_VALUES = {
     chess.PAWN: 100,
@@ -38,6 +44,7 @@ def build_move_concept_claims(
     after_board = board.copy(stack=False)
     after_board.push(move)
     claims: list[ConceptClaim] = []
+    claims.extend(_recapture_claims(board, move, move_san, subject))
     claims.extend(_material_claims(board, after_board, move, piece.color, move_san, subject))
     if board.gives_check(move):
         claims.append(
@@ -115,7 +122,11 @@ def _material_claims(
         return []
     material_detail = _material_detail(board, move, delta)
     if delta > 0:
-        claim = f"{move_san} won {material_detail} immediately"
+        claim = _positive_material_claim(
+            board, after_board, move, player, move_san, material_detail
+        )
+        if claim is None:
+            return []
     else:
         claim = f"{move_san} gave up {material_detail} immediately"
     return [
@@ -127,6 +138,78 @@ def _material_claims(
             move_san=move_san,
         )
     ]
+
+
+def _positive_material_claim(
+    board: chess.Board,
+    after_board: chess.Board,
+    move: chess.Move,
+    player: chess.Color,
+    move_san: str,
+    material_detail: str,
+) -> str | None:
+    previous = previous_move_details(board)
+    before_previous = board_before_previous_move(board)
+    if previous is None or before_previous is None or not previous.was_capture:
+        return f"{move_san} won {material_detail} immediately"
+
+    sequence_delta = _material_balance(after_board, player) - _material_balance(
+        before_previous,
+        player,
+    )
+    if _is_same_square_recapture(board, move):
+        if sequence_delta == 0:
+            return (
+                f"{move_san} restored the material balance by recapturing "
+                f"{_recapture_material_detail(board, move)}"
+            )
+        if sequence_delta > 0:
+            return f"{move_san} won {_material_value_name(sequence_delta)} in the exchange"
+        return None
+
+    if sequence_delta <= 0:
+        return None
+    return f"{move_san} won {_material_value_name(sequence_delta)} in the sequence"
+
+
+def _recapture_claims(
+    board: chess.Board,
+    move: chess.Move,
+    move_san: str,
+    subject: ConceptClaimSubject,
+) -> list[ConceptClaim]:
+    if not _is_same_square_recapture(board, move):
+        return []
+    return [
+        ConceptClaim(
+            kind="recapture",
+            subject=subject,
+            claim=f"{move_san} recaptured {_recapture_material_detail(board, move)}",
+            source="deterministic_detector",
+            move_san=move_san,
+        )
+    ]
+
+
+def _is_same_square_recapture(board: chess.Board, move: chess.Move) -> bool:
+    if not board.is_capture(move):
+        return False
+    previous = previous_move_details(board)
+    if previous is None or not previous.was_capture:
+        return False
+    try:
+        previous_move = chess.Move.from_uci(previous.uci)
+    except ValueError:
+        return False
+    return move.to_square == previous_move.to_square
+
+
+def _recapture_material_detail(board: chess.Board, move: chess.Move) -> str:
+    captured_piece = _captured_piece(board, move)
+    square_name = chess.square_name(move.to_square)
+    if captured_piece is None:
+        return f"on {square_name}"
+    return f"the {_piece_name(captured_piece.piece_type)} on {square_name}"
 
 
 def _material_detail(board: chess.Board, move: chess.Move, delta: int) -> str:

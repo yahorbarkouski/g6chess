@@ -10,6 +10,7 @@ from g6explanation.context_engine.contracts import (
     CandidateMove,
     ConceptClaim,
     ConceptClaimKind,
+    ContextResult,
     MoveContextRequest,
     PlayerLevel,
     Score,
@@ -383,6 +384,24 @@ def test_verifier_accepts_supported_material_claim() -> None:
     assert verification.passed
 
 
+@pytest.mark.parametrize(
+    "explanation",
+    [
+        "e4 won a pawn immediately.",
+        "e4 is winning a pawn immediately.",
+        "e4 gains a pawn immediately.",
+        "e4 picked up a pawn immediately.",
+    ],
+)
+def test_verifier_rejects_unsupported_material_gain_variants(explanation: str) -> None:
+    context = best_context()
+
+    verification = ExplanationVerifier().verify(context, rich_output(explanation))
+
+    assert not verification.passed
+    assert "unsupported_material_claim" in _failure_codes(verification)
+
+
 def test_verifier_rejects_specific_material_claim_not_in_material_evidence() -> None:
     context = mistake_context_with_practical_alternative()
     claim = ConceptClaim(
@@ -440,6 +459,90 @@ def test_verifier_accepts_specific_material_claim_when_evidence_matches() -> Non
     verification = ExplanationVerifier().verify(context, output)
 
     assert verification.passed
+
+
+@pytest.mark.parametrize(
+    "explanation",
+    [
+        "g4 was a mistake even though it was winning a pawn. "
+        "Nf3 was a practical alternative that stayed close to best play.",
+        "g4 was a mistake even though it gains a pawn. "
+        "Nf3 was a practical alternative that stayed close to best play.",
+        "g4 was a mistake even though it picked up a pawn. "
+        "Nf3 was a practical alternative that stayed close to best play.",
+    ],
+)
+def test_verifier_accepts_supported_material_gain_variants(explanation: str) -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="material",
+        subject="played_move",
+        claim="g4 won a pawn immediately",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+
+    verification = ExplanationVerifier().verify(context, rich_output(explanation))
+
+    assert verification.passed
+
+
+def test_verifier_checks_piece_type_inside_material_gain_phrase_only() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="material",
+        subject="played_move",
+        claim="g4 won a pawn immediately",
+        source="deterministic_detector",
+        move_san="g4",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = rich_output(
+        "g4 was a mistake even though it won a pawn while the rook stayed active. "
+        "Nf3 was a practical alternative that stayed close to best play."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_recapture_wording_when_recapture_is_supported() -> None:
+    context = _recapture_context()
+    output = rich_output("cxd5 recaptured the pawn on d5 and claimed the center.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_material_gain_when_support_is_only_recapture_recovery() -> None:
+    context = _recapture_context()
+    output = rich_output("cxd5 is winning a pawn immediately and claiming the center.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_material_claim" in _failure_codes(verification)
 
 
 def test_verifier_rejects_unsupported_tactic_claim() -> None:
@@ -891,3 +994,24 @@ def _failure_codes(verification: ExplanationVerificationResult) -> set[str]:
 
 def _candidate(candidates: list[CandidateMove], uci: str) -> CandidateMove:
     return next(candidate for candidate in candidates if candidate.uci == uci)
+
+
+def _recapture_context() -> ContextResult:
+    pgn = "1. e4 c6 2. Nf3 d5 3. exd5 cxd5"
+    board = chess.Board()
+    for san in ["e4", "c6", "Nf3", "d5", "exd5"]:
+        board.push_san(san)
+    engine_analysis = analysis(
+        board,
+        played_uci="c6d5",
+        top_scores=[("c6d5", 100)],
+        played_score=100,
+    )
+    return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(
+        MoveContextRequest(
+            pgn=pgn,
+            ply=6,
+            player_color="black",
+            player_level=PlayerLevel.rating(1200),
+        )
+    )

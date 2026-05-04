@@ -45,10 +45,14 @@ INTERNAL_LANGUAGE_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
-MATERIAL_RE = re.compile(
-    r"\b(?:wins?|loses?|lost|drops?|dropped|hangs?|hung)\s+material\b|"
-    r"\b(?:wins?|loses?|lost|drops?|dropped|hangs?|hung)\s+"
-    r"(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange)\b",
+MATERIAL_GAIN_RE = re.compile(
+    r"\b(?:wins?|won|winning|gains?|gained|gaining|picks?\s+up|picked\s+up|picking\s+up)\s+"
+    r"(?:material|(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange))\b",
+    re.IGNORECASE,
+)
+MATERIAL_LOSS_RE = re.compile(
+    r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\s+"
+    r"(?:material|(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange))\b",
     re.IGNORECASE,
 )
 MATE_RE = re.compile(r"\b(?:checkmate|checkmates|checkmated|mate|mates|mating)\b|#")
@@ -85,6 +89,14 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "forced_mate": ("forced mate", "checkmate", "mate"),
     "critical_best_move": ("critical move", "critical best move"),
     "capture": ("captured", "capture"),
+    "recapture": (
+        "recaptured",
+        "recapture",
+        "recapturing",
+        "takes back",
+        "took back",
+        "taking back",
+    ),
     "castling": ("castled", "castling", "castle"),
     "en_passant": ("en passant",),
     "promotion": ("promotion", "promoted", "promotes"),
@@ -428,9 +440,9 @@ def _verify_supported_claim_terms(
             "$.explanation",
             f"Explanation says {unsupported_mating_move} checkmates without supplied evidence.",
         )
-    if MATERIAL_RE.search(explanation):
+    if MATERIAL_GAIN_RE.search(explanation) or MATERIAL_LOSS_RE.search(explanation):
         material_support = _trusted_claim_text(context_result, {"material"})
-        unsupported_material_term = _unsupported_material_term(text, material_support)
+        unsupported_material_term = _unsupported_material_claim(text, material_support)
         if unsupported_material_term is not None:
             issues.fail(
                 "unsupported_material_claim",
@@ -816,9 +828,23 @@ def _has_direct_mate_language(text: str, token: str, aliases: set[str]) -> bool:
     return False
 
 
-def _unsupported_material_term(text: str, material_support: str) -> str | None:
+def _unsupported_material_claim(text: str, material_support: str) -> str | None:
     if not material_support:
         return "material"
+    for match in MATERIAL_GAIN_RE.finditer(text):
+        if not _has_material_gain_support(material_support):
+            return "material gain"
+        if unsupported_term := _unsupported_material_term(match.group(0), material_support):
+            return unsupported_term
+    for match in MATERIAL_LOSS_RE.finditer(text):
+        if not _has_material_loss_support(material_support):
+            return "material loss"
+        if unsupported_term := _unsupported_material_term(match.group(0), material_support):
+            return unsupported_term
+    return None
+
+
+def _unsupported_material_term(text: str, material_support: str) -> str | None:
     for term, aliases in MATERIAL_TERM_ALIASES.items():
         if not any(_contains_phrase(text, alias) for alias in aliases):
             continue
@@ -826,6 +852,27 @@ def _unsupported_material_term(text: str, material_support: str) -> str | None:
             continue
         return term
     return None
+
+
+def _has_material_gain_support(material_support: str) -> bool:
+    return (
+        re.search(
+            r"\b(?:wins?|won|winning|gains?|gained|gaining|"
+            r"picks?\s+up|picked\s+up|picking\s+up)\b",
+            material_support,
+        )
+        is not None
+    )
+
+
+def _has_material_loss_support(material_support: str) -> bool:
+    return (
+        re.search(
+            r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\b",
+            material_support,
+        )
+        is not None
+    )
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:

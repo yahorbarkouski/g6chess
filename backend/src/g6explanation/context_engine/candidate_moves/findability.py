@@ -10,6 +10,7 @@ from g6explanation.context_engine.contracts import (
     MoveContextRequest,
     TimeSituation,
 )
+from g6explanation.context_engine.move_history import previous_move_details
 
 FINDABILITY_STEPS: tuple[FindabilityLabel, ...] = (
     "obvious",
@@ -49,12 +50,21 @@ def assess_findability(
     move: chess.Move,
     situation: TimeSituation,
     previous_move_uci: str | None = None,
+    previous_move_was_capture: bool | None = None,
 ) -> tuple[FindabilityLabel, str, str, bool]:
     if probability is None:
         return "unknown", evidence_source or "unknown", "none", False
 
     label = _base_findability(probability)
-    if forcing_tier(board, move, previous_move_uci) in FINDABILITY_BOOSTING_TIERS:
+    if (
+        forcing_tier(
+            board,
+            move,
+            previous_move_uci,
+            previous_move_was_capture=previous_move_was_capture,
+        )
+        in FINDABILITY_BOOSTING_TIERS
+    ):
         label = _improve_findability(label)
     if situation in {"low_time", "time_scramble"}:
         label = _worsen_findability(label)
@@ -82,7 +92,11 @@ FINDABILITY_BOOSTING_TIERS: frozenset[ForcingTier] = frozenset(
 
 
 def forcing_tier(
-    board: chess.Board, move: chess.Move, previous_move_uci: str | None = None
+    board: chess.Board,
+    move: chess.Move,
+    previous_move_uci: str | None = None,
+    *,
+    previous_move_was_capture: bool | None = None,
 ) -> ForcingTier:
     if move not in board.legal_moves:
         return "quiet"
@@ -98,7 +112,7 @@ def forcing_tier(
     if move.promotion is not None:
         return "promotion"
     if board.is_capture(move):
-        if _is_recapture(move, previous_move_uci):
+        if _is_recapture(board, move, previous_move_uci, previous_move_was_capture):
             return "recapture"
         return "ordinary_capture"
     return "quiet"
@@ -109,14 +123,23 @@ def _has_only_one_reply(board_after_move: chess.Board) -> bool:
     return legal_moves.count() == 1
 
 
-def _is_recapture(move: chess.Move, previous_move_uci: str | None) -> bool:
+def _is_recapture(
+    board: chess.Board,
+    move: chess.Move,
+    previous_move_uci: str | None,
+    previous_move_was_capture: bool | None,
+) -> bool:
+    previous = previous_move_details(board)
+    if previous is not None and (previous_move_uci is None or previous.uci == previous_move_uci):
+        previous_move_uci = previous.uci
+        previous_move_was_capture = previous.was_capture
     if previous_move_uci is None:
         return False
     try:
         previous_move = chess.Move.from_uci(previous_move_uci)
     except ValueError:
         return False
-    return move.to_square == previous_move.to_square
+    return bool(previous_move_was_capture) and move.to_square == previous_move.to_square
 
 
 def _teachable_skill_gap(probability: float, plus_400_probability: float | None) -> bool:

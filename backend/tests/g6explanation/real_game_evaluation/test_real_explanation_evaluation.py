@@ -100,6 +100,7 @@ def test_real_game_explanations_pass_with_stockfish_maia_and_openrouter(
             "castling",
             "en-passant",
             "promotion",
+            "recapture",
             "missed-win",
             "low-time",
             "black-perspective",
