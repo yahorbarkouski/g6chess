@@ -119,6 +119,12 @@ def build_coach_prompt(
                 "practical, or hidden move unless the main_point itself needs a direct contrast."
             ),
             (
+                "For unplayed alternatives, use counterfactual review wording such as "
+                "'MOVE would have been better', 'the better idea was MOVE', or "
+                "'MOVE would trade ...'. Do not phrase an unplayed alternative as if "
+                "the player actually made it."
+            ),
+            (
                 "When a bad move allows a key reply, explain why that reply is good for "
                 "the opponent and bad for the player. Do not stop at 'it allowed MOVE'."
             ),
@@ -157,6 +163,11 @@ def build_coach_prompt(
                 "If concept_claims says a move recaptured or restored the material "
                 "balance, describe it as a recapture or recovery; do not call it "
                 "winning, gaining, or picking up material."
+            ),
+            (
+                "If concept_claims says a move traded or exchanged material, describe "
+                "that as a trade or exchange; do not call it winning, gaining, or "
+                "picking up material."
             ),
             (
                 "Do not use named tactic labels such as fork, pin, skewer, "
@@ -266,8 +277,8 @@ def _retry_repair_instructions(
     if "unsupported_material_claim" in codes:
         instructions.append(
             "Use material gain or loss wording only when a supplied material concept_claim "
-            "supports that direction and names the material; recapture or recovery claims "
-            "must stay recapture/recovery wording."
+            "supports that direction and names the material; recapture, recovery, trade, "
+            "or exchange claims must keep that exact material relationship."
         )
     if "mentioned_move_unsupported" in codes or "unsupported_pv" in codes:
         instructions.append(

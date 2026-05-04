@@ -303,6 +303,62 @@ def test_recapture_restores_material_balance_instead_of_winning_pawn() -> None:
     assert result.llm_context.allowed_claims[0] == "cxd5 recaptured the pawn on d5"
 
 
+def test_candidate_capture_recaptured_in_pv_is_trade_not_material_win() -> None:
+    board = chess.Board("r2qkb1r/pp2pppp/2n2n2/1B1p4/3P2b1/5N1P/PPP2PP1/RNBQ1RK1 b kq - 0 7")
+    played_move = chess.Move.from_uci("g4h5")
+    after_board = board.copy(stack=False)
+    after_board.push(played_move)
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=2),
+        top_lines=[
+            engine_line(
+                board,
+                "g4f3",
+                300,
+                rank=1,
+                pv_uci=["g4f3", "d1f3"],
+            ),
+            engine_line(
+                board,
+                "g4h5",
+                -300,
+                rank=2,
+                pv_uci=["g4h5", "g2g4"],
+            ),
+        ],
+        played_line=engine_line(
+            board,
+            "g4h5",
+            -300,
+            rank=None,
+            pv_uci=["g4h5", "g2g4"],
+        ),
+        after_line=engine_line(after_board, "g2g4", -320, rank=1),
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="g4h5",
+        player_color="black",
+        player_level=PlayerLevel.rating(1200),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    bxf3_material_claims = [
+        claim.claim
+        for claim in result.evidence.concept_claims
+        if claim.kind == "material" and claim.move_san == "Bxf3"
+    ]
+    assert bxf3_material_claims
+    assert all(claim == "Bxf3 traded a bishop for a knight" for claim in bxf3_material_claims)
+    assert all("won a knight" not in claim for claim in bxf3_material_claims)
+    assert "Bxf3 would have been the better move" in {
+        claim.claim for claim in result.evidence.concept_claims
+    }
+    assert "Bxf3 would have been the key alternative" in result.llm_context.allowed_claims
+
+
 def test_mate_transition_adds_king_safety_concept_claim() -> None:
     board = chess.Board("rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2")
     after_board = board.copy(stack=False)

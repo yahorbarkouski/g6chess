@@ -45,14 +45,28 @@ INTERNAL_LANGUAGE_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+MATERIAL_OBJECT_PATTERN = (
+    r"(?:material|(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange))"
+)
+MATERIAL_BARE_OBJECT_PATTERN = r"(?:material|pawn|piece|queen|rook|bishop|knight|exchange)"
 MATERIAL_GAIN_RE = re.compile(
     r"\b(?:wins?|won|winning|gains?|gained|gaining|picks?\s+up|picked\s+up|picking\s+up)\s+"
-    r"(?:material|(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange))\b",
+    rf"{MATERIAL_OBJECT_PATTERN}\b",
     re.IGNORECASE,
 )
 MATERIAL_LOSS_RE = re.compile(
     r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\s+"
-    r"(?:material|(?:a\s+|the\s+)?(?:pawn|piece|queen|rook|bishop|knight|exchange))\b",
+    rf"{MATERIAL_OBJECT_PATTERN}\b",
+    re.IGNORECASE,
+)
+MATERIAL_TRADE_RE = re.compile(
+    (
+        r"\b(?:trades?|traded|trading|exchanges?|exchanged|exchanging|swaps?|swapped|swapping)\s+"
+        rf"{MATERIAL_OBJECT_PATTERN}(?:\s+for\s+{MATERIAL_OBJECT_PATTERN})?\b"
+        rf"|\b(?:a\s+|the\s+)?{MATERIAL_BARE_OBJECT_PATTERN}(?:-for-|-|\s+for\s+)"
+        rf"{MATERIAL_BARE_OBJECT_PATTERN}\s+trade\b"
+        rf"|\btrade\s+of\s+{MATERIAL_OBJECT_PATTERN}\s+for\s+{MATERIAL_OBJECT_PATTERN}\b"
+    ),
     re.IGNORECASE,
 )
 MATE_RE = re.compile(r"\b(?:checkmate|checkmates|checkmated|mate|mates|mating)\b|#")
@@ -101,7 +115,7 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "en_passant": ("en passant",),
     "promotion": ("promotion", "promoted", "promotes"),
     "practical_alternative": ("practical alternative", "practical try"),
-    "better_alternative": ("better move", "better alternative"),
+    "better_alternative": ("better move", "better alternative", "better idea"),
     "opponent_resource": (
         "opponent resource",
         "opponent's key reply",
@@ -440,7 +454,11 @@ def _verify_supported_claim_terms(
             "$.explanation",
             f"Explanation says {unsupported_mating_move} checkmates without supplied evidence.",
         )
-    if MATERIAL_GAIN_RE.search(explanation) or MATERIAL_LOSS_RE.search(explanation):
+    if (
+        MATERIAL_GAIN_RE.search(explanation)
+        or MATERIAL_LOSS_RE.search(explanation)
+        or MATERIAL_TRADE_RE.search(explanation)
+    ):
         material_support = _trusted_claim_text(context_result, {"material"})
         unsupported_material_term = _unsupported_material_claim(text, material_support)
         if unsupported_material_term is not None:
@@ -694,9 +712,11 @@ def _has_recommendation_language(text: str, aliases: set[str]) -> bool:
     for alias in aliases:
         escaped = re.escape(alias)
         direct_patterns = (
-            rf"\b{escaped}\s+was\s+(?:the\s+|a\s+)?(?:better|recommendation)\b",
+            rf"\b{escaped}\s+(?:was|would\s+have\s+been)\s+(?:the\s+|a\s+)?(?:better|recommendation)\b",
             rf"\b{escaped}\s+was\s+the\s+move\s+to\s+play\b",
-            rf"\bbetter\s+move\s+was\s+{escaped}\b",
+            rf"\bbetter\s+(?:move|idea)\s+was\s+{escaped}\b",
+            rf"\b{escaped}\s+would\s+have\s+been\s+the\s+move\s+to\s+play\b",
+            rf"\bbetter\s+move\s+would\s+have\s+been\s+{escaped}\b",
             rf"\brecommendation\s+was\s+{escaped}\b",
             rf"\bmove\s+to\s+play\s+was\s+{escaped}\b",
             rf"\b(?:should|needed\s+to|had\s+to)\s+(?:have\s+)?(?:play|played|try|tried)\s+{escaped}\b",
@@ -841,6 +861,11 @@ def _unsupported_material_claim(text: str, material_support: str) -> str | None:
             return "material loss"
         if unsupported_term := _unsupported_material_term(match.group(0), material_support):
             return unsupported_term
+    for match in MATERIAL_TRADE_RE.finditer(text):
+        if not _has_material_trade_support(material_support):
+            return "material trade"
+        if unsupported_term := _unsupported_material_term(match.group(0), material_support):
+            return unsupported_term
     return None
 
 
@@ -869,6 +894,16 @@ def _has_material_loss_support(material_support: str) -> bool:
     return (
         re.search(
             r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\b",
+            material_support,
+        )
+        is not None
+    )
+
+
+def _has_material_trade_support(material_support: str) -> bool:
+    return (
+        re.search(
+            r"\b(?:trades?|traded|trading|exchanges?|exchanged|exchanging|swaps?|swapped|swapping)\b",
             material_support,
         )
         is not None

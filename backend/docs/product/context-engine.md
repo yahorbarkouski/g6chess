@@ -187,6 +187,10 @@ Current deterministic concept evidence is intentionally conservative:
 - recaptures that restore material balance after the opponent's previous capture;
   these must be described as recaptures or recovery, not as winning a pawn or
   piece
+- immediate exchanges shown by the verified engine PV; if the move captures a
+  piece but the supplied PV immediately recaptures the moving piece and erases
+  the material gain, the model gets trade or exchange wording, not a material
+  win claim
 - minor-piece development from the home rank
 - rook or queen use of a file with no pawns
 - passed-pawn advances

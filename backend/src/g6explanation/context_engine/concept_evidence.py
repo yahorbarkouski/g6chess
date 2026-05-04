@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import chess
 
 from g6explanation.context_engine.contracts import ConceptClaim, ConceptClaimSubject
@@ -31,6 +33,7 @@ def build_move_concept_claims(
     move_uci: str,
     move_san: str,
     subject: ConceptClaimSubject,
+    line_pv_uci: Sequence[str] | None = None,
 ) -> list[ConceptClaim]:
     """Return conservative concept claims that follow directly from one legal move."""
 
@@ -45,7 +48,17 @@ def build_move_concept_claims(
     after_board.push(move)
     claims: list[ConceptClaim] = []
     claims.extend(_recapture_claims(board, move, move_san, subject))
-    claims.extend(_material_claims(board, after_board, move, piece.color, move_san, subject))
+    claims.extend(
+        _material_claims(
+            board,
+            after_board,
+            move,
+            piece.color,
+            move_san,
+            subject,
+            line_pv_uci,
+        )
+    )
     if board.gives_check(move):
         claims.append(
             ConceptClaim(
@@ -116,6 +129,7 @@ def _material_claims(
     player: chess.Color,
     move_san: str,
     subject: ConceptClaimSubject,
+    line_pv_uci: Sequence[str] | None,
 ) -> list[ConceptClaim]:
     delta = _material_balance(after_board, player) - _material_balance(board, player)
     if delta == 0:
@@ -123,7 +137,13 @@ def _material_claims(
     material_detail = _material_detail(board, move, delta)
     if delta > 0:
         claim = _positive_material_claim(
-            board, after_board, move, player, move_san, material_detail
+            board,
+            after_board,
+            move,
+            player,
+            move_san,
+            material_detail,
+            line_pv_uci,
         )
         if claim is None:
             return []
@@ -147,10 +167,21 @@ def _positive_material_claim(
     player: chess.Color,
     move_san: str,
     material_detail: str,
+    line_pv_uci: Sequence[str] | None,
 ) -> str | None:
+    exchange_claim = _immediate_reply_exchange_claim(
+        board,
+        after_board,
+        move,
+        player,
+        move_san,
+        line_pv_uci,
+    )
     previous = previous_move_details(board)
     before_previous = board_before_previous_move(board)
     if previous is None or before_previous is None or not previous.was_capture:
+        if exchange_claim is not None:
+            return exchange_claim
         return f"{move_san} won {material_detail} immediately"
 
     sequence_delta = _material_balance(after_board, player) - _material_balance(
@@ -164,12 +195,69 @@ def _positive_material_claim(
                 f"{_recapture_material_detail(board, move)}"
             )
         if sequence_delta > 0:
+            if exchange_claim is not None:
+                return exchange_claim
             return f"{move_san} won {_material_value_name(sequence_delta)} in the exchange"
         return None
 
     if sequence_delta <= 0:
         return None
+    if exchange_claim is not None:
+        return exchange_claim
     return f"{move_san} won {_material_value_name(sequence_delta)} in the sequence"
+
+
+def _immediate_reply_exchange_claim(
+    board: chess.Board,
+    after_board: chess.Board,
+    move: chess.Move,
+    player: chess.Color,
+    move_san: str,
+    line_pv_uci: Sequence[str] | None,
+) -> str | None:
+    captured_piece = _captured_piece(board, move)
+    moving_piece = board.piece_at(move.from_square)
+    if captured_piece is None or moving_piece is None or move.promotion is not None:
+        return None
+    reply = _verified_immediate_recapture(after_board, move, line_pv_uci)
+    if reply is None:
+        return None
+    reply_board = after_board.copy(stack=False)
+    reply_board.push(reply)
+    sequence_delta = _material_balance(reply_board, player) - _material_balance(board, player)
+    if sequence_delta > 0:
+        return None
+    return (
+        f"{move_san} traded {_piece_with_article(moving_piece.piece_type)} "
+        f"for {_piece_with_article(captured_piece.piece_type)}"
+    )
+
+
+def _verified_immediate_recapture(
+    after_board: chess.Board,
+    move: chess.Move,
+    line_pv_uci: Sequence[str] | None,
+) -> chess.Move | None:
+    if line_pv_uci is None or len(line_pv_uci) < 2 or line_pv_uci[0] != move.uci():
+        return None
+    try:
+        reply = chess.Move.from_uci(line_pv_uci[1])
+    except ValueError:
+        return None
+    if reply not in after_board.legal_moves or not after_board.is_capture(reply):
+        return None
+    if reply.to_square != move.to_square:
+        return None
+    captured_by_reply = _captured_piece(after_board, reply)
+    moved_piece = after_board.piece_at(move.to_square)
+    if captured_by_reply is None or moved_piece is None:
+        return None
+    if (
+        captured_by_reply.color != moved_piece.color
+        or captured_by_reply.piece_type != moved_piece.piece_type
+    ):
+        return None
+    return reply
 
 
 def _recapture_claims(
@@ -257,6 +345,14 @@ def _piece_name(piece_type: chess.PieceType) -> str:
         chess.KING: "king",
     }
     return names[piece_type]
+
+
+def _piece_with_article(piece_type: chess.PieceType) -> str:
+    return f"{_piece_article(piece_type)} {_piece_name(piece_type)}"
+
+
+def _piece_article(piece_type: chess.PieceType) -> str:
+    return "an" if _piece_name(piece_type)[0] in {"a", "e", "i", "o", "u"} else "a"
 
 
 def _material_balance(board: chess.Board, player: chess.Color) -> int:

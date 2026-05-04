@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v11`. Version 2 made
+Current prompt version: `single_move_coach.v12`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -95,7 +95,10 @@ joining segments after verification. Version 10 adds `line_card_anchor` so the
 model keeps sentence-sized prose while marking the exact short phrase a rich UI
 should highlight for each hover line card. Version 11 adds explicit
 recapture/material-recovery wording guidance so the model does not turn a
-recapture that restores balance into a material-winning claim.
+recapture that restores balance into a material-winning claim. Version 12 adds
+counterfactual wording guidance for unplayed alternatives and requires
+trade/exchange material claims to stay trades or exchanges instead of becoming
+material wins.
 
 ## Contracts
 
@@ -189,6 +192,8 @@ Minimum checks:
 - material-gain prose, such as winning, gaining, or picking up a pawn or piece,
   requires a trusted material-gain claim; recapture or material-recovery claims
   do not authorize gain wording
+- material trade prose, such as trading or exchanging a bishop for a knight,
+  requires a trusted material trade claim with the same material terms
 - recapture prose requires a trusted typed `recapture` concept claim from recent
   move history
 - tactic prose requires a trusted typed `tactic` concept claim that names the

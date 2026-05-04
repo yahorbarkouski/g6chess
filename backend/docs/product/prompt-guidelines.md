@@ -93,6 +93,9 @@ The static prompt should say:
   coaching option; do not collapse the two when both are supplied.
 - Do not call a `practical_alternative` a better move unless typed
   `better_alternative` evidence supports that wording.
+- For unplayed alternatives, use counterfactual wording such as "would have
+  been better" or "the better idea was MOVE"; do not phrase the alternative as
+  if it was actually played.
 - Respect recommendation policy fields; do not tell the player to play a
   `do_not_recommend` move.
 - Add a caveat when the context marks the key move as hard to find.
@@ -103,6 +106,8 @@ The static prompt should say:
   supplied candidates, or supplied line evidence.
 - When a typed claim says a move recaptured or restored material balance, do not
   describe it as winning, gaining, or picking up material.
+- When a typed claim says a move traded or exchanged material, describe it as a
+  trade or exchange instead of a material win.
 - Do not use named tactic labels such as fork, pin, skewer, back rank, or
   discovered attack unless a typed `tactic` concept claim names that same idea.
 - On retries, repair the exact verifier issue instead of paraphrasing broadly;
@@ -147,6 +152,7 @@ The model may not:
 - turn Maia probability into quality
 - claim material gain, mate, or tactics without allowed evidence
 - turn a recapture or material recovery claim into a material-winning claim
+- turn a trade or exchange claim into a material-winning claim
 - claim positional concepts without typed concept-claim evidence
 - silently change the best move or recommendation policy
 - use vague claims such as "wins material" without deterministic support

@@ -545,6 +545,65 @@ def test_verifier_rejects_material_gain_when_support_is_only_recapture_recovery(
     assert "unsupported_material_claim" in _failure_codes(verification)
 
 
+@pytest.mark.parametrize(
+    "trade_phrase",
+    [
+        "it traded a bishop for a knight",
+        "it was a bishop-for-knight trade",
+    ],
+)
+def test_verifier_accepts_material_trade_wording_when_trade_is_supported(
+    trade_phrase: str,
+) -> None:
+    context = _context_with_extra_claim(
+        mistake_context_with_practical_alternative(),
+        ConceptClaim(
+            kind="material",
+            subject="practical_alternative",
+            claim="Nf3 traded a bishop for a knight",
+            source="deterministic_detector",
+            move_san="Nf3",
+        ),
+    )
+    output = rich_output(
+        f"g4 was a mistake. Nf3 was a practical alternative because {trade_phrase}."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+@pytest.mark.parametrize(
+    "unsupported_phrase",
+    [
+        "it immediately won a knight",
+        "it was a queen-for-pawn trade",
+    ],
+)
+def test_verifier_rejects_material_win_when_support_is_only_trade(
+    unsupported_phrase: str,
+) -> None:
+    context = _context_with_extra_claim(
+        mistake_context_with_practical_alternative(),
+        ConceptClaim(
+            kind="material",
+            subject="practical_alternative",
+            claim="Nf3 traded a bishop for a knight",
+            source="deterministic_detector",
+            move_san="Nf3",
+        ),
+    )
+    output = rich_output(
+        f"g4 was a mistake. Nf3 was a practical alternative because {unsupported_phrase}."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_material_claim" in _failure_codes(verification)
+
+
 def test_verifier_rejects_unsupported_tactic_claim() -> None:
     context = mistake_context_with_practical_alternative()
     output = rich_output("g4 was a mistake because it walks into a fork.")
@@ -994,6 +1053,19 @@ def _failure_codes(verification: ExplanationVerificationResult) -> set[str]:
 
 def _candidate(candidates: list[CandidateMove], uci: str) -> CandidateMove:
     return next(candidate for candidate in candidates if candidate.uci == uci)
+
+
+def _context_with_extra_claim(context: ContextResult, claim: ConceptClaim) -> ContextResult:
+    return context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
 
 
 def _recapture_context() -> ContextResult:

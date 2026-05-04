@@ -360,6 +360,17 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         tags=("synthetic", "recapture", "material-recovery", "opening"),
     ),
     RealExplanationEvalCase(
+        case_id="synthetic-bxf3-bishop-knight-trade",
+        description="Unplayed Bxf3 alternative trades bishop for knight instead of winning one",
+        fen_before="r2qkb1r/pp2pppp/2n2n2/1B1p4/3P2b1/5N1P/PPP2PP1/RNBQ1RK1 b kq - 0 7",
+        played_move="g4h5",
+        player_color="black",
+        player_level=PlayerLevel.rating(1200, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="Bh5",
+        tags=("synthetic", "material-trade", "black-perspective", "alternative"),
+    ),
+    RealExplanationEvalCase(
         case_id="castling-low-time-beginner",
         description="Beginner low-time castling notation edge case",
         fen_before="r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",

@@ -42,12 +42,12 @@ def build_main_point(
         if quality.label == "best":
             return MainPoint(
                 concept="move purpose",
-                claim=_non_bad_quality_claim(board, played, quality),
+                claim=_non_bad_quality_claim(board, played, quality, analysis),
             )
         if quality.label in {"excellent", "good", "neutral"}:
             return MainPoint(
                 concept="move purpose",
-                claim=_non_bad_quality_claim(board, played, quality),
+                claim=_non_bad_quality_claim(board, played, quality, analysis),
             )
         return MainPoint(
             concept="move quality",
@@ -67,7 +67,7 @@ def build_main_point(
     if key_move in board.legal_moves and board.gives_check(key_move):
         return MainPoint(
             concept="forcing moves before quiet moves",
-            claim=f"{quality_claim}; {key_candidate.san} was the key forcing check.",
+            claim=f"{quality_claim}; {key_candidate.san} would have been the key forcing check.",
         )
 
     if analysis.after_line is not None and quality.label in BAD_QUALITY_LABELS:
@@ -81,7 +81,7 @@ def build_main_point(
 
     return MainPoint(
         concept="better alternative",
-        claim=f"{quality_claim}; {key_candidate.san} was the better move.",
+        claim=f"{quality_claim}; {key_candidate.san} would have been better.",
     )
 
 
@@ -93,9 +93,9 @@ def build_allowed_claims(
     featured_candidate: CandidateMove | None,
     analysis: EngineAnalysis,
 ) -> list[str]:
-    claims = [_allowed_quality_claim(board, played, quality)]
+    claims = [_allowed_quality_claim(board, played, quality, analysis)]
     if key_candidate:
-        claims.append(f"{key_candidate.san} was the key alternative")
+        claims.append(f"{key_candidate.san} would have been the key alternative")
         if key_candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
             claims.append(f"{key_candidate.san} was hard to find")
         if key_candidate.teachable_skill_gap:
@@ -215,7 +215,15 @@ def build_concept_claims(
                 move_san=played.san,
             )
         )
-    claims.extend(build_move_concept_claims(board, played.uci, played.san, "played_move"))
+    claims.extend(
+        build_move_concept_claims(
+            board,
+            played.uci,
+            played.san,
+            "played_move",
+            line_pv_uci=analysis.played_line.pv_uci,
+        )
+    )
 
     if featured_candidate is not None:
         claims.extend(
@@ -224,7 +232,11 @@ def build_concept_claims(
         claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
         claims.extend(
             build_move_concept_claims(
-                board, featured_candidate.uci, featured_candidate.san, "featured_move"
+                board,
+                featured_candidate.uci,
+                featured_candidate.san,
+                "featured_move",
+                line_pv_uci=_line_pv_for_move(analysis, featured_candidate.uci),
             )
         )
 
@@ -232,7 +244,11 @@ def build_concept_claims(
         claims.extend(_candidate_policy_concept_claims(engine_best_candidate, "engine_best_move"))
         claims.extend(
             build_move_concept_claims(
-                board, engine_best_candidate.uci, engine_best_candidate.san, "engine_best_move"
+                board,
+                engine_best_candidate.uci,
+                engine_best_candidate.san,
+                "engine_best_move",
+                line_pv_uci=_line_pv_for_move(analysis, engine_best_candidate.uci),
             )
         )
 
@@ -255,11 +271,12 @@ def build_concept_claims(
                 practical_alternative.uci,
                 practical_alternative.san,
                 "practical_alternative",
+                line_pv_uci=_line_pv_for_move(analysis, practical_alternative.uci),
             )
         )
 
     if key_candidate is not None:
-        claims.extend(_key_candidate_concept_claims(board, key_candidate))
+        claims.extend(_key_candidate_concept_claims(board, key_candidate, analysis))
 
     if analysis.after_line is not None and quality.label in BAD_QUALITY_LABELS:
         claims.append(
@@ -330,17 +347,24 @@ def build_quality_claim(played: PlayedMoveFacts, quality: MoveQuality) -> str:
 
 
 def _allowed_quality_claim(
-    board: chess.Board, played: PlayedMoveFacts, quality: MoveQuality
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    quality: MoveQuality,
+    analysis: EngineAnalysis,
 ) -> str:
     if quality.label in BAD_QUALITY_LABELS or quality.label == "forced":
         return build_quality_claim(played, quality)
-    return _non_bad_quality_claim(board, played, quality)
+    return _non_bad_quality_claim(board, played, quality, analysis)
 
 
 def _non_bad_quality_claim(
-    board: chess.Board, played: PlayedMoveFacts, quality: MoveQuality
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    quality: MoveQuality,
+    analysis: EngineAnalysis | None = None,
 ) -> str:
-    if purpose_claim := _primary_played_purpose_claim(board, played):
+    played_pv_uci = analysis.played_line.pv_uci if analysis is not None else None
+    if purpose_claim := _primary_played_purpose_claim(board, played, played_pv_uci):
         return purpose_claim
     if quality.label == "best":
         return f"{played.san} fits the position"
@@ -351,19 +375,28 @@ def _non_bad_quality_claim(
     return f"{played.san} held the position"
 
 
-def _primary_played_purpose_claim(board: chess.Board, played: PlayedMoveFacts) -> str | None:
-    claim = _primary_played_purpose_claim_with_kind(board, played)
+def _primary_played_purpose_claim(
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    line_pv_uci: list[str] | None = None,
+) -> str | None:
+    claim = _primary_played_purpose_claim_with_kind(board, played, line_pv_uci)
     return claim[1] if claim is not None else None
 
 
-def _primary_played_purpose_kind(board: chess.Board, played: PlayedMoveFacts) -> str | None:
-    claim = _primary_played_purpose_claim_with_kind(board, played)
+def _primary_played_purpose_kind(
+    board: chess.Board,
+    played: PlayedMoveFacts,
+    line_pv_uci: list[str] | None = None,
+) -> str | None:
+    claim = _primary_played_purpose_claim_with_kind(board, played, line_pv_uci)
     return claim[0] if claim is not None else None
 
 
 def _primary_played_purpose_claim_with_kind(
     board: chess.Board,
     played: PlayedMoveFacts,
+    line_pv_uci: list[str] | None = None,
 ) -> tuple[str, str] | None:
     move = chess.Move.from_uci(played.uci)
     if move not in board.legal_moves:
@@ -375,7 +408,13 @@ def _primary_played_purpose_claim_with_kind(
     if played.promotion is not None:
         return ("promotion", f"{played.san} promoted to {played.promotion}")
 
-    claims = build_move_concept_claims(board, played.uci, played.san, "played_move")
+    claims = build_move_concept_claims(
+        board,
+        played.uci,
+        played.san,
+        "played_move",
+        line_pv_uci=line_pv_uci,
+    )
     priority = (
         "forced_mate",
         "forcing_move",
@@ -426,7 +465,7 @@ def _featured_best_concept(
         and analysis.played_line.score.mate_for == "player"
     ):
         return "forced mate"
-    if _primary_played_purpose_kind(board, played) == "recapture":
+    if _primary_played_purpose_kind(board, played, analysis.played_line.pv_uci) == "recapture":
         return "recapture"
     if played.is_check:
         return "forcing move"
@@ -446,7 +485,13 @@ def _featured_best_claim(
         and analysis.played_line.score.mate_for == "player"
     ):
         return f"{played.san} delivered forced mate."
-    if board is not None and (purpose_claim := _primary_played_purpose_claim(board, played)):
+    if board is not None and (
+        purpose_claim := _primary_played_purpose_claim(
+            board,
+            played,
+            analysis.played_line.pv_uci,
+        )
+    ):
         return f"{purpose_claim} in a critical position."
     if played.is_check:
         return f"{played.san} gave check in a critical position."
@@ -522,6 +567,7 @@ def _featured_concept_claims(
 def _key_candidate_concept_claims(
     board: chess.Board,
     key_candidate: CandidateMove,
+    analysis: EngineAnalysis,
 ) -> list[ConceptClaim]:
     claims: list[ConceptClaim] = []
     if key_candidate.score.kind == "mate" and key_candidate.score.mate_for == "player":
@@ -550,7 +596,7 @@ def _key_candidate_concept_claims(
                 ConceptClaim(
                     kind="forcing_move",
                     subject="key_move",
-                    claim=f"{key_candidate.san} was the key forcing check",
+                    claim=f"{key_candidate.san} would have been the key forcing check",
                     source="deterministic_detector",
                     move_san=key_candidate.san,
                 )
@@ -568,7 +614,7 @@ def _key_candidate_concept_claims(
             ConceptClaim(
                 kind="better_alternative",
                 subject="key_move",
-                claim=f"{key_candidate.san} was the better move",
+                claim=f"{key_candidate.san} would have been the better move",
                 source="candidate_policy",
                 move_san=key_candidate.san,
             )
@@ -576,7 +622,13 @@ def _key_candidate_concept_claims(
 
     claims.extend(_candidate_policy_concept_claims(key_candidate, "key_move"))
     claims.extend(
-        build_move_concept_claims(board, key_candidate.uci, key_candidate.san, "key_move")
+        build_move_concept_claims(
+            board,
+            key_candidate.uci,
+            key_candidate.san,
+            "key_move",
+            line_pv_uci=_line_pv_for_move(analysis, key_candidate.uci),
+        )
     )
     return claims
 
@@ -622,6 +674,15 @@ def _candidate_policy_concept_claims(
 def _candidate_gives_check(board: chess.Board, candidate: CandidateMove) -> bool:
     move = chess.Move.from_uci(candidate.uci)
     return move in board.legal_moves and board.gives_check(move)
+
+
+def _line_pv_for_move(analysis: EngineAnalysis, move_uci: str) -> list[str] | None:
+    if analysis.played_line.move_uci == move_uci:
+        return analysis.played_line.pv_uci
+    for line in analysis.top_lines:
+        if line.move_uci == move_uci:
+            return line.pv_uci
+    return None
 
 
 def _unique_concept_claims(claims: list[ConceptClaim]) -> list[ConceptClaim]:
