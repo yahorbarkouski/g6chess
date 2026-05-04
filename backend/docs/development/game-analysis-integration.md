@@ -49,19 +49,10 @@ Install dependencies:
 uv sync --extra maia
 ```
 
-Start Redis:
+Start Redis and the API:
 
 ```text
-redis-server
-```
-
-Start the API:
-
-```text
-uv run uvicorn g6explanation.visualization.http_api:app \
-  --host 127.0.0.1 \
-  --port 8001 \
-  --reload
+./run.sh
 ```
 
 Check health:
@@ -150,7 +141,7 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
   -H 'Content-Type: application/json' \
   -d '{
     "source": "chess_com_live_url",
-    "url": "https://www.chess.com/game/live/168193636078",
+    "url": "https://www.chess.com/game/168193636078",
     "player_level": {"kind": "rating", "value": 1500},
     "time_control": "rapid",
     "explain_significance": ["critical"],

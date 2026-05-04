@@ -44,7 +44,8 @@ POST /api/game-analysis/import
 The request provides either:
 
 - `source: "chess_com_live_url"` with `url` matching
-  `/game/live/{id}` or `/analysis/game/live/{id}`
+  `/game/{id}`, `/game/live/{id}`, `/analysis/game/{id}`, or
+  `/analysis/game/live/{id}`
 - `source: "pgn"` with pasted `pgn`
 
 It also accepts the same analysis knobs as `POST /api/game-analysis`:

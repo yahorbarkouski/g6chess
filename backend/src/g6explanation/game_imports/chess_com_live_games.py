@@ -1,4 +1,4 @@
-"""Resolve public Chess.com live-game URLs to canonical PGN."""
+"""Resolve public Chess.com game URLs to canonical PGN."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ CHESS_COM_CALLBACK_URL = "https://www.chess.com/callback/live/game/{external_gam
 CHESS_COM_MONTH_ARCHIVE_URL = (
     "https://api.chess.com/pub/player/{username}/games/{year:04d}/{month:02d}"
 )
-CHESS_COM_LIVE_GAME_URL_RE = re.compile(
-    r"chess\.com/(?:analysis/)?game/live/(?P<external_game_id>\d+)"
+CHESS_COM_GAME_URL_RE = re.compile(
+    r"chess\.com/(?:analysis/)?game/(?:live/)?(?P<external_game_id>\d+)(?:[/?#]|$)"
 )
 DEFAULT_CHESS_COM_USER_AGENT = (
     "g6explanation/0.1 (+https://github.com/yahorbarkouski/g6explanation)"
@@ -75,11 +75,11 @@ class ChessComLiveGameInvalidPgnError(ChessComLiveGameError):
 
 
 def extract_chess_com_live_game_id(url: str) -> str:
-    """Extract a Chess.com live-game id from a supported public URL."""
+    """Extract a Chess.com game id from a supported public URL."""
 
-    match = CHESS_COM_LIVE_GAME_URL_RE.search(url.strip())
+    match = CHESS_COM_GAME_URL_RE.search(url.strip())
     if match is None:
-        raise ChessComLiveGameNotFoundError("Invalid Chess.com live game URL.")
+        raise ChessComLiveGameNotFoundError("Invalid Chess.com game URL.")
     return match.group("external_game_id")
 
 
@@ -293,9 +293,7 @@ class ChessComLiveGameResolver:
                     continue
                 item = cast(dict[str, object], raw_item)
                 item_url = item.get("url")
-                if isinstance(item_url, str) and item_url.rstrip("/").endswith(
-                    f"/game/live/{external_game_id}"
-                ):
+                if isinstance(item_url, str) and _url_matches_game_id(item_url, external_game_id):
                     return cast(dict[str, Any], item)
         raise ChessComLiveGameNotFoundError("Chess.com archive PGN could not be resolved.")
 
@@ -439,6 +437,13 @@ def _rating_from_archive(archive_match: dict[str, Any], side: str) -> int | None
 
 def _optional_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
+
+
+def _url_matches_game_id(url: str, external_game_id: str) -> bool:
+    try:
+        return extract_chess_com_live_game_id(url) == external_game_id
+    except ChessComLiveGameNotFoundError:
+        return False
 
 
 def _int_from_header(value: Any) -> int | None:

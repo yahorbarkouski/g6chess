@@ -38,9 +38,16 @@ PUBLIC_PGN = """
 
 def test_extract_chess_com_live_game_id_accepts_supported_urls() -> None:
     assert extract_chess_com_live_game_id("https://www.chess.com/game/live/168193636078") == GAME_ID
+    assert extract_chess_com_live_game_id("https://www.chess.com/game/168193636078") == GAME_ID
     assert (
         extract_chess_com_live_game_id(
             "https://www.chess.com/analysis/game/live/168193636078?tab=analysis"
+        )
+        == GAME_ID
+    )
+    assert (
+        extract_chess_com_live_game_id(
+            "https://www.chess.com/analysis/game/168193636078?tab=analysis"
         )
         == GAME_ID
     )
@@ -68,6 +75,33 @@ def test_resolver_finds_pgn_from_white_archive() -> None:
     assert imported.metadata.time_control == "180"
     assert imported.metadata.allows_global_training is False
     assert transport.archive_calls == ["oldfr3d"]
+
+
+def test_resolver_accepts_share_url_without_live_segment() -> None:
+    transport = FakeChessComTransport(
+        callback=_callback_payload(),
+        white_archive_games=[_archive_game()],
+    )
+    resolver = ChessComLiveGameResolver(transport=transport, sleep=lambda _: None)
+
+    imported = resolver.resolve(f"https://www.chess.com/game/{GAME_ID}")
+
+    assert imported.pgn == PUBLIC_PGN
+    assert imported.metadata.external_game_id == GAME_ID
+    assert transport.archive_calls == ["oldfr3d"]
+
+
+def test_resolver_matches_archive_records_without_live_segment() -> None:
+    transport = FakeChessComTransport(
+        callback=_callback_payload(),
+        white_archive_games=[{**_archive_game(), "url": f"https://www.chess.com/game/{GAME_ID}"}],
+    )
+    resolver = ChessComLiveGameResolver(transport=transport, sleep=lambda _: None)
+
+    imported = resolver.resolve(f"https://www.chess.com/game/live/{GAME_ID}")
+
+    assert imported.metadata.source_url == f"https://www.chess.com/game/{GAME_ID}"
+    assert imported.metadata.external_game_id == GAME_ID
 
 
 def test_resolver_falls_back_to_black_archive() -> None:

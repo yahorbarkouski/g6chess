@@ -57,7 +57,7 @@ def test_import_api_starts_analysis_from_chess_com_url() -> None:
         "/api/game-analysis/import",
         json={
             "source": "chess_com_live_url",
-            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "url": f"https://www.chess.com/game/{GAME_ID}",
             "explain_significance": ["low", "moderate", "high", "critical"],
             "include_context": True,
         },

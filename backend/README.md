@@ -99,7 +99,7 @@ OpenRouter:
 
 Redis game analysis:
 
-- Start local Redis before using the async game-analysis API.
+- Use the Docker Compose Redis service before using the async game-analysis API.
 - Override Redis with `G6EXPLANATION_REDIS_URL`.
 - Tune context workers with `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`.
 - Tune OpenRouter fan-out with
@@ -110,7 +110,7 @@ Redis game analysis:
 Visualization API:
 
 ```text
-uv run uvicorn g6explanation.visualization.http_api:app --reload
+./run.sh
 ```
 
 The context endpoint needs local Stockfish and Maia setup. Catalog metadata tests
@@ -118,16 +118,10 @@ use deterministic fixtures and do not require those optional tools.
 
 ## Start Local Game Analysis
 
-Start Redis:
+Start Redis and the API:
 
 ```text
-redis-server
-```
-
-Start the API:
-
-```text
-uv run uvicorn g6explanation.visualization.http_api:app --host 127.0.0.1 --port 8001 --reload
+./run.sh
 ```
 
 Submit a game-analysis job:
