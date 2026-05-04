@@ -24,12 +24,14 @@ src/g6explanation/
     signals/
   explanation_generation/
   game_analysis/
+  game_imports/
   real_game_evaluation/
   visualization/
 
 tests/g6explanation/context_engine/
 tests/g6explanation/explanation_generation/
 tests/g6explanation/game_analysis/
+tests/g6explanation/game_imports/
 tests/g6explanation/real_game_evaluation/
 tests/g6explanation/visualization/
 ```
@@ -43,14 +45,18 @@ The implemented bounded contexts are:
 - `g6explanation.game_analysis`: Redis-backed asynchronous full-game job
   snapshots and background orchestration over verified one-move context and
   explanation services
+- `g6explanation.game_imports`: user-requested PGN acquisition from Chess.com
+  URLs or pasted PGN, with parsing, caching, and source-rights metadata
 - `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and LLM
   eval cases, runner, and JSONL records
 - `g6explanation.visualization`: local inspection API over current context
   packets
 
 Keep explanation generation downstream of `context_engine`; keep real-game
-evaluation and game analysis downstream of both. Game analysis may parallelize
-work and persist state, but it must not define chess-truth or verifier policy.
+evaluation and game analysis downstream of both. Game imports must feed
+canonical PGN and source metadata into game analysis. Game analysis may
+parallelize work and persist state, but it must not define chess-truth or
+verifier policy.
 
 Do not add a web server, database, model server, user accounts, or broad app
 scaffolding until a concrete vertical slice requires it.

@@ -6,8 +6,9 @@ losing the plan during context summarization.
 
 ## Operating Rule
 
-Work the roadmap in order unless a later item blocks an earlier one. Each
-checkpoint should leave:
+The original ten-step track is complete. Treat this file as the active
+explanation-generation ledger, not a backlog to restart. Each checkpoint should
+leave:
 
 - code, tests, and docs aligned
 - full default checks passing
@@ -15,8 +16,9 @@ checkpoint should leave:
   changes
 - a checkpoint commit when checks pass
 
-Do not start training-data work until the eval, review, promotion, verifier, and
-provider gates below are mature.
+Training-data, style, provider, and prompt work should now be justified by
+source-rights-safe eval coverage, manual review, product integration evidence,
+or a concrete verifier gap.
 
 ## Current State
 
@@ -46,7 +48,7 @@ all ten roadmap steps implemented -> broaden source-rights-safe evals, manually
 accept seed records, then prepare training manifests
 ```
 
-## Ten-Step Track
+## Closed Ten-Step Track
 
 | # | Step | Status | Exit criteria |
 |---|---|---|---|
@@ -206,8 +208,11 @@ At the start of each continuation:
 1. Read this file, `docs/product/explanation-generation.md`, and
    `docs/development/quality-gates.md`.
 2. Run `git status --short`.
-3. Identify the first roadmap row that is not complete.
-4. Implement the narrowest coherent slice for that row.
-5. Update this roadmap status and the relevant product/development docs.
-6. Run required checks and any opt-in real eval gate required by the change.
-7. Commit a checkpoint.
+3. Identify the current active thread: source-rights-safe eval expansion,
+   manual review, training manifest preparation, style polish, provider
+   resilience, product integration, or a verifier gap.
+4. Implement the narrowest coherent slice for that thread.
+5. Update this ledger and the relevant product/development docs.
+6. Run required checks and any no-mock eval gate required by the changed
+   boundary.
+7. Commit a checkpoint when checks pass.

@@ -22,6 +22,7 @@
         signals/
       explanation_generation/
       game_analysis/
+      game_imports/
       real_game_evaluation/
       visualization/
   tests/
@@ -29,6 +30,7 @@
       context_engine/
       explanation_generation/
       game_analysis/
+      game_imports/
       real_game_evaluation/
       visualization/
 ```
@@ -71,6 +73,10 @@
   persistence, real provider setup, and background orchestration over existing
   per-move context and explanation services. It must stay downstream of
   `context_engine` and `explanation_generation`.
+- Use `game_imports/` for user-requested acquisition only: URL validation,
+  source API calls, PGN parsing, import caching, and source-rights metadata. It
+  must hand canonical PGN to `game_analysis` and must not define chess truth,
+  explanation policy, or training eligibility beyond explicit source metadata.
 - Use `real_game_evaluation/` for curated PGNs, no-mock real-provider eval
   cases, and JSONL evaluation records. It must stay downstream of
   `context_engine` and `explanation_generation`.

@@ -23,12 +23,12 @@ durable decisions.
 - `development/implementation-quality.md`: code quality and package rules.
 - `development/project-structure.md`: repo layout and naming rules.
 - `development/development-flow.md`: checks, commits, and work sequencing.
-- `development/quality-gates.md`: schema, chess, explanation, dataset, and
-  model gates.
+- `development/quality-gates.md`: schema, chess, explanation, dataset, model,
+  and no-mock provider gates.
 - `development/explanation-generation-roadmap.md`: durable implementation
   ledger for the verified explanation-generation track.
 - `development/game-analysis-integration.md`: real-world integration guide for
-  the Redis-backed async game-analysis API.
+  the Redis-backed async game-analysis API and user-requested imports.
 - `development/training-data.md`: source-rights, acceptance, and manifest gates
   for future supervised training data.
 - `development/testing-playbook.md`: unit, integration, golden, adversarial, and

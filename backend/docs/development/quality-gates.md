@@ -67,6 +67,25 @@ uv run pytest -q
 Add tests where the risk lives: parsers, score normalization, move legality,
 schemas, verifiers, provider adapters, and prompt/eval regressions.
 
+## Gate 4a: No-Mock Selection
+
+Default tests may use static providers when the behavior under test is
+deterministic policy. Run the no-mock gate for the boundary being changed when
+real runtime behavior matters:
+
+- Stockfish/Maia provider or real-context changes: run the relevant real
+  Stockfish or Maia integration/eval gate at Stockfish depth 16 or deeper.
+- Prompt, verifier, model-provider, model-default, real-eval, or model-behavior
+  changes: run the real LLM eval gate unless the user explicitly accepts a
+  narrower checkpoint.
+- Game-analysis orchestration, Redis, provider setup, or polling changes: run
+  the no-mock game-analysis API gate.
+- Chess.com callback/archive import behavior: run deterministic import tests and
+  the opt-in real Chess.com import smoke.
+
+Mocked or static-provider tests can prove policy logic. They cannot prove a
+provider-facing change is complete.
+
 ## Gate 5: Dataset
 
 A sample can enter training only if source rights allow global training, schemas
@@ -140,6 +159,27 @@ It requires local Redis, real Stockfish, Maia2 with local model files, and
 OpenRouter credentials. It starts a real HTTP job, polls Redis-backed state, and
 expects Stockfish depth 16 or deeper, Maia evidence, and verified GPT
 explanations for critical moves.
+
+## Optional Game Import Gates
+
+Run the deterministic import tests when changing URL validation, PGN import,
+source metadata, cache behavior, or the game-analysis import endpoint:
+
+```text
+uv run pytest tests/g6explanation/game_imports -q
+```
+
+Run the real Chess.com import smoke when changing live callback/archive
+resolution or retry behavior:
+
+```text
+G6EXPLANATION_RUN_CHESSCOM_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_chess_com_live_games.py -q -s
+```
+
+The real import smoke does not use Stockfish or OpenRouter. It does use
+Chess.com's live public surfaces, so failures can reflect network, rate-limit,
+or upstream availability issues.
 
 ## Completion Note
 

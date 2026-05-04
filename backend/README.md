@@ -23,6 +23,8 @@ Implemented:
 - `g6explanation.game_analysis`: starts Redis-backed asynchronous full-game
   jobs, classifies every completed ply, and adds verified GPT explanations for
   configured criticality labels.
+- `g6explanation.game_imports`: resolves user-requested Chess.com URLs or pasted
+  PGN into canonical PGN plus source-rights metadata for game analysis.
 - `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and
   OpenRouter explanation evals with JSONL records.
 - `g6explanation.visualization`: local inspection API for real-game experiment
@@ -43,6 +45,7 @@ Do not move chess truth into the generation layer.
 - Current next slice: `docs/product/explanation-generation.md`
 - Real-world game-analysis integration:
   `docs/development/game-analysis-integration.md`
+- No-mock and opt-in provider gates: `docs/development/quality-gates.md`
 - Development flow and checks: `docs/development/development-flow.md`
 
 Read the slice-specific docs named in `AGENTS.md` before implementation work.
@@ -106,6 +109,14 @@ Redis game analysis:
   `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`.
 - Run the no-mock endpoint gate with
   `G6EXPLANATION_RUN_REAL_GAME_ANALYSIS=1`.
+
+Game imports:
+
+- Chess.com URL imports are user-requested acquisition only, not training data.
+- Useful overrides include `G6EXPLANATION_CHESS_COM_USER_AGENT`,
+  `G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS`, and
+  `G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS`.
+- Run the opt-in live import smoke with `G6EXPLANATION_RUN_CHESSCOM_IMPORT=1`.
 
 Visualization API:
 

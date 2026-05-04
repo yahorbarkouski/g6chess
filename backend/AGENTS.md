@@ -34,9 +34,10 @@ Then read the slice-specific docs before touching that slice:
   `docs/development/testing-playbook.md`, and
   `docs/adr/0001-product-truth-boundary.md` plus
   `docs/adr/0002-context-contract-and-verification.md`.
-- Asynchronous game analysis, Redis jobs, or polling API:
+- Asynchronous game analysis, game imports, Redis jobs, or polling API:
   `docs/product/game-analysis.md`, `docs/product/context-engine.md`,
   `docs/product/explanation-generation.md`,
+  `docs/development/game-analysis-integration.md`,
   `docs/development/project-structure.md`,
   `docs/development/implementation-quality.md`,
   `docs/development/testing-playbook.md`, and
@@ -108,6 +109,12 @@ every completed move, and concurrently generates verified OpenRouter
 explanations for configured significance labels. It must not define separate
 chess-truth, classification, or explanation-verification policy.
 
+The game-import layer is implemented as a user-requested PGN acquisition
+boundary. It may validate URLs, call Chess.com import surfaces, parse PGN, cache
+resolved imports, and attach source-rights metadata. It must hand canonical PGN
+to `game_analysis` for chess analysis and must not make quality, explanation, or
+training-rights decisions beyond explicit source metadata.
+
 When running batched real OpenRouter generation or evaluation work, parallelize
 heavily. Independent OpenRouter explanation requests should be sent with bounded
 high concurrency, targeting about 30 in-flight requests when provider limits and
@@ -122,8 +129,10 @@ When starting work:
 
 1. Inspect the actual repo state with `rg --files`, `find`, and targeted reads.
 2. Read the startup and slice-specific docs and ADRs.
-3. Identify the narrowest product slice being changed.
-4. Find existing tests and quality checks before editing.
+3. Identify the narrowest product slice, contract, and provider boundary being
+   changed.
+4. Find existing tests, deterministic gates, and any required no-mock gate before
+   editing.
 5. State assumptions if the codebase does not yet encode a decision.
 6. Check `git status --short` and avoid mixing unrelated changes.
 
@@ -134,6 +143,23 @@ When reviewing or modifying code:
 3. Preserve version metadata for Stockfish, Maia, schemas, and prompts.
 4. Add tests for every bug fix and every new behavior contract.
 5. Run the smallest relevant checks first, then broader checks if risk warrants it.
+
+## No-Mock Gate Rules
+
+Use static providers for cheap deterministic tests when provider behavior is not
+the thing being changed. Use no-mock gates when the change depends on real
+runtime behavior:
+
+- Real Stockfish-backed contexts, integration tests, evals, and visualization
+  packets must use depth 16 or deeper.
+- Prompt, verifier, model-provider, model-default, real-eval, or model-behavior
+  changes need the real OpenRouter/Stockfish/Maia eval gate unless the user
+  explicitly accepts a narrower local checkpoint.
+- Game-analysis orchestration, Redis snapshots, provider setup, or polling
+  contract changes need the no-mock game-analysis API gate.
+- Chess.com URL import behavior needs deterministic import tests and, when the
+  change touches live callback/archive behavior, the opt-in real Chess.com smoke.
+- Do not claim a provider-facing change is complete from mocked tests alone.
 
 ## Chess Correctness Rules
 

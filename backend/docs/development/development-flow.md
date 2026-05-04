@@ -6,10 +6,11 @@ For every meaningful change:
 
 1. Inspect the repo with `rg --files`, `find`, and targeted reads.
 2. Read the relevant product, development, and ADR docs.
-3. Identify the narrowest product slice.
+3. Identify the narrowest product slice, contract, provider boundary, and
+   required gate.
 4. Make the smallest coherent change.
 5. Add or update tests for changed behavior.
-6. Run required checks.
+6. Run required checks and any no-mock gate required by the changed boundary.
 7. Review the diff.
 8. Commit a checkpoint with a conventional-style message.
 

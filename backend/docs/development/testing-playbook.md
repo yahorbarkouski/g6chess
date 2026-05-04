@@ -105,6 +105,17 @@ Redis and game analysis:
 - Tune full-game analysis with `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`
   and `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`.
 
+Game imports:
+
+- Deterministic import tests cover URL validation, PGN parsing, source metadata,
+  cache behavior, and the import endpoint without live providers.
+- Chess.com live callback/archive behavior is opt-in with
+  `G6EXPLANATION_RUN_CHESSCOM_IMPORT=1`; use it only when changing real import
+  behavior or validating integration drift.
+- Chess.com and user-pasted PGNs are user-requested analysis inputs only. They
+  are not global training data unless a future source-rights policy explicitly
+  allows it.
+
 ## Unit Tests
 
 Use unit tests for pure logic: score parsing, normalization, classification,
@@ -147,6 +158,17 @@ uv run pytest tests/g6explanation/game_analysis/test_game_analysis_redis.py -q -
 It exercises the Redis-backed POST/poll flow with real Stockfish, real Maia, and
 real OpenRouter output. Keep it outside default CI because it is intentionally
 slow and provider-dependent.
+
+Real Chess.com import smoke is opt-in:
+
+```text
+G6EXPLANATION_RUN_CHESSCOM_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_chess_com_live_games.py -q -s
+```
+
+It exercises live import resolution without Stockfish or OpenRouter. Treat
+network, rate-limit, and upstream failures as integration evidence, not unit-test
+failures.
 
 ## Golden Tests
 
