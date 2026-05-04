@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any, TypeAlias, cast
 
 from g6explanation.context_engine.contracts import ContextResult
 from g6explanation.explanation_generation.contracts import (
@@ -13,6 +14,8 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationVerificationIssue,
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
+
+JsonValue: TypeAlias = dict[str, "JsonValue"] | list["JsonValue"] | str | int | float | bool | None
 
 
 def build_coach_prompt(
@@ -208,10 +211,32 @@ def build_coach_prompt(
             "json_schema": {
                 "name": "single_move_explanation",
                 "strict": True,
-                "schema": ExplanationOutput.json_schema(),
+                "schema": _strict_response_schema(ExplanationOutput.json_schema()),
             },
         },
     )
+
+
+def _strict_response_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Adapt Pydantic JSON Schema to OpenAI/Azure strict structured-output rules."""
+
+    strict_schema = cast(dict[str, JsonValue], dict(schema))
+    _require_all_object_properties(strict_schema)
+    return cast(dict[str, Any], strict_schema)
+
+
+def _require_all_object_properties(value: JsonValue) -> None:
+    if isinstance(value, dict):
+        value.pop("default", None)
+        properties = value.get("properties")
+        if isinstance(properties, dict):
+            value["required"] = list(properties)
+        for child in value.values():
+            _require_all_object_properties(child)
+        return
+    if isinstance(value, list):
+        for child in value:
+            _require_all_object_properties(child)
 
 
 def _retry_repair_instructions(

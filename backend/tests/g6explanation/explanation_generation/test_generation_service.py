@@ -124,6 +124,29 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "Do not use named tactic labels" in prompt_payload
 
 
+def test_prompt_response_schema_requires_nullable_anchor_for_strict_providers() -> None:
+    context = mistake_context_with_practical_alternative()
+    provider = StaticCoachProvider(
+        [
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
+            )
+        ]
+    )
+    service = ExplanationService(
+        context_builder=_unused_builder(),
+        coach_provider=provider,
+    )
+
+    service.explain_context(context)
+
+    schema = provider.prompts[0].response_format["json_schema"]["schema"]
+    segment_schema = schema["$defs"]["ExplanationSegment"]
+    assert "line_card_anchor" in segment_schema["required"]
+    assert "default" not in segment_schema["properties"]["line_card_anchor"]
+
+
 def test_service_retries_with_verifier_failures() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
@@ -306,7 +329,7 @@ def _unused_builder() -> MoveContextBuilder:
 def _response(text: str) -> str:
     return json.dumps(
         {
-            "segments": [{"text": text, "line_card_id": None}],
+            "segments": [{"text": text, "line_card_id": None, "line_card_anchor": None}],
             "line_cards": [],
         }
     )
