@@ -15,7 +15,9 @@ from g6explanation.context_engine.contracts import (
     Score,
 )
 from g6explanation.explanation_generation.contracts import (
+    ExplanationLineCard,
     ExplanationOutput,
+    ExplanationSegment,
     ExplanationVerificationResult,
 )
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
@@ -24,16 +26,15 @@ from tests.g6explanation.explanation_generation.helpers import (
     best_context,
     hard_engine_best_context,
     mistake_context_with_practical_alternative,
+    rich_output,
 )
 
 
 def test_verifier_accepts_grounded_model_explanation() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it let the opponent improve with e5. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it let the opponent improve with e5. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -43,7 +44,7 @@ def test_verifier_accepts_grounded_model_explanation() -> None:
 
 def test_verifier_rejects_unsupported_move() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake, and a3 was the better move.")
+    output = rich_output("g4 was a mistake, and a3 was the better move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -53,7 +54,7 @@ def test_verifier_rejects_unsupported_move() -> None:
 
 def test_verifier_rejects_uci_move_mentions() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g2g4 was a mistake because Nf3 was better.")
+    output = rich_output("g2g4 was a mistake because Nf3 was better.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -63,7 +64,7 @@ def test_verifier_rejects_uci_move_mentions() -> None:
 
 def test_verifier_rejects_explanation_that_omits_played_move() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="This was a mistake because Nf3 was better.")
+    output = rich_output("This was a mistake because Nf3 was better.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -87,7 +88,7 @@ def test_verifier_accepts_castling_word_as_played_move_mention() -> None:
             player_level=PlayerLevel.rating(1200),
         )
     )
-    output = ExplanationOutput(explanation="Castling was the best move.")
+    output = rich_output("Castling was the best move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -96,7 +97,7 @@ def test_verifier_accepts_castling_word_as_played_move_mention() -> None:
 
 def test_verifier_rejects_unsupported_pv_continuation() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake; the line then goes e5 and Nc6.")
+    output = rich_output("g4 was a mistake; the line then goes e5 and Nc6.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -106,12 +107,61 @@ def test_verifier_rejects_unsupported_pv_continuation() -> None:
 
 def test_verifier_rejects_unsupported_mate_claim() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake because it allowed checkmate.")
+    output = rich_output("g4 was a mistake because it allowed checkmate.")
 
     verification = ExplanationVerifier().verify(context, output)
 
     assert not verification.passed
     assert "unsupported_mate_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_verified_line_card_segments() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="g4 was a mistake because e5 is the reply that lets Black improve.",
+                line_card_id="played-line",
+            )
+        ],
+        line_cards=[
+            ExplanationLineCard(
+                id="played-line",
+                moves=["g4", "e5"],
+                title="Why g4 gets punished",
+                why="g4 was a mistake because it let the opponent improve with e5.",
+            )
+        ],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_line_card_with_changed_moves() -> None:
+    context = mistake_context_with_practical_alternative()
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="g4 was a mistake because e5 is the reply that lets Black improve.",
+                line_card_id="played-line",
+            )
+        ],
+        line_cards=[
+            ExplanationLineCard(
+                id="played-line",
+                moves=["g4", "Nc6"],
+                title="Why g4 gets punished",
+                why="g4 was a mistake because it let the opponent improve with e5.",
+            )
+        ],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "line_card_move_mismatch" in _failure_codes(verification)
 
 
 def test_verifier_rejects_mating_move_claim_from_position_mate_evidence_only() -> None:
@@ -133,11 +183,9 @@ def test_verifier_rejects_mating_move_claim_from_position_mate_evidence_only() -
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because g4 checkmated the opponent. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because g4 checkmated the opponent. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -165,11 +213,9 @@ def test_verifier_accepts_mating_move_claim_when_move_has_mate_evidence() -> Non
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake, and g4 checkmates the opponent. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake, and g4 checkmates the opponent. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -217,11 +263,9 @@ def test_verifier_accepts_mating_opponent_reply_from_after_line() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it allowed Qh4#, an immediate checkmate. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it allowed Qh4#, an immediate checkmate. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -248,11 +292,9 @@ def test_verifier_does_not_treat_square_reference_as_move() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it lost the h2 pawn. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it lost the h2 pawn. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -290,11 +332,9 @@ def test_verifier_accepts_multiple_verified_immediate_mates() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "e4# was the best move and delivered forced mate. "
-            "Rd8# was another immediate mate, but e4# also checkmated the opponent."
-        )
+    output = rich_output(
+        "e4# was the best move and delivered forced mate. "
+        "Rd8# was another immediate mate, but e4# also checkmated the opponent."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -304,7 +344,7 @@ def test_verifier_accepts_multiple_verified_immediate_mates() -> None:
 
 def test_verifier_rejects_unsupported_material_claim() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake because it loses a queen.")
+    output = rich_output("g4 was a mistake because it loses a queen.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -331,11 +371,9 @@ def test_verifier_accepts_supported_material_claim() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it lost material. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it lost material. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -362,11 +400,9 @@ def test_verifier_rejects_specific_material_claim_not_in_material_evidence() -> 
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it lost a queen. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it lost a queen. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -394,11 +430,9 @@ def test_verifier_accepts_specific_material_claim_when_evidence_matches() -> Non
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake even though it won a pawn. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake even though it won a pawn. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -408,7 +442,7 @@ def test_verifier_accepts_specific_material_claim_when_evidence_matches() -> Non
 
 def test_verifier_rejects_unsupported_tactic_claim() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake because it walks into a fork.")
+    output = rich_output("g4 was a mistake because it walks into a fork.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -418,7 +452,7 @@ def test_verifier_rejects_unsupported_tactic_claim() -> None:
 
 def test_verifier_does_not_match_tactic_terms_inside_words() -> None:
     context = best_context()
-    output = ExplanationOutput(explanation="e4 was the best move, keeping the position stable.")
+    output = rich_output("e4 was the best move, keeping the position stable.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -444,11 +478,9 @@ def test_verifier_accepts_supported_tactic_claim() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it walked into a fork. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it walked into a fork. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -475,11 +507,9 @@ def test_verifier_rejects_tactic_claim_not_named_by_tactic_evidence() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it walked into a fork. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it walked into a fork. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -490,11 +520,9 @@ def test_verifier_rejects_tactic_claim_not_named_by_tactic_evidence() -> None:
 
 def test_verifier_rejects_unsupported_concept_claim() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it damaged king safety. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -522,11 +550,9 @@ def test_verifier_accepts_supported_concept_claim() -> None:
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it damaged king safety. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -536,7 +562,7 @@ def test_verifier_accepts_supported_concept_claim() -> None:
 
 def test_verifier_allows_central_space_when_center_claim_is_supported() -> None:
     context = best_context()
-    output = ExplanationOutput(explanation="e4 was the best move, claiming central space.")
+    output = rich_output("e4 was the best move, claiming central space.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -556,7 +582,7 @@ def test_verifier_accepts_critical_move_wording_from_best_move_significance() ->
             )
         }
     )
-    output = ExplanationOutput(explanation="e4 was the best move and a critical move.")
+    output = rich_output("e4 was the best move and a critical move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -583,9 +609,7 @@ def test_verifier_accepts_critical_move_wording_for_critical_alternative() -> No
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation="g4 was a mistake; the critical move was Nf3 as a practical alternative."
-    )
+    output = rich_output("g4 was a mistake; the critical move was Nf3 as a practical alternative.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -606,11 +630,9 @@ def test_verifier_does_not_accept_concept_from_allowed_claims_alone() -> None:
             )
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake because it damaged king safety. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake because it damaged king safety. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -632,11 +654,9 @@ def test_verifier_rejects_unsupported_special_move_concepts(
     phrase: str,
 ) -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation=(
-            f"g4 was a mistake because the {phrase} detail mattered. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        f"g4 was a mistake because the {phrase} detail mattered. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -675,11 +695,9 @@ def test_verifier_accepts_supported_special_move_concepts(
             ),
         }
     )
-    output = ExplanationOutput(
-        explanation=(
-            f"g4 was a mistake because the {phrase} detail mattered. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        f"g4 was a mistake because the {phrase} detail mattered. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -689,7 +707,7 @@ def test_verifier_accepts_supported_special_move_concepts(
 
 def test_verifier_rejects_wrong_quality_label() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was good because Nf3 was another option.")
+    output = rich_output("g4 was good because Nf3 was another option.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -699,9 +717,7 @@ def test_verifier_rejects_wrong_quality_label() -> None:
 
 def test_verifier_allows_implicit_positive_quality_label() -> None:
     context = best_context()
-    output = ExplanationOutput(
-        explanation="e4 fits the position; no sharper alternative is needed."
-    )
+    output = rich_output("e4 fits the position; no sharper alternative is needed.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -710,7 +726,7 @@ def test_verifier_allows_implicit_positive_quality_label() -> None:
 
 def test_verifier_still_requires_bad_quality_label() -> None:
     context = hard_engine_best_context()
-    output = ExplanationOutput(explanation="a3 let the opponent improve with e5.")
+    output = rich_output("a3 let the opponent improve with e5.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -720,7 +736,7 @@ def test_verifier_still_requires_bad_quality_label() -> None:
 
 def test_verifier_rejects_internal_prompt_language() -> None:
     context = best_context()
-    output = ExplanationOutput(explanation="e4 was the featured move and the best move.")
+    output = rich_output("e4 was the featured move and the best move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -730,7 +746,7 @@ def test_verifier_rejects_internal_prompt_language() -> None:
 
 def test_verifier_rejects_engine_meta_language() -> None:
     context = best_context()
-    output = ExplanationOutput(explanation="e4 was the engine best move.")
+    output = rich_output("e4 was the engine best move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -740,9 +756,7 @@ def test_verifier_rejects_engine_meta_language() -> None:
 
 def test_verifier_allows_engine_like_findability_caveat() -> None:
     context = hard_engine_best_context()
-    output = ExplanationOutput(
-        explanation="a3 was a blunder; e4 was an engine-like hidden resource."
-    )
+    output = rich_output("a3 was a blunder; e4 was an engine-like hidden resource.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -751,7 +765,7 @@ def test_verifier_allows_engine_like_findability_caveat() -> None:
 
 def test_verifier_rejects_best_move_inconsistency() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(explanation="g4 was a mistake, but Nf3 was the best move.")
+    output = rich_output("g4 was a mistake, but Nf3 was the best move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -761,7 +775,7 @@ def test_verifier_rejects_best_move_inconsistency() -> None:
 
 def test_verifier_rejects_hard_move_without_caveat() -> None:
     context = hard_engine_best_context()
-    output = ExplanationOutput(explanation="a3 was a blunder; e4 was the better move.")
+    output = rich_output("a3 was a blunder; e4 was the better move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -787,7 +801,7 @@ def test_verifier_allows_hard_played_move_when_quality_is_non_bad() -> None:
             )
         }
     )
-    output = ExplanationOutput(explanation="e4 was the best move.")
+    output = rich_output("e4 was the best move.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -808,7 +822,7 @@ def test_verifier_rejects_do_not_recommend_move() -> None:
             "evidence": context.evidence.model_copy(update={"candidates": candidates}),
         }
     )
-    output = ExplanationOutput(explanation="g4 was a mistake, so you should play e4.")
+    output = rich_output("g4 was a mistake, so you should play e4.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -828,7 +842,7 @@ def test_verifier_allows_positive_language_for_non_bad_played_move() -> None:
     context = context.model_copy(
         update={"evidence": context.evidence.model_copy(update={"candidates": candidates})}
     )
-    output = ExplanationOutput(explanation="e4 was the best move, so it was fine to play e4.")
+    output = rich_output("e4 was the best move, so it was fine to play e4.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -837,11 +851,9 @@ def test_verifier_allows_positive_language_for_non_bad_played_move() -> None:
 
 def test_verifier_still_rejects_recommending_bad_played_move() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake, but you should play g4 anyway. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake, but you should play g4 anyway. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -852,9 +864,7 @@ def test_verifier_still_rejects_recommending_bad_played_move() -> None:
 
 def test_verifier_allows_recommendation_language_for_different_move_near_bad_move() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation="g4 was a mistake; you should play Nf3 as the practical alternative."
-    )
+    output = rich_output("g4 was a mistake; you should play Nf3 as the practical alternative.")
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -863,11 +873,9 @@ def test_verifier_allows_recommendation_language_for_different_move_near_bad_mov
 
 def test_verifier_allows_negative_advice_about_bad_played_move() -> None:
     context = mistake_context_with_practical_alternative()
-    output = ExplanationOutput(
-        explanation=(
-            "g4 was a mistake; do not play g4 in this structure. "
-            "Nf3 was a practical alternative that stayed close to best play."
-        )
+    output = rich_output(
+        "g4 was a mistake; do not play g4 in this structure. "
+        "Nf3 was a practical alternative that stayed close to best play."
     )
 
     verification = ExplanationVerifier().verify(context, output)

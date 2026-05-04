@@ -12,6 +12,7 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationOutput,
     ExplanationVerificationIssue,
 )
+from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
 
 def build_coach_prompt(
@@ -23,9 +24,29 @@ def build_coach_prompt(
     payload: dict[str, object] = {
         "task": "Write one verified chess-coach explanation for the played move.",
         "llm_context": context_result.llm_context.to_dict(),
+        "line_evidence": [line.to_dict() for line in build_line_evidence(context_result)],
         "constraints": [
             "Use only supplied context.",
-            "Return exactly one JSON object with an explanation string.",
+            (
+                "Return exactly one JSON object with segments and line_cards. "
+                "Do not return a flat explanation field."
+            ),
+            (
+                "segments are visible UI text chunks. Each segment needs text and "
+                "line_card_id. Use null when no hover card belongs to that text."
+            ),
+            (
+                "line_cards are optional hover cards for supplied line_evidence only. "
+                "Use at most two cards unless the context clearly needs more."
+            ),
+            (
+                "If you use a line card, copy its id and moves exactly from line_evidence. "
+                "Do not create new line-card ids or new move sequences."
+            ),
+            (
+                "Keep the visible explanation compact but not thin: usually two to five "
+                "segments and roughly 35 to 90 visible words."
+            ),
             (
                 "Use a neutral explanatory voice. Do not address the player directly, "
                 "and do not write broadcast-style commentary."
@@ -78,8 +99,12 @@ def build_coach_prompt(
             ),
             (
                 "Choose the smallest sufficient teaching point. Do not list every "
-                "supplied candidate or concept. Mention at most one better, practical, "
-                "or hidden move unless the main_point itself needs a direct contrast."
+                "supplied candidate, concept, or line card. Mention at most one better, "
+                "practical, or hidden move unless the main_point itself needs a direct contrast."
+            ),
+            (
+                "When a bad move allows a key reply, explain why that reply is good for "
+                "the opponent and bad for the player. Do not stop at 'it allowed MOVE'."
             ),
             (
                 "For good high-WDL or good-not-best moves, explain why the played move "
@@ -110,7 +135,7 @@ def build_coach_prompt(
             (
                 "Do not add moves, PV continuations, material claims, tactic claims, "
                 "concept claims, or mate claims unless they are supplied in "
-                "concept_claims, allowed_claims, or candidates."
+                "concept_claims, allowed_claims, candidates, or line_evidence."
             ),
             (
                 "Do not use named tactic labels such as fork, pin, skewer, "
@@ -155,8 +180,8 @@ def build_coach_prompt(
                 "content": (
                     "You are a chess coach for one verified move. The chess truth is "
                     "already decided by deterministic evidence. Your job is only to "
-                    "phrase that evidence as a concise, neutral explanation. Return "
-                    "strict JSON with one field named explanation."
+                    "phrase that evidence as concise, useful UI copy. Return strict "
+                    "JSON with visible segments and optional verified line cards."
                 ),
             },
             {

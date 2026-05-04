@@ -20,6 +20,10 @@ from g6explanation.context_engine.contracts import ContextResult
 from g6explanation.context_engine.position_reconstruction import color_name
 from g6explanation.explanation_generation import ExplanationService
 from g6explanation.explanation_generation.coach_model import CoachModelProvider
+from g6explanation.explanation_generation.contracts import (
+    ExplanationLineCard,
+    ExplanationSegment,
+)
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.game_analysis.contracts import (
     GameAnalysisSnapshot,
@@ -59,6 +63,8 @@ class _ContextBuildResult:
 class _ExplanationBuildResult:
     ply: int
     explanation: str
+    segments: list[ExplanationSegment]
+    line_cards: list[ExplanationLineCard]
     latency_seconds: float
     attempts: int
     model: str
@@ -240,6 +246,8 @@ class GameAnalysisRunner:
         return _ExplanationBuildResult(
             ply=ply,
             explanation=result.explanation,
+            segments=result.segments,
+            line_cards=result.line_cards,
             latency_seconds=round(self._clock() - start, 3),
             attempts=len(result.attempts),
             model=result.model,
@@ -353,6 +361,8 @@ def _snapshot_with_explanation(
             update={
                 "state": "explained",
                 "explanation": explanation.explanation,
+                "explanation_segments": explanation.segments,
+                "explanation_line_cards": explanation.line_cards,
                 "explanation_latency_seconds": explanation.latency_seconds,
                 "explanation_attempts": explanation.attempts,
                 "explanation_model": explanation.model,

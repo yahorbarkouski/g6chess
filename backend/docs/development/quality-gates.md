@@ -41,6 +41,7 @@ Every production explanation must pass:
 - schema validation
 - deterministic explanation-output verification
 - legal move validation for mentioned moves
+- line-card id and move-sequence validation against supplied verified line evidence
 - best-move and practical-alternative consistency
 - no unsupported PV moves
 - no unsupported tactic, material, or mate claims

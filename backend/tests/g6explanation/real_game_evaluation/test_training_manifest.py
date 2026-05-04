@@ -36,7 +36,7 @@ def test_training_manifest_includes_only_manually_accepted_verified_records() ->
     assert manifest.entries[0].case_id == "accepted"
     assert manifest.entries[0].source == PROJECT_SYNTHETIC_SOURCE
     assert manifest.entries[0].llm_context == accepted.llm_context
-    assert manifest.entries[0].prompt_version == "single_move_coach.v8"
+    assert manifest.entries[0].prompt_version == "single_move_coach.v9"
     assert manifest.entries[0].explanation == "e4 claims the center and opens lines for White."
     assert manifest.excluded_counts == {
         "fallback_or_unknown_finish": 1,
@@ -112,7 +112,7 @@ def _record(
     explanation: str | None = "e4 claims the center and opens lines for White.",
     source: ExplanationDataSource | None = PROJECT_SYNTHETIC_SOURCE,
     llm_context: LLMContext | None | object = _DEFAULT_LLM_CONTEXT,
-    prompt_version: str | None = "single_move_coach.v8",
+    prompt_version: str | None = "single_move_coach.v9",
 ) -> RealExplanationEvalRecord:
     resolved_llm_context = (
         best_context().llm_context if llm_context is _DEFAULT_LLM_CONTEXT else llm_context
@@ -136,7 +136,7 @@ def _record(
         maia_sources=["maia2_rapid"],
         provider_name="openrouter",
         model=model,
-        schema_version="explanation_output.v1",
+        schema_version="explanation_output.v2",
         context_version="move_context.v1",
         prompt_id="single_move_coach",
         prompt_version=prompt_version,

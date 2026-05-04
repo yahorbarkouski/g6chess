@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -51,13 +52,13 @@ def test_service_returns_verified_model_output_without_baseline_comparison() -> 
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             ),
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             ),
         ]
     )
@@ -78,13 +79,13 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             ),
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             ),
         ]
     )
@@ -96,7 +97,11 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v8"
+    assert result.prompt_version == "single_move_coach.v9"
+    assert "segments and line_cards" in prompt_payload
+    assert "line_evidence" in prompt_payload
+    assert "roughly 35 to 90 visible words" in prompt_payload
+    assert "why that reply is good for" in prompt_payload
     assert "Use a neutral explanatory voice" in prompt_payload
     assert "Write like a compact game-review note" in prompt_payload
     assert "Avoid rigid templates" in prompt_payload
@@ -120,10 +125,10 @@ def test_service_retries_with_verifier_failures() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
-            '{"explanation":"g4 was a mistake, and a3 was the better move."}',
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response("g4 was a mistake, and a3 was the better move."),
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             ),
         ]
     )
@@ -146,8 +151,8 @@ def test_service_uses_verified_fallback_after_unverified_model_attempts() -> Non
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
-            '{"explanation":"g4 was a mistake, and a3 was the better move."}',
-            '{"explanation":"g4 was a mistake because it loses a queen."}',
+            _response("g4 was a mistake, and a3 was the better move."),
+            _response("g4 was a mistake because it loses a queen."),
         ]
     )
     service = ExplanationService(
@@ -167,7 +172,7 @@ def test_service_exposes_attempts_on_controlled_verification_failure() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
-            '{"explanation":"g4 was a mistake, and a3 was the better move."}',
+            _response("g4 was a mistake, and a3 was the better move."),
         ]
     )
     service = ExplanationService(
@@ -191,9 +196,9 @@ def test_public_explain_move_accepts_fen_played_move_and_rating() -> None:
     context_builder = RecordingContextBuilder(context)
     provider = StaticCoachProvider(
         [
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             )
         ]
     )
@@ -219,9 +224,9 @@ def test_public_explain_move_accepts_existing_request() -> None:
     context_builder = RecordingContextBuilder(context)
     provider = StaticCoachProvider(
         [
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             )
         ]
     )
@@ -241,9 +246,9 @@ def test_public_explain_move_accepts_explicit_pgn_ply() -> None:
     context_builder = RecordingContextBuilder(context)
     provider = StaticCoachProvider(
         [
-            (
-                '{"explanation":"g4 was a mistake because it let the opponent improve with e5. '
-                'Nf3 was a practical alternative that stayed close to best play."}'
+            _response(
+                "g4 was a mistake because it let the opponent improve with e5. "
+                "Nf3 was a practical alternative that stayed close to best play."
             )
         ]
     )
@@ -293,3 +298,12 @@ def test_public_explain_move_requires_player_fields_for_fen_input() -> None:
 def _unused_builder() -> MoveContextBuilder:
     context = mistake_context_with_practical_alternative()
     return MoveContextBuilder(StaticAnalysisProvider(context.evidence.engine))
+
+
+def _response(text: str) -> str:
+    return json.dumps(
+        {
+            "segments": [{"text": text, "line_card_id": None}],
+            "line_cards": [],
+        }
+    )

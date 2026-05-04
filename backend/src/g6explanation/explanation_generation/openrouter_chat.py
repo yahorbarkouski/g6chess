@@ -24,6 +24,7 @@ DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
+DEFAULT_MAX_COMPLETION_TOKENS: int | None = None
 RETRYABLE_HTTP_STATUSES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 HttpTransport = Callable[[str, Mapping[str, str], bytes, float], tuple[int, bytes]]
@@ -56,7 +57,7 @@ class OpenRouterCoachModelProvider:
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     max_retries: int = DEFAULT_MAX_RETRIES
     retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS
-    max_completion_tokens: int = 700
+    max_completion_tokens: int | None = DEFAULT_MAX_COMPLETION_TOKENS
     transport: HttpTransport = _urllib_transport
     sleep: Sleep = time.sleep
 
@@ -67,6 +68,8 @@ class OpenRouterCoachModelProvider:
             raise ValueError("max_retries must be non-negative.")
         if self.retry_backoff_seconds < 0:
             raise ValueError("retry_backoff_seconds must be non-negative.")
+        if self.max_completion_tokens is not None and self.max_completion_tokens <= 0:
+            raise ValueError("max_completion_tokens must be positive when set.")
 
     @property
     def provider_name(self) -> str:
@@ -96,7 +99,7 @@ class OpenRouterCoachModelProvider:
                 "G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS",
                 DEFAULT_RETRY_BACKOFF_SECONDS,
             ),
-            max_completion_tokens=_int_env("G6EXPLANATION_OPENROUTER_MAX_TOKENS", 700),
+            max_completion_tokens=_optional_int_env("G6EXPLANATION_OPENROUTER_MAX_TOKENS"),
         )
 
     def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
@@ -142,8 +145,9 @@ class OpenRouterCoachModelProvider:
             "model": self.model,
             "messages": prompt.messages,
             "response_format": prompt.response_format,
-            "max_completion_tokens": self.max_completion_tokens,
         }
+        if self.max_completion_tokens is not None:
+            payload["max_completion_tokens"] = self.max_completion_tokens
         if self.reasoning_effort:
             payload["reasoning"] = {"effort": self.reasoning_effort, "exclude": True}
         return payload
@@ -181,6 +185,11 @@ def _dotenv_value(path: Path, key: str) -> str | None:
 def _int_env(name: str, default: int) -> int:
     value = os.environ.get(name)
     return default if value is None else int(value)
+
+
+def _optional_int_env(name: str) -> int | None:
+    value = os.environ.get(name)
+    return None if value is None else int(value)
 
 
 def _float_env(name: str, default: float) -> float:

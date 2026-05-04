@@ -28,7 +28,9 @@ At this move in my game, what happened, how good was my move, and what should I 
 - Classify move quality from verified evidence.
 - Explain the key better move or idea when evidence supports it.
 - Adapt wording to player level and time situation.
-- Return one concise explanation string.
+- Return one concise explanation string for the simple public API, with verified
+  rich explanation segments available to UI clients when the surface supports
+  hoverable line cards.
 
 ## Out Of Scope
 
@@ -76,7 +78,9 @@ The explanation must be derived from this packet.
 
 ## Output Standard
 
-The final public response is one coherent string. It should include:
+The final public response is one coherent string derived from verified visible
+segments. Rich clients may render those segments directly and attach optional
+verified line cards. The explanation should include:
 
 - the move quality
 - what changed in the position
@@ -86,7 +90,7 @@ The final public response is one coherent string. It should include:
 - the one key lesson for this position
 
 It must not include raw engine dumps, unsupported tactics, invented PV moves,
-multi-section lessons, or unrelated advice.
+invented hover-card sequences, multi-section lessons, or unrelated advice.
 
 ## Rating Adaptation
 

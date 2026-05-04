@@ -13,11 +13,13 @@ from g6explanation.context_engine.contracts import (
     KeyMoveContext,
 )
 from g6explanation.explanation_generation.contracts import (
+    ExplanationLineEvidence,
     ExplanationOutput,
     ExplanationVerificationIssue,
     ExplanationVerificationIssueCode,
     ExplanationVerificationResult,
 )
+from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
 EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v1"
 
@@ -162,12 +164,19 @@ class ExplanationVerifier:
             issues.fail("empty_explanation", "$.explanation", "Explanation cannot be empty.")
             return issues.result()
 
-        allowed_aliases = _allowed_move_aliases(context_result)
+        line_evidence = build_line_evidence(context_result)
+        allowed_aliases = _allowed_move_aliases(context_result, line_evidence)
         mentions = _move_mentions(explanation)
+        _verify_line_cards(output, line_evidence, allowed_aliases, issues)
         _verify_played_move_mentioned(context_result, explanation, mentions, issues)
         _verify_move_mentions(mentions, allowed_aliases, issues)
         _verify_quality(context_result, explanation, issues)
         _verify_supported_claim_terms(context_result, explanation, mentions, issues)
+        for line_card in output.line_cards:
+            card_text = f"{line_card.title}. {line_card.why}"
+            card_mentions = _move_mentions(card_text)
+            _verify_move_mentions(card_mentions, allowed_aliases, issues)
+            _verify_supported_claim_terms(context_result, card_text, card_mentions, issues)
         _verify_best_move_consistency(context_result, explanation, mentions, issues)
         _verify_recommendation_policy(context_result, explanation, mentions, issues)
         _verify_hard_move_caveats(context_result, explanation, mentions, issues)
@@ -205,14 +214,74 @@ class _IssueCollector:
         )
 
 
-def _allowed_move_aliases(context_result: ContextResult) -> set[str]:
+def _allowed_move_aliases(
+    context_result: ContextResult,
+    line_evidence: list[ExplanationLineEvidence],
+) -> set[str]:
     aliases = _san_aliases(context_result.llm_context.played)
     for candidate in context_result.evidence.candidates:
         aliases.update(_san_aliases(candidate.san))
+    for line in line_evidence:
+        for move in line.moves:
+            aliases.update(_san_aliases(move))
     after_line = context_result.evidence.engine.after_line
     if after_line and _move_is_allowed_by_claims(after_line.move_san, context_result):
         aliases.update(_san_aliases(after_line.move_san))
     return aliases
+
+
+def _verify_line_cards(
+    output: ExplanationOutput,
+    line_evidence: list[ExplanationLineEvidence],
+    allowed_aliases: set[str],
+    issues: _IssueCollector,
+) -> None:
+    evidence_by_id = {line.id: line for line in line_evidence}
+    card_by_id = {card.id: card for card in output.line_cards}
+    referenced_ids = {
+        segment.line_card_id for segment in output.segments if segment.line_card_id is not None
+    }
+
+    for index, card in enumerate(output.line_cards):
+        evidence = evidence_by_id.get(card.id)
+        if evidence is None:
+            issues.fail(
+                "line_card_unsupported",
+                f"$.line_cards[{index}].id",
+                f"Line card {card.id!r} was not supplied as verified line evidence.",
+            )
+            continue
+        if card.moves != evidence.moves:
+            issues.fail(
+                "line_card_move_mismatch",
+                f"$.line_cards[{index}].moves",
+                f"Line card {card.id!r} changed the supplied move sequence.",
+            )
+        for move_index, move in enumerate(card.moves):
+            for alias in _san_aliases(move):
+                if alias not in allowed_aliases:
+                    issues.fail(
+                        "line_card_move_mismatch",
+                        f"$.line_cards[{index}].moves[{move_index}]",
+                        f"Line card move {move!r} is not supplied in verified line evidence.",
+                    )
+                    break
+
+    for referenced_id in referenced_ids:
+        if referenced_id not in card_by_id:
+            issues.fail(
+                "line_card_unsupported",
+                "$.segments",
+                f"Segment references missing line card {referenced_id!r}.",
+            )
+
+    for index, card in enumerate(output.line_cards):
+        if card.id not in referenced_ids:
+            issues.fail(
+                "line_card_unreferenced",
+                f"$.line_cards[{index}].id",
+                f"Line card {card.id!r} is not referenced by any visible segment.",
+            )
 
 
 def _move_is_allowed_by_claims(san: str, context_result: ContextResult) -> bool:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from g6explanation.context_engine.contracts import ContextResult, KeyMoveContext
-from g6explanation.explanation_generation.contracts import ExplanationOutput
+from g6explanation.explanation_generation.contracts import ExplanationOutput, ExplanationSegment
 
 
 def render_baseline_explanation(context_result: ContextResult) -> ExplanationOutput:
@@ -20,8 +20,11 @@ def render_baseline_explanation(context_result: ContextResult) -> ExplanationOut
     if context.human_note:
         parts.append(_normalize_sentence(context.human_note))
 
-    explanation = " ".join(_dedupe(parts))
-    return ExplanationOutput(explanation=explanation)
+    deduped_parts = _dedupe(parts)
+    return ExplanationOutput(
+        segments=[ExplanationSegment(text=part, line_card_id=None) for part in deduped_parts[:6]],
+        line_cards=[],
+    )
 
 
 def _teaching_move_sentence(move_context: KeyMoveContext | None) -> str | None:

@@ -97,6 +97,8 @@ class ExplanationService:
             if verification.passed:
                 return ExplanationResult(
                     explanation=output.explanation,
+                    segments=output.segments,
+                    line_cards=output.line_cards,
                     finish_reason="model",
                     schema_version=EXPLANATION_SCHEMA_VERSION,
                     context_version=context_result.evidence.context_version,
@@ -114,6 +116,8 @@ class ExplanationService:
         if self._use_baseline_fallback:
             return ExplanationResult(
                 explanation=baseline.explanation,
+                segments=baseline.segments,
+                line_cards=baseline.line_cards,
                 finish_reason="fallback",
                 schema_version=EXPLANATION_SCHEMA_VERSION,
                 context_version=context_result.evidence.context_version,

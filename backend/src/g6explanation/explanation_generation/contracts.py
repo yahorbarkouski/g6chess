@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Literal, TypeAlias
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from g6explanation.context_engine.contracts import ContextContract
 
-EXPLANATION_SCHEMA_VERSION = "explanation_output.v1"
+EXPLANATION_SCHEMA_VERSION = "explanation_output.v2"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v8"
+PROMPT_VERSION = "single_move_coach.v9"
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",
@@ -30,22 +30,94 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
     "recommendation_policy_violation",
     "hard_move_uncaveated",
     "side_attribution_unsupported",
+    "line_card_unsupported",
+    "line_card_move_mismatch",
+    "line_card_unreferenced",
 ]
 GenerationFinishReason: TypeAlias = Literal["model", "fallback", "controlled_failure"]
+LineEvidenceRole: TypeAlias = Literal["played_line", "better_line"]
+
+
+class ExplanationSegment(ContextContract):
+    """Visible explanation text with optional hover-line attachment."""
+
+    text: str = Field(min_length=1, max_length=320)
+    line_card_id: str | None
+
+    @field_validator("text")
+    @classmethod
+    def _strip_and_reject_empty(cls, value: str) -> str:
+        stripped = " ".join(value.split())
+        if not stripped:
+            raise ValueError("Segment text cannot be empty.")
+        return stripped
+
+
+class ExplanationLineCard(ContextContract):
+    """Hover data for one verified tactical or strategic line."""
+
+    id: str = Field(min_length=1, max_length=80)
+    moves: list[str] = Field(min_length=2, max_length=8)
+    title: str = Field(min_length=1, max_length=100)
+    why: str = Field(min_length=1, max_length=320)
+
+    @field_validator("id", "title", "why")
+    @classmethod
+    def _strip_text_field(cls, value: str) -> str:
+        stripped = " ".join(value.split())
+        if not stripped:
+            raise ValueError("Line-card text fields cannot be empty.")
+        return stripped
+
+    @field_validator("moves")
+    @classmethod
+    def _strip_moves(cls, value: list[str]) -> list[str]:
+        stripped = [" ".join(move.split()) for move in value]
+        if any(not move for move in stripped):
+            raise ValueError("Line-card moves cannot be empty.")
+        return stripped
+
+
+class ExplanationLineEvidence(ContextContract):
+    """Verified line evidence supplied to the model for optional hover cards."""
+
+    id: str
+    role: LineEvidenceRole
+    moves: list[str]
+    title: str
+    why: str
 
 
 class ExplanationOutput(ContextContract):
     """Strict raw model response shape."""
 
-    explanation: str = Field(min_length=1)
+    segments: list[ExplanationSegment] = Field(min_length=1, max_length=6)
+    line_cards: list[ExplanationLineCard] = Field(max_length=3)
 
-    @field_validator("explanation")
-    @classmethod
-    def _strip_and_reject_empty(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
+    @property
+    def explanation(self) -> str:
+        return " ".join(segment.text.strip() for segment in self.segments).strip()
+
+    @model_validator(mode="after")
+    def _validate_segment_line_card_refs(self) -> ExplanationOutput:
+        card_ids = [card.id for card in self.line_cards]
+        if len(card_ids) != len(set(card_ids)):
+            raise ValueError("Line-card ids must be unique.")
+        card_id_set = set(card_ids)
+        referenced_ids = {
+            segment.line_card_id for segment in self.segments if segment.line_card_id is not None
+        }
+        missing_ids = referenced_ids - card_id_set
+        if missing_ids:
+            raise ValueError(f"Segments reference missing line-card ids: {sorted(missing_ids)}.")
+        unreferenced_ids = card_id_set - referenced_ids
+        if unreferenced_ids:
+            raise ValueError(
+                f"Line cards are not referenced by any segment: {sorted(unreferenced_ids)}."
+            )
+        if not self.explanation:
             raise ValueError("Explanation cannot be empty.")
-        return stripped
+        return self
 
 
 class ExplanationVerificationIssue(ContextContract):
@@ -98,6 +170,8 @@ class GenerationAttempt(ContextContract):
 
 class ExplanationResult(ContextContract):
     explanation: str
+    segments: list[ExplanationSegment] = Field(default_factory=list[ExplanationSegment])
+    line_cards: list[ExplanationLineCard] = Field(default_factory=list[ExplanationLineCard])
     finish_reason: GenerationFinishReason
     schema_version: str
     context_version: str

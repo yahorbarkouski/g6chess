@@ -220,7 +220,12 @@ class PromptEchoCoachProvider:
         return CoachModelResponse(
             provider_name=self.provider_name,
             model=self.model,
-            content=json.dumps({"explanation": explanation}),
+            content=json.dumps(
+                {
+                    "segments": [{"text": explanation, "line_card_id": None}],
+                    "line_cards": [],
+                }
+            ),
             finish_reason="stop",
         )
 

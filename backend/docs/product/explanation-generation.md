@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Explanation generation turns a verified `LLMContext` into one verified public
-explanation string.
+Explanation generation turns a verified `LLMContext` and optional verified line
+evidence into segmented UI copy plus one derived public explanation string.
 
 This layer is downstream of the context engine. It does not calculate chess,
 choose better moves, alter quality labels, or reinterpret Stockfish, Maia, or
@@ -18,6 +18,7 @@ that makes model output safe to return.
 Implemented pieces:
 
 - explanation output and verification contracts
+- segmented visible explanation output with optional verified hover line cards
 - deterministic baseline renderer
 - explanation-text verifier
 - static coach provider tests
@@ -41,23 +42,28 @@ Input:
 Output:
 
 - public: one explanation string
+- rich clients: verified visible segments and optional hover line cards
 - internal: private metadata with context version, prompt version, provider
   version, verifier version, attempts, schema-valid attempt text, fallback
   status, and failure codes
 
-The model provider returns raw JSON to the generation layer. The public API
-returns only the verified `explanation` string. Public input errors raise
-controlled `ExplanationInputError` exceptions instead of silently guessing.
+The model provider returns raw JSON to the generation layer. Internally the raw
+output is segmented UI copy plus optional hover line cards. The one-move public
+API still returns only the verified joined `explanation` string, while
+`ExplanationResult` and game-analysis snapshots expose `segments` and
+`line_cards` for richer clients. Public input errors raise controlled
+`ExplanationInputError` exceptions instead of silently guessing.
 
 The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `.env`, uses `openai/gpt-5.5` by default, and can be overridden with
 `G6EXPLANATION_OPENROUTER_MODEL`. Provider resilience settings are explicit:
 `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
 `G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
-`G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
-`G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
+`G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and optional
+`G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
+set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v8`. Version 2 made
+Current prompt version: `single_move_coach.v9`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -81,7 +87,11 @@ the supplied context makes an alternative comparison the lesson.
 Version 8 lets the non-bad agenda reuse deterministic played-move concept
 claims, such as center, development, open-file, material, castling, en passant,
 promotion, or outpost evidence, before falling back to generic "fits the
-position" wording.
+position" wording. Version 9 changes the raw model output from a flat
+explanation string to visible `segments` plus optional verified `line_cards`.
+It supplies compact line evidence to the model, asks for causal explanation
+rather than "allowed MOVE" shorthand, and keeps plain-string compatibility by
+joining segments after verification.
 
 ## Contracts
 
@@ -89,9 +99,26 @@ The raw model response must validate against:
 
 ```json
 {
-  "explanation": "string"
+  "segments": [
+    {
+      "text": "visible UI text",
+      "line_card_id": "played-line"
+    }
+  ],
+  "line_cards": [
+    {
+      "id": "played-line",
+      "moves": ["b5", "Bxf3", "gxf3", "Rxb5"],
+      "title": "Why b5 gets punished",
+      "why": "Hover-card explanation of why the supplied line matters."
+    }
+  ]
 }
 ```
+
+`line_card_id` may be `null`. Every line-card id and move sequence must match
+supplied verified line evidence exactly. The derived public string is the joined
+segment text.
 
 The generation layer includes contracts for:
 
@@ -115,7 +142,7 @@ issue codes, but invalid output must never be returned directly.
 
 ## Deterministic Baseline
 
-The deterministic baseline renderer writes a plain explanation from
+The deterministic baseline renderer writes conservative segments from
 `LLMContext`.
 
 The baseline has three jobs:
@@ -140,7 +167,9 @@ Minimum checks:
 
 - JSON schema validation
 - mentioned move validation against played move, supplied candidates, featured
-  move, engine best, practical alternative, and explicitly allowed replies
+  move, engine best, practical alternative, supplied line evidence, and
+  explicitly allowed replies
+- line-card id and move-sequence validation against supplied line evidence
 - no unsupported PV continuations
 - no unsupported mate, material, tactic, or concept claims
 - direct "this move checkmates" wording requires mate evidence for that move,
@@ -179,12 +208,14 @@ Generation flow:
 
 ```text
 build verified context
+derive verified line evidence
 render baseline candidate
 call provider for strict JSON
 validate schema
 verify explanation text
 retry once with verifier failures if needed
-return verified model explanation, verified baseline fallback, or controlled failure
+return verified model segments plus joined string, verified baseline fallback, or
+controlled failure
 ```
 
 Use deterministic baseline fallback for early product demos unless the product
@@ -292,5 +323,5 @@ Metrics:
 - ungated training data generation
 - ungated fine-tuning
 - model judging
-- UI wording polish beyond one verified explanation string
+- broad UI wording polish beyond verified explanation segments and line cards
 - full-game review, dashboards, drills, or personalized memory

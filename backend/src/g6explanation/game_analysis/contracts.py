@@ -16,6 +16,10 @@ from g6explanation.context_engine.contracts import (
     PlayerLevel,
     SignificanceLabel,
 )
+from g6explanation.explanation_generation.contracts import (
+    ExplanationLineCard,
+    ExplanationSegment,
+)
 
 GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v1"
 
@@ -82,6 +86,10 @@ class GameMoveAnalysis(ContextContract):
     beauty: MoveBeauty
     context_latency_seconds: float
     explanation: str | None = None
+    explanation_segments: list[ExplanationSegment] = Field(default_factory=list[ExplanationSegment])
+    explanation_line_cards: list[ExplanationLineCard] = Field(
+        default_factory=list[ExplanationLineCard]
+    )
     explanation_latency_seconds: float | None = None
     explanation_attempts: int = 0
     explanation_model: str | None = None

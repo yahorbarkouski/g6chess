@@ -9,6 +9,7 @@ from g6explanation.context_engine.contracts import (
     MoveContextRequest,
     PlayerLevel,
 )
+from g6explanation.explanation_generation.contracts import ExplanationOutput, ExplanationSegment
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     StaticHumanLikelihoodProvider,
@@ -100,3 +101,10 @@ def best_context() -> ContextResult:
         player_level=PlayerLevel.rating(1200),
     )
     return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+
+def rich_output(text: str) -> ExplanationOutput:
+    return ExplanationOutput(
+        segments=[ExplanationSegment(text=text, line_card_id=None)],
+        line_cards=[],
+    )

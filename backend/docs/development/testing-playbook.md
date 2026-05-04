@@ -73,8 +73,10 @@ OpenRouter:
   `G6EXPLANATION_OPENROUTER_REASONING_EFFORT`.
 - Tune provider resilience with `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
   `G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
-  `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and
-  `G6EXPLANATION_OPENROUTER_MAX_TOKENS`.
+  `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and optional
+  `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. The provider has no default
+  completion-token cap; set the env var only when a specific experiment needs
+  one.
 - Real provider smoke is opt-in with `G6EXPLANATION_RUN_OPENROUTER=1`.
 - Real provider plus Stockfish smoke is opt-in with
   `G6EXPLANATION_RUN_OPENROUTER_STOCKFISH=1`.
@@ -184,7 +186,7 @@ Compare against the current baseline.
 
 Before calling a real model, add tests for:
 
-- strict output schema with only an `explanation` string
+- strict rich output schema with visible segments and optional verified line cards
 - deterministic baseline explanations from existing context packets
 - verifier rejection of unsupported moves, PVs, mate claims, material claims,
   tactic claims, wrong-side language, and recommendation-policy violations

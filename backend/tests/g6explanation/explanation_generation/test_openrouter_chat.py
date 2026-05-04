@@ -39,7 +39,7 @@ def test_openrouter_provider_sends_structured_output_request() -> None:
                     "finish_reason": "stop",
                     "message": {
                         "role": "assistant",
-                        "content": '{"explanation":"e4 was the best move."}',
+                        "content": _coach_response("e4 claimed the center."),
                     },
                 }
             ],
@@ -57,7 +57,8 @@ def test_openrouter_provider_sends_structured_output_request() -> None:
     assert payload["model"] == DEFAULT_OPENROUTER_MODEL
     assert payload["response_format"] == prompt.response_format
     assert payload["reasoning"] == {"effort": "high", "exclude": True}
-    assert response.content == '{"explanation":"e4 was the best move."}'
+    assert "max_completion_tokens" not in payload
+    assert response.content == _coach_response("e4 claimed the center.")
 
 
 def test_openrouter_provider_loads_api_key_from_dotenv(tmp_path: Path) -> None:
@@ -181,6 +182,8 @@ def test_openrouter_provider_validates_resilience_settings() -> None:
         OpenRouterCoachModelProvider(api_key="test-key", max_retries=-1)
     with pytest.raises(ValueError, match="retry_backoff_seconds"):
         OpenRouterCoachModelProvider(api_key="test-key", retry_backoff_seconds=-1)
+    with pytest.raises(ValueError, match="max_completion_tokens"):
+        OpenRouterCoachModelProvider(api_key="test-key", max_completion_tokens=0)
 
 
 def test_openrouter_provider_defaults_timeout_policy() -> None:
@@ -188,6 +191,7 @@ def test_openrouter_provider_defaults_timeout_policy() -> None:
 
     assert provider.timeout_seconds == DEFAULT_TIMEOUT_SECONDS
     assert provider.max_retries == 1
+    assert provider.max_completion_tokens is None
 
 
 def _openrouter_response() -> bytes:
@@ -199,9 +203,18 @@ def _openrouter_response() -> bytes:
                 "finish_reason": "stop",
                 "message": {
                     "role": "assistant",
-                    "content": '{"explanation":"e4 was the best move."}',
+                    "content": _coach_response("e4 claimed the center."),
                 },
             }
         ],
     }
     return json.dumps(response).encode("utf-8")
+
+
+def _coach_response(text: str) -> str:
+    return json.dumps(
+        {
+            "segments": [{"text": text, "line_card_id": None}],
+            "line_cards": [],
+        }
+    )

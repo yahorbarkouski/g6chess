@@ -2,9 +2,9 @@
 
 ## Prompt Job
 
-The prompt turns verified LLM context into one explanation string. It must not
-ask the model to calculate chess, infer missing evidence, or choose a different
-best move.
+The prompt turns verified LLM context and optional verified line evidence into
+segmented UI copy for one explanation. It must not ask the model to calculate
+chess, infer missing evidence, or choose a different best move.
 
 ## Generation Contract
 
@@ -12,19 +12,33 @@ Use a strict internal response schema:
 
 ```json
 {
-  "explanation": "string"
+  "segments": [
+    {
+      "text": "visible explanation text",
+      "line_card_id": null
+    }
+  ],
+  "line_cards": []
 }
 ```
 
-The public API returns the `explanation` string only. Private verifier metadata
-may be stored outside the public response.
+The public one-move API returns the joined `explanation` string for
+compatibility. Rich clients may use verified `segments` and `line_cards` from
+`ExplanationResult` or game-analysis snapshots. Private verifier metadata may be
+stored outside the public response.
 
 ## Static Prompt Rules
 
 The static prompt should say:
 
 - Use only the supplied context.
-- Return exactly one concise explanation string.
+- Return visible `segments` plus optional `line_cards`, not a flat explanation
+  field.
+- Keep the visible text compact but useful, usually two to five segments and
+  roughly 35 to 90 words.
+- Use a line card only when supplied `line_evidence` makes a short hidden line
+  helpful; copy line-card ids and move sequences exactly from the supplied
+  evidence.
 - Use a concise, neutral explanatory voice rather than direct address or
   broadcast commentary.
 - Write like a compact game-review note that explains the chess reason, not like
@@ -56,6 +70,8 @@ The static prompt should say:
   only when alternative comparison is the lesson; otherwise stop after the
   concrete chess reason.
 - Explain the main reason and key move or idea when supplied.
+- When a bad move allows a key reply, explain why that reply is good for the
+  opponent and bad for the player. Do not stop at "it allowed MOVE."
 - Choose the smallest sufficient teaching point. Do not list every supplied
   candidate or concept.
 - For good high-WDL or good-not-best moves, explain why the played move still
@@ -78,7 +94,7 @@ The static prompt should say:
 - Do not include raw engine data unless the context explicitly asks for it.
 - Do not mention moves, lines, tactics, positional concepts, material wins, or
   mate claims that are not present in typed `concept_claims`, allowed claim text,
-  or supplied candidates.
+  supplied candidates, or supplied line evidence.
 - Do not use named tactic labels such as fork, pin, skewer, back rank, or
   discovered attack unless a typed `tactic` concept claim names that same idea.
 - On retries, repair the exact verifier issue instead of paraphrasing broadly;
@@ -97,6 +113,7 @@ Per-request context should provide:
 - player level and time situation
 - main point
 - objective best move, practical alternative, featured move, or key idea
+- optional verified line evidence for hover cards
 - candidate practicality and findability
 - typed concept claims
 - allowed claims
@@ -138,13 +155,15 @@ Keep the chess specific. Do not hide uncertainty with confident generic advice.
 ```text
 System:
 You are a chess coach for one verified move. The chess truth is already decided
-by deterministic evidence. Phrase that evidence as a concise, neutral
-explanation. Return JSON with one field, "explanation". Do not introduce
-unsupported moves, lines, tactics, mate claims, or material claims.
+by deterministic evidence. Phrase that evidence as concise, useful UI copy.
+Return JSON with visible segments and optional verified line cards. Do not
+introduce unsupported moves, lines, tactics, mate claims, or material claims.
 
 User:
 Write one explanation for this verified move context:
 {llm_context_json}
+Use only these optional line cards:
+{line_evidence_json}
 ```
 
 The exact wording can evolve, but every prompt version must preserve the claim
@@ -153,9 +172,9 @@ rules above.
 ## Verification Loop
 
 1. Generate schema-valid JSON.
-2. Extract `explanation`.
-3. Verify mentioned moves, claims, mate/centipawn language, side attribution,
-   and recommendation consistency.
+2. Join visible segments into the public explanation string.
+3. Verify mentioned moves, line-card ids and move sequences, claims,
+   mate/centipawn language, side attribution, and recommendation consistency.
 4. Regenerate with verifier issues or return a controlled failure.
 5. Never ship an explanation that fails verification.
 
