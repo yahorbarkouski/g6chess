@@ -20,6 +20,11 @@ every ply of a PGN and persist partial Redis snapshots for polling. It does not
 define separate move-quality, significance, beauty, candidate, concept, or
 explanation policy.
 
+The game-analysis import API may acquire a canonical PGN from a user-submitted
+Chess.com live-game URL or pasted PGN before starting that same orchestration.
+This import layer is source acquisition only; it does not create chess truth or
+new training rights.
+
 ## Rules
 
 - Keep drills, dashboards, training plans, and memory systems outside the
@@ -32,6 +37,8 @@ explanation policy.
 - Use Lichess CC0 exports as the default open source for global training data.
 - Do not train global models on user-imported games or Chess.com-derived data
   without explicit rights or prior written authorization.
+- Mark Chess.com and manual PGN imports as `allows_global_training=false` in
+  source metadata.
 
 ## Validation
 

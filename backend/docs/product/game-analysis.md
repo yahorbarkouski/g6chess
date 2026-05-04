@@ -8,8 +8,9 @@ blocking the request for the full Stockfish, Maia, and OpenRouter runtime.
 It is an orchestration layer over the existing one-move truth pipeline:
 
 ```text
-PGN -> per-ply context packets -> deterministic classifications -> verified
-critical-move explanations -> Redis snapshot -> polling frontend
+Chess.com URL or PGN -> canonical PGN + source metadata -> per-ply context
+packets -> deterministic classifications -> verified critical-move explanations
+-> Redis snapshot -> polling frontend
 ```
 
 It must not define new chess truth. Move quality, significance, beauty,
@@ -33,6 +34,27 @@ The request provides:
 - `explain_significance`, defaulting to `["critical"]`
 - `include_context`, defaulting to `false`
 - `use_baseline_fallback`, defaulting to `false`
+
+Import a user-provided source and start the same job:
+
+```text
+POST /api/game-analysis/import
+```
+
+The request provides either:
+
+- `source: "chess_com_live_url"` with `url` matching
+  `/game/live/{id}` or `/analysis/game/live/{id}`
+- `source: "pgn"` with pasted `pgn`
+
+It also accepts the same analysis knobs as `POST /api/game-analysis`:
+player-level fields, `time_control`, `explain_significance`,
+`include_context`, and `use_baseline_fallback`.
+
+The response returns the normal `analysis_id`, `status`, and `status_url` plus
+source metadata such as source kind, external Chess.com game id when known,
+title, players, ratings, time control, result, and
+`allows_global_training=false`.
 
 Poll a job:
 
@@ -75,8 +97,28 @@ Production-shaped local game analysis uses:
 Redis defaults to `redis://localhost:6379/0` and can be overridden with
 `G6EXPLANATION_REDIS_URL`.
 
+Chess.com URL import is a user-requested acquisition boundary. The import layer
+uses the live-game callback only to discover finished-game metadata, then
+resolves the canonical PGN from Chess.com's public monthly archives. Resolved
+PGNs are cached for 24 hours under `g6:game_import` by default. Useful import
+configuration:
+
+- `G6EXPLANATION_CHESS_COM_USER_AGENT`
+- `G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS`
+- `G6EXPLANATION_CHESS_COM_MAX_RETRIES`
+- `G6EXPLANATION_CHESS_COM_RETRY_BACKOFF_SECONDS`
+- `G6EXPLANATION_GAME_IMPORT_REDIS_PREFIX`
+- `G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS`
+
 The current local runner is single-process. Redis persists the latest snapshot,
 but in-flight work is owned by the Python process that accepted the job.
+
+## Source Rights
+
+Chess.com URL imports and manual PGN imports are accepted only as
+user-requested analysis inputs. They must not enter global eval or training
+manifests unless a future explicit source-rights policy authorizes that source.
+Import source metadata always marks these jobs with `allows_global_training=false`.
 
 ## Failure Policy
 
@@ -90,3 +132,12 @@ partial move data and successful explanations.
 Deterministic baseline fallback is disabled by default for this API so real
 provider failures remain visible. It can be enabled only when the product
 surface explicitly accepts fallback wording.
+
+Import failures happen before the job starts:
+
+- invalid or unsupported Chess.com URLs are rejected
+- unfinished Chess.com live games are rejected
+- Chess.com timeout, rate-limit, or archive unavailability is reported as
+  temporary unavailability
+- unresolved archive records and invalid PGN are rejected
+- pasted PGN must parse and contain at least one mainline move

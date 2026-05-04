@@ -8,7 +8,8 @@ without making the user wait for a long synchronous request.
 The intended product flow is:
 
 ```text
-Frontend imports PGN
+Frontend submits Chess.com live-game URL or PGN
+  -> backend import layer resolves canonical PGN + source metadata
   -> backend starts analysis
   -> API returns analysis_id immediately
   -> frontend polls analysis_id
@@ -18,6 +19,13 @@ Frontend imports PGN
 
 This API is not a separate chess engine. It repeats the verified one-move
 pipeline for every ply and stores the latest job snapshot in Redis.
+
+Chess.com import belongs in the Python API, not the browser. The browser starts
+from a user-provided URL, but the API owns URL validation, callback/archive
+resolution, PGN parsing, cache policy, retry/backoff, and source-rights
+metadata. The frontend must keep a PGN paste fallback for cases where Chess.com
+cannot be reached, rate-limits the import, the game is unfinished, or the
+archive record cannot be resolved.
 
 ## Runtime Components
 
@@ -83,6 +91,12 @@ G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_HASH_MB=128
 G6EXPLANATION_GAME_ANALYSIS_MAIA2_MODEL=auto
 G6EXPLANATION_GAME_ANALYSIS_MAIA2_DEVICE=cpu
 MAIA2_MODEL_ROOT=./maia2_models
+G6EXPLANATION_CHESS_COM_USER_AGENT=g6explanation-local/0.1
+G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS=20
+G6EXPLANATION_CHESS_COM_MAX_RETRIES=2
+G6EXPLANATION_CHESS_COM_RETRY_BACKOFF_SECONDS=0.5
+G6EXPLANATION_GAME_IMPORT_REDIS_PREFIX=g6:game_import
+G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS=86400
 ```
 
 Keep Stockfish depth at 16 or deeper. Do not lower depth for production-shaped
@@ -126,6 +140,59 @@ Use `explain_significance` to control cost and latency. Recommended defaults:
 
 Keep `include_context=false` for normal frontend polling. Set it to `true` only
 for internal tools because full context packets are large.
+
+## Import A Chess.com Live Game
+
+Submit the user-provided URL to the import endpoint:
+
+```text
+curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source": "chess_com_live_url",
+    "url": "https://www.chess.com/game/live/168193636078",
+    "player_level": {"kind": "rating", "value": 1500},
+    "time_control": "rapid",
+    "explain_significance": ["critical"],
+    "include_context": true,
+    "use_baseline_fallback": false
+  }'
+```
+
+The response mirrors `POST /api/game-analysis` and includes source metadata:
+
+```json
+{
+  "analysis_id": "3c3f4d9b5b6540ec8e2df0f66f0af61c",
+  "status": "pending",
+  "status_url": "/api/game-analysis/3c3f4d9b5b6540ec8e2df0f66f0af61c",
+  "source": {
+    "source": "chess_com_live_url",
+    "source_url": "https://www.chess.com/game/live/168193636078",
+    "external_game_id": "168193636078",
+    "title": "White vs Black",
+    "allows_global_training": false
+  }
+}
+```
+
+The frontend integration should set `include_context=true` while it still needs
+FENs and principal variation data to hydrate the existing board UI.
+
+If URL import fails, reveal the PGN paste fallback and submit the same endpoint
+with `source: "pgn"`:
+
+```text
+curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source": "pgn",
+    "pgn": "[Event \"Example\"]\n\n1. e4 e5 2. Nf3 Nc6 *",
+    "player_level": {"kind": "rating", "value": 1500},
+    "explain_significance": ["critical"],
+    "include_context": true
+  }'
+```
 
 ## Poll A Job
 
@@ -172,15 +239,16 @@ Use a short interval while work is active and stop polling on terminal status:
 
 ```ts
 async function startAnalysis(pgn: string) {
-  const response = await fetch("/api/game-analysis", {
+  const response = await fetch("/api/game-analysis/import", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
+      source: "pgn",
       pgn,
       player_level: {kind: "rating", value: 1500},
       time_control: "rapid",
       explain_significance: ["critical"],
-      include_context: false,
+      include_context: true,
     }),
   });
 
@@ -201,13 +269,17 @@ async function pollAnalysis(statusUrl: string) {
 
 Recommended frontend behavior:
 
-- Render game moves immediately from the PGN.
+- Keep demo/mock data visible until a real job has started.
+- Store `analysis_id` and `status_url` in local storage so refreshes can resume
+  polling while the single API process still owns the job.
+- Reveal the PGN paste fallback when URL import returns invalid URL, unresolved
+  archive, unfinished game, Chess.com unavailable, timeout, or rate-limit.
 - Overlay classification badges as `moves` arrive.
 - Show explanation placeholders only for moves where `requires_explanation` is
   true.
 - Treat `failed` as a partial-result state, not a blank screen.
-- Store `analysis_id` in route state or local storage so refreshes can resume
-  polling while the API process is still alive.
+- Convert context packet evaluation scores into the UI's white-point-of-view
+  convention before rendering engine bars or line scores.
 
 ## Backend Integration Pattern
 
@@ -219,6 +291,7 @@ Recommended responsibilities:
 - enforce PGN size and ply-count limits
 - rate-limit job creation
 - reject unsupported data sources for training
+- preserve `allows_global_training=false` for Chess.com and manual PGN imports
 - decide whether user games may be stored and for how long
 - proxy the polling endpoint or expose it only to authorized users
 
@@ -232,7 +305,13 @@ HTTP failures:
 
 - `400`: bad PGN or invalid request shape
 - `404`: unknown `analysis_id`
+- `404`: Chess.com URL is syntactically supported but cannot be resolved
+- `409`: Chess.com live game exists but is unfinished
+- `422`: unsupported URL shape, invalid pasted PGN, unresolved archive match, or
+  non-chess archive record
 - `503`: Redis or local provider setup is unavailable
+- `503`: Chess.com callback/archive is temporarily unavailable, timed out,
+  rate-limited after retries, or malformed
 
 Snapshot failures:
 
@@ -293,6 +372,14 @@ Run the deterministic API tests:
 
 ```text
 uv run pytest tests/g6explanation/game_analysis -q
+uv run pytest tests/g6explanation/game_imports -q
+```
+
+Run the opt-in real Chess.com import smoke without Stockfish/OpenRouter:
+
+```text
+G6EXPLANATION_RUN_CHESSCOM_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_chess_com_live_games.py -q -s
 ```
 
 Run the no-mock real endpoint gate:

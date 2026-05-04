@@ -15,6 +15,16 @@ from g6explanation.game_analysis import (
     GameAnalysisStoreError,
     game_analysis_service_from_env,
 )
+from g6explanation.game_imports import (
+    ChessComLiveGameNotFinishedError,
+    ChessComLiveGameNotFoundError,
+    ChessComLiveGameUnavailableError,
+    GameAnalysisImportRequest,
+    GameAnalysisImportResponse,
+    GameImportError,
+    GameImportService,
+    game_import_service_from_env,
+)
 from g6explanation.visualization.contracts import (
     VisualizationExample,
     VisualizationExampleCollection,
@@ -28,18 +38,27 @@ from g6explanation.visualization.example_catalog import (
 )
 
 
-def create_app(game_analysis_service: GameAnalysisService | None = None) -> FastAPI:
+def create_app(
+    game_analysis_service: GameAnalysisService | None = None,
+    game_import_service: GameImportService | None = None,
+) -> FastAPI:
     app = FastAPI(
         title="G6 Explanation Visualization API",
         version="0.1.0",
     )
     analysis_service = game_analysis_service or game_analysis_service_from_env()
+    import_service = game_import_service or game_import_service_from_env(analysis_service)
 
     def submit_game_analysis(request: GameAnalysisStartRequest) -> GameAnalysisStartResponse:
         return start_game_analysis(request, analysis_service)
 
     def read_game_analysis_state(analysis_id: str) -> GameAnalysisSnapshot:
         return game_analysis_state(analysis_id, analysis_service)
+
+    def submit_imported_game_analysis(
+        request: GameAnalysisImportRequest,
+    ) -> GameAnalysisImportResponse:
+        return start_imported_game_analysis(request, import_service)
 
     app.add_middleware(
         CORSMiddleware,
@@ -79,6 +98,12 @@ def create_app(game_analysis_service: GameAnalysisService | None = None) -> Fast
         submit_game_analysis,
         methods=["POST"],
         response_model=GameAnalysisStartResponse,
+    )
+    app.add_api_route(
+        "/api/game-analysis/import",
+        submit_imported_game_analysis,
+        methods=["POST"],
+        response_model=GameAnalysisImportResponse,
     )
     app.add_api_route(
         "/api/game-analysis/{analysis_id}",
@@ -131,6 +156,26 @@ def start_game_analysis(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (GameAnalysisSetupError, GameAnalysisStoreError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def start_imported_game_analysis(
+    request: GameAnalysisImportRequest,
+    service: GameImportService,
+) -> GameAnalysisImportResponse:
+    try:
+        return service.start(request)
+    except ChessComLiveGameNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ChessComLiveGameNotFinishedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (
+        ChessComLiveGameUnavailableError,
+        GameAnalysisSetupError,
+        GameAnalysisStoreError,
+    ) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (GameImportError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def game_analysis_state(
