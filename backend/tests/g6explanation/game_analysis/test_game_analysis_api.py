@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from typing import Any, cast
 
 import chess
+import pytest
 from fastapi.testclient import TestClient
 
 from g6explanation.context_engine import MoveContextBuilder
@@ -19,6 +21,7 @@ from g6explanation.context_engine.contracts import (
     Score,
 )
 from g6explanation.explanation_generation.contracts import CoachModelResponse, CoachPrompt
+from g6explanation.explanation_generation.exceptions import CoachModelError
 from g6explanation.game_analysis import (
     GameAnalysisRunner,
     GameAnalysisService,
@@ -97,6 +100,47 @@ def test_game_analysis_http_api_returns_404_for_unknown_job() -> None:
     assert response.status_code == 404
 
 
+def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCaptureFixture) -> None:
+    store = RecordingGameAnalysisStore()
+    service = GameAnalysisService(
+        store=store,
+        runner=GameAnalysisRunner(
+            context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
+            coach_provider_factory=FailingCoachProvider,
+            context_workers=1,
+            openrouter_concurrency=1,
+        ),
+        executor=InlineExecutor(),
+    )
+    client = TestClient(create_app(game_analysis_service=service))
+
+    with caplog.at_level(logging.ERROR, logger="g6explanation.game_analysis.analysis_runner"):
+        response = client.post(
+            "/api/game-analysis",
+            json=GameAnalysisStartRequest(
+                pgn=TINY_PGN,
+                player_level=PlayerLevel.rating(1500),
+                time_control="rapid",
+                explain_significance=["low"],
+                use_baseline_fallback=False,
+            ).to_dict(),
+        )
+
+    assert response.status_code == 200
+    snapshot = client.get(response.json()["status_url"]).json()
+    assert snapshot["status"] == "failed"
+    assert snapshot["error"] == (
+        "3 requested explanation(s) failed. See per-move explanation_error fields and server logs."
+    )
+    assert snapshot["explanation_failed"] == 3
+    assert all(
+        "OpenRouter returned HTTP 400" in move["explanation_error"] for move in snapshot["moves"]
+    )
+    assert "Explanation generation failed" in caplog.text
+    assert "OpenRouter returned HTTP 400" in caplog.text
+    assert "line_card_anchor" in caplog.text
+
+
 def _empty_snapshots() -> list[GameAnalysisSnapshot]:
     return []
 
@@ -168,11 +212,29 @@ class PromptEchoCoachProvider:
             model=self.model,
             content=json.dumps(
                 {
-                    "segments": [{"text": explanation, "line_card_id": None}],
+                    "segments": [
+                        {"text": explanation, "line_card_id": None, "line_card_anchor": None}
+                    ],
                     "line_cards": [],
                 }
             ),
             finish_reason="stop",
+        )
+
+
+class FailingCoachProvider:
+    @property
+    def provider_name(self) -> str:
+        return "openrouter"
+
+    @property
+    def model(self) -> str:
+        return "openai/gpt-5.5"
+
+    def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
+        del prompt
+        raise CoachModelError(
+            "OpenRouter returned HTTP 400 after 1 attempts: invalid schema missing line_card_anchor"
         )
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import os
 import threading
 import time
@@ -23,7 +24,9 @@ from g6explanation.explanation_generation.coach_model import CoachModelProvider
 from g6explanation.explanation_generation.contracts import (
     ExplanationLineCard,
     ExplanationSegment,
+    GenerationAttempt,
 )
+from g6explanation.explanation_generation.exceptions import ExplanationVerificationError
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.game_analysis.contracts import (
     GameAnalysisSnapshot,
@@ -35,6 +38,7 @@ from g6explanation.game_analysis.state_store import GameAnalysisStore
 
 DEFAULT_GAME_ANALYSIS_CONTEXT_WORKERS = min(os.cpu_count() or 1, 16)
 DEFAULT_GAME_ANALYSIS_OPENROUTER_CONCURRENCY = 30
+LOGGER = logging.getLogger(__name__)
 
 ContextBuilderFactory = Callable[[], MoveContextBuilder]
 CoachProviderFactory = Callable[[], CoachModelProvider]
@@ -111,6 +115,17 @@ class GameAnalysisRunner:
             update={"status": "running", "started_at": started_at, "updated_at": started_at}
         )
         store.save(snapshot)
+        LOGGER.info(
+            "Game analysis started: analysis_id=%s total_plies=%s explain_significance=%s "
+            "include_context=%s baseline_fallback=%s context_workers=%s openrouter_concurrency=%s",
+            analysis_id,
+            snapshot.total_plies,
+            request.explain_significance,
+            request.include_context,
+            request.use_baseline_fallback,
+            self._context_workers,
+            self._openrouter_concurrency,
+        )
 
         try:
             ply_requests = game_ply_requests(request)
@@ -125,7 +140,8 @@ class GameAnalysisRunner:
             completed_at = self._timestamp_factory()
             final_status = "failed" if snapshot.explanation_failed else "succeeded"
             final_error = (
-                f"{snapshot.explanation_failed} critical explanation(s) failed."
+                f"{snapshot.explanation_failed} requested explanation(s) failed. "
+                "See per-move explanation_error fields and server logs."
                 if snapshot.explanation_failed
                 else None
             )
@@ -138,6 +154,29 @@ class GameAnalysisRunner:
                 }
             )
             store.save(snapshot)
+            if final_status == "failed":
+                LOGGER.error(
+                    "Game analysis completed with explanation failures: analysis_id=%s "
+                    "total_plies=%s context_completed=%s explanation_required=%s "
+                    "explanation_completed=%s explanation_failed=%s error=%s",
+                    analysis_id,
+                    snapshot.total_plies,
+                    snapshot.context_completed,
+                    snapshot.explanation_required,
+                    snapshot.explanation_completed,
+                    snapshot.explanation_failed,
+                    final_error,
+                )
+            else:
+                LOGGER.info(
+                    "Game analysis succeeded: analysis_id=%s total_plies=%s "
+                    "context_completed=%s explanation_required=%s explanation_completed=%s",
+                    analysis_id,
+                    snapshot.total_plies,
+                    snapshot.context_completed,
+                    snapshot.explanation_required,
+                    snapshot.explanation_completed,
+                )
         except Exception as exc:
             failed_at = self._timestamp_factory()
             snapshot = snapshot.model_copy(
@@ -149,6 +188,7 @@ class GameAnalysisRunner:
                 }
             )
             store.save(snapshot)
+            LOGGER.exception("Game analysis failed: analysis_id=%s error=%s", analysis_id, exc)
 
     def _run_context_phase(
         self,
@@ -185,7 +225,16 @@ class GameAnalysisRunner:
                 for ply_request in ply_requests
             }
             for context_future in as_completed(context_futures):
-                context_result = context_future.result()
+                ply = context_futures[context_future]
+                try:
+                    context_result = context_future.result()
+                except Exception:
+                    LOGGER.exception(
+                        "Context build failed: analysis_id=%s ply=%s",
+                        snapshot.analysis_id,
+                        ply,
+                    )
+                    raise
                 requires_explanation = (
                     context_result.context.evidence.significance.label
                     in request.explain_significance
@@ -202,9 +251,19 @@ class GameAnalysisRunner:
                 )
                 store.save(snapshot)
                 if requires_explanation:
+                    LOGGER.info(
+                        "Explanation queued: analysis_id=%s ply=%s san=%s quality=%s "
+                        "significance=%s",
+                        snapshot.analysis_id,
+                        context_result.ply,
+                        move.san,
+                        move.quality,
+                        move.significance.label,
+                    )
                     explanation_futures[
                         explanation_executor.submit(
                             self._explain_context,
+                            snapshot.analysis_id,
                             context_result.ply,
                             context_result.context,
                             request.use_baseline_fallback,
@@ -221,6 +280,8 @@ class GameAnalysisRunner:
                         updated_at=self._timestamp_factory(),
                     )
                 except Exception as exc:
+                    failed_move = _move_by_ply(snapshot, ply)
+                    _log_explanation_failure(snapshot.analysis_id, ply, failed_move, exc)
                     snapshot = _snapshot_with_explanation_error(
                         snapshot,
                         ply=ply,
@@ -232,23 +293,46 @@ class GameAnalysisRunner:
 
     def _explain_context(
         self,
+        analysis_id: str,
         ply: int,
         context: ContextResult,
         use_baseline_fallback: bool,
     ) -> _ExplanationBuildResult:
         start = self._clock()
+        LOGGER.info(
+            "Explanation generation started: analysis_id=%s ply=%s san=%s quality=%s "
+            "significance=%s",
+            analysis_id,
+            ply,
+            context.evidence.played.san,
+            context.evidence.quality.label,
+            context.evidence.significance.label,
+        )
         service = ExplanationService(
             context_builder=self._context_builder_factory(),
             coach_provider=self._coach_provider_factory(),
             use_baseline_fallback=use_baseline_fallback,
         )
         result = service.explain_context(context)
+        latency_seconds = round(self._clock() - start, 3)
+        LOGGER.info(
+            "Explanation generation completed: analysis_id=%s ply=%s san=%s model=%s "
+            "finish_reason=%s attempts=%s latency_seconds=%.3f fallback=%s",
+            analysis_id,
+            ply,
+            context.evidence.played.san,
+            result.model,
+            result.finish_reason,
+            len(result.attempts),
+            latency_seconds,
+            result.used_fallback,
+        )
         return _ExplanationBuildResult(
             ply=ply,
             explanation=result.explanation,
             segments=result.segments,
             line_cards=result.line_cards,
-            latency_seconds=round(self._clock() - start, 3),
+            latency_seconds=latency_seconds,
             attempts=len(result.attempts),
             model=result.model,
         )
@@ -413,6 +497,60 @@ def _snapshot_with_recomputed_counts(
             "updated_at": updated_at,
         }
     )
+
+
+def _move_by_ply(snapshot: GameAnalysisSnapshot, ply: int) -> GameMoveAnalysis | None:
+    return next((move for move in snapshot.moves if move.ply == ply), None)
+
+
+def _log_explanation_failure(
+    analysis_id: str,
+    ply: int,
+    move: GameMoveAnalysis | None,
+    exc: Exception,
+) -> None:
+    move_details = (
+        f"san={move.san} quality={move.quality} significance={move.significance.label}"
+        if move is not None
+        else "san=<unknown> quality=<unknown> significance=<unknown>"
+    )
+    if isinstance(exc, ExplanationVerificationError):
+        LOGGER.error(
+            "Explanation generation failed: analysis_id=%s ply=%s %s error=%s attempts=%s",
+            analysis_id,
+            ply,
+            move_details,
+            _compact_error(str(exc)),
+            [_attempt_log_summary(attempt) for attempt in exc.attempts],
+        )
+        return
+    LOGGER.exception(
+        "Explanation generation crashed: analysis_id=%s ply=%s %s error=%s",
+        analysis_id,
+        ply,
+        move_details,
+        exc,
+    )
+
+
+def _attempt_log_summary(attempt: GenerationAttempt) -> dict[str, object]:
+    return {
+        "attempt": attempt.attempt_index,
+        "provider": attempt.provider_name,
+        "model": attempt.model,
+        "response_id": attempt.response_id,
+        "finish_reason": attempt.finish_reason,
+        "verification_passed": attempt.verification_passed,
+        "failure_codes": attempt.failure_codes,
+        "error": _compact_error(attempt.error) if attempt.error else None,
+    }
+
+
+def _compact_error(error: str, max_length: int = 900) -> str:
+    compacted = " ".join(error.split())
+    if len(compacted) <= max_length:
+        return compacted
+    return f"{compacted[: max_length - 3]}..."
 
 
 def _int_env(name: str, default: int) -> int:

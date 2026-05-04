@@ -285,6 +285,22 @@ def _failure_codes(failures: list[ExplanationVerificationIssue]) -> list[str]:
 
 def _attempt_failure_summary(attempts: list[GenerationAttempt]) -> str:
     return "; ".join(
-        f"attempt {attempt.attempt_index}: {attempt.failure_codes or [attempt.error]}"
+        f"attempt {attempt.attempt_index}: {_attempt_failure_detail(attempt)}"
         for attempt in attempts
     )
+
+
+def _attempt_failure_detail(attempt: GenerationAttempt) -> str:
+    details: list[str] = []
+    if attempt.failure_codes:
+        details.append(f"codes={attempt.failure_codes}")
+    if attempt.error:
+        details.append(f"error={_compact_error(attempt.error)}")
+    return ", ".join(details) if details else "unknown failure"
+
+
+def _compact_error(error: str, max_length: int = 700) -> str:
+    compacted = " ".join(error.split())
+    if len(compacted) <= max_length:
+        return compacted
+    return f"{compacted[: max_length - 3]}..."

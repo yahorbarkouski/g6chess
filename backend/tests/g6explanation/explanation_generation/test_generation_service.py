@@ -9,6 +9,7 @@ import pytest
 from g6explanation.context_engine import ContextResult, MoveContextBuilder, MoveContextRequest
 from g6explanation.explanation_generation.contracts import CoachModelResponse, CoachPrompt
 from g6explanation.explanation_generation.exceptions import (
+    CoachModelError,
     ExplanationInputError,
     ExplanationVerificationError,
 )
@@ -217,6 +218,27 @@ def test_service_exposes_attempts_on_controlled_verification_failure() -> None:
     )
 
 
+def test_service_failure_message_includes_provider_error_detail() -> None:
+    context = mistake_context_with_practical_alternative()
+    provider = FailingCoachProvider(
+        "OpenRouter returned HTTP 400 after 1 attempts: invalid schema missing line_card_anchor"
+    )
+    service = ExplanationService(
+        context_builder=_unused_builder(),
+        coach_provider=provider,
+        max_model_attempts=1,
+        use_baseline_fallback=False,
+    )
+
+    with pytest.raises(ExplanationVerificationError) as exc_info:
+        service.explain_context(context)
+
+    message = str(exc_info.value)
+    assert "schema_or_provider_error" in message
+    assert "OpenRouter returned HTTP 400" in message
+    assert "line_card_anchor" in message
+
+
 def test_public_explain_move_accepts_fen_played_move_and_rating() -> None:
     context = mistake_context_with_practical_alternative()
     context_builder = RecordingContextBuilder(context)
@@ -324,6 +346,17 @@ def test_public_explain_move_requires_player_fields_for_fen_input() -> None:
 def _unused_builder() -> MoveContextBuilder:
     context = mistake_context_with_practical_alternative()
     return MoveContextBuilder(StaticAnalysisProvider(context.evidence.engine))
+
+
+@dataclass
+class FailingCoachProvider:
+    error: str
+    provider_name: str = "openrouter"
+    model: str = "openai/gpt-5.5"
+
+    def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
+        del prompt
+        raise CoachModelError(self.error)
 
 
 def _response(text: str) -> str:
