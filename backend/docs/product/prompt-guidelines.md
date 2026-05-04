@@ -15,7 +15,8 @@ Use a strict internal response schema:
   "segments": [
     {
       "text": "visible explanation text",
-      "line_card_id": null
+      "line_card_id": null,
+      "line_card_anchor": null
     }
   ],
   "line_cards": []
@@ -34,6 +35,11 @@ The static prompt should say:
 - Use only the supplied context.
 - Return visible `segments` plus optional `line_cards`, not a flat explanation
   field.
+- Keep segments as natural sentence-sized prose. Do not split prose into tiny
+  text fragments just to create a highlight.
+- If a segment references a line card, include `line_card_anchor`: the exact
+  short phrase inside `text` that the UI should highlight. It should usually be
+  a move phrase such as `key reply Nxb5`, `Kd8`, or `the forcing check Qb4+`.
 - Keep the visible text compact but useful, usually two to five segments and
   roughly 35 to 90 words.
 - Use a line card only when supplied `line_evidence` makes a short hidden line

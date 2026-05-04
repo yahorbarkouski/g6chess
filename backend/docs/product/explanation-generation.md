@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v9`. Version 2 made
+Current prompt version: `single_move_coach.v10`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -91,7 +91,9 @@ position" wording. Version 9 changes the raw model output from a flat
 explanation string to visible `segments` plus optional verified `line_cards`.
 It supplies compact line evidence to the model, asks for causal explanation
 rather than "allowed MOVE" shorthand, and keeps plain-string compatibility by
-joining segments after verification.
+joining segments after verification. Version 10 adds `line_card_anchor` so the
+model keeps sentence-sized prose while marking the exact short phrase a rich UI
+should highlight for each hover line card.
 
 ## Contracts
 
@@ -101,8 +103,9 @@ The raw model response must validate against:
 {
   "segments": [
     {
-      "text": "visible UI text",
-      "line_card_id": "played-line"
+      "text": "b5 was a blunder because it allowed the key reply Nxb5, opening lines before Black's king could settle.",
+      "line_card_id": "played-line",
+      "line_card_anchor": "key reply Nxb5"
     }
   ],
   "line_cards": [
@@ -116,9 +119,11 @@ The raw model response must validate against:
 }
 ```
 
-`line_card_id` may be `null`. Every line-card id and move sequence must match
-supplied verified line evidence exactly. The derived public string is the joined
-segment text.
+`line_card_id` and `line_card_anchor` may be `null`. When a segment references a
+line card, `line_card_anchor` is required, must be an exact short substring of
+that segment text, and must not be a whole long sentence. Every line-card id and
+move sequence must match supplied verified line evidence exactly. The derived
+public string is the joined segment text.
 
 The generation layer includes contracts for:
 

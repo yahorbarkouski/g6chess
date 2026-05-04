@@ -33,7 +33,20 @@ def build_coach_prompt(
             ),
             (
                 "segments are visible UI text chunks. Each segment needs text and "
-                "line_card_id. Use null when no hover card belongs to that text."
+                "line_card_id. It also needs line_card_anchor when line_card_id "
+                "is not null. Use null for line_card_id and line_card_anchor when "
+                "no hover card belongs to that text."
+            ),
+            (
+                "Segments should remain natural sentence-sized prose. Do not split "
+                "sentences into tiny text fragments just to create highlights."
+            ),
+            (
+                "line_card_anchor is the exact short phrase the UI should highlight "
+                "inside that segment text. It must be an exact substring of text, "
+                "no more than 60 characters, no more than 8 words, and not the "
+                "whole sentence. Prefer move phrases such as 'key reply Nxb5', "
+                "'Kd8', or 'the forcing check Qb4+'."
             ),
             (
                 "line_cards are optional hover cards for supplied line_evidence only. "
@@ -181,7 +194,8 @@ def build_coach_prompt(
                     "You are a chess coach for one verified move. The chess truth is "
                     "already decided by deterministic evidence. Your job is only to "
                     "phrase that evidence as concise, useful UI copy. Return strict "
-                    "JSON with visible segments and optional verified line cards."
+                    "JSON with visible segments, optional short line-card anchors, "
+                    "and optional verified line cards."
                 ),
             },
             {

@@ -8,9 +8,9 @@ from pydantic import Field, field_validator, model_validator
 
 from g6explanation.context_engine.contracts import ContextContract
 
-EXPLANATION_SCHEMA_VERSION = "explanation_output.v2"
+EXPLANATION_SCHEMA_VERSION = "explanation_output.v3"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v9"
+PROMPT_VERSION = "single_move_coach.v10"
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",
@@ -43,14 +43,43 @@ class ExplanationSegment(ContextContract):
 
     text: str = Field(min_length=1, max_length=320)
     line_card_id: str | None
+    line_card_anchor: str | None = Field(default=None, max_length=60)
 
-    @field_validator("text")
+    @field_validator("text", "line_card_anchor")
     @classmethod
-    def _strip_and_reject_empty(cls, value: str) -> str:
+    def _strip_text_field(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         stripped = " ".join(value.split())
         if not stripped:
             raise ValueError("Segment text cannot be empty.")
         return stripped
+
+    @model_validator(mode="after")
+    def _validate_line_card_anchor(self) -> ExplanationSegment:
+        if self.line_card_id is None:
+            if self.line_card_anchor is not None:
+                raise ValueError("line_card_anchor requires line_card_id.")
+            return self
+
+        if self.line_card_anchor is None:
+            raise ValueError("line_card_anchor is required when line_card_id is present.")
+        if self.line_card_anchor not in self.text:
+            raise ValueError("line_card_anchor must be an exact substring of text.")
+        anchor_words = self.line_card_anchor.split()
+        if len(anchor_words) > 8:
+            raise ValueError("line_card_anchor must be no more than 8 words.")
+        text_words = self.text.split()
+        if (
+            _normalized_text(self.line_card_anchor) == _normalized_text(self.text)
+            and len(text_words) > 8
+        ):
+            raise ValueError("line_card_anchor must not be a whole long segment.")
+        return self
+
+
+def _normalized_text(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 class ExplanationLineCard(ContextContract):

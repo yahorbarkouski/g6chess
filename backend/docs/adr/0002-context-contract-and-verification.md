@@ -60,15 +60,16 @@ product-ready.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.
-- The explanation-generation raw output contract is segmented UI copy plus
-  optional hover line cards. Public plain text remains a derived joined string
-  for compatibility.
+- The explanation-generation raw output contract is sentence-sized segmented UI
+  copy plus optional short anchors for verified hover line cards. Public plain
+  text remains a derived joined string for compatibility.
 - The explanation-generation layer must block unsupported moves, PVs, line-card
   ids or move sequences, tactics, material claims, mate claims, strategic concept
   claims, and wrong-side attribution before any model output is product-ready.
 - Line cards may only reference move sequences supplied as verified line
-  evidence; models may write visible prose and hover-card wording, but they may
-  not invent card ids or alter the supplied moves.
+  evidence; models may write visible prose, short highlight anchors, and
+  hover-card wording, but they may not invent card ids or alter the supplied
+  moves.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
 - Real eval records used for future training manifests must store source-rights

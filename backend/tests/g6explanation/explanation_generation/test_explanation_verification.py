@@ -122,6 +122,7 @@ def test_verifier_accepts_verified_line_card_segments() -> None:
             ExplanationSegment(
                 text="g4 was a mistake because e5 is the reply that lets Black improve.",
                 line_card_id="played-line",
+                line_card_anchor="e5",
             )
         ],
         line_cards=[
@@ -146,6 +147,7 @@ def test_verifier_rejects_line_card_with_changed_moves() -> None:
             ExplanationSegment(
                 text="g4 was a mistake because e5 is the reply that lets Black improve.",
                 line_card_id="played-line",
+                line_card_anchor="e5",
             )
         ],
         line_cards=[
