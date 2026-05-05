@@ -1,0 +1,11 @@
+[    1260ms] Error: ultrachess: Chess.createSync() requires init() or initSync() to have been called first. Use `ultrachess/inline` for sync access in environments without top-level await.
+    at e.createSync (https://www.g6chess.com/assets/index-D9Eq97vX.js:9:46940)
+    at dn (https://www.g6chess.com/assets/index-D9Eq97vX.js:10:14774)
+    at en (https://www.g6chess.com/assets/index-D9Eq97vX.js:10:12874)
+    at m_ (https://www.g6chess.com/assets/index-D9Eq97vX.js:43:11425)
+    at bo (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:47514)
+    at fc (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:70019)
+    at kc (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:80289)
+    at Mu (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:115725)
+    at ku (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:114803)
+    at Ou (https://www.g6chess.com/assets/index-D9Eq97vX.js:8:114640)

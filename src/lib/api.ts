@@ -2,40 +2,12 @@ import type {
   GameAnalysisImportRequest,
   GameAnalysisImportResponse,
   GameAnalysisSnapshot,
-  VisualizationExample,
-  VisualizationExampleCollection,
-  VisualizationMoveContext,
 } from "../types/api";
 
 const API_BASE_URL = (import.meta.env.VITE_G6_API_BASE_URL ?? "http://127.0.0.1:8001").replace(
   /\/$/,
   "",
 );
-
-export async function listExamples(signal?: AbortSignal): Promise<VisualizationExampleCollection> {
-  return getJson<VisualizationExampleCollection>("/api/visualization/examples", signal);
-}
-
-export async function getExample(
-  exampleId: string,
-  signal?: AbortSignal,
-): Promise<VisualizationExample> {
-  return getJson<VisualizationExample>(
-    `/api/visualization/examples/${encodeURIComponent(exampleId)}`,
-    signal,
-  );
-}
-
-export async function getMoveContext(
-  exampleId: string,
-  ply: number,
-  signal?: AbortSignal,
-): Promise<VisualizationMoveContext> {
-  return getJson<VisualizationMoveContext>(
-    `/api/visualization/examples/${encodeURIComponent(exampleId)}/contexts/${ply}`,
-    signal,
-  );
-}
 
 export async function startImportedGameAnalysis(
   request: GameAnalysisImportRequest,

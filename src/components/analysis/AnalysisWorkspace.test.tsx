@@ -247,6 +247,24 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
+  it("polls a direct analysis link without starting a new import", async () => {
+    window.history.replaceState(null, "", "/analysis/analysis-1?ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.pollGameAnalysis).toHaveBeenCalledWith(
+        "/api/game-analysis/analysis-1",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/analysis/analysis-1");
+    expect(window.location.search).toBe("");
+  });
+
   it("restores and updates the selected ply in the share URL", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
@@ -319,6 +337,61 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.localStorage.getItem("g6explanation.currentGameAnalysis")).toBeNull();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
+  });
+
+  it("keeps the previous analysis reachable after returning to import", async () => {
+    const user = userEvent.setup();
+    const source = importedSource();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Chess.com URL"),
+      "https://www.chess.com/game/168193636078",
+    );
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+
+    expect(await screen.findByTestId("analysis-board")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+
+    await user.click(screen.getByRole("button", { name: "Back to import" }));
+    expect(screen.queryByTestId("analysis-board")).toBeNull();
+    expect(window.location.pathname).toBe("/");
+
+    await act(async () => {
+      window.history.back();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(window.location.pathname).toBe("/game/live/168193636078"));
+    expect(window.location.search).toBe("?analysis=analysis-1");
+    expect(await screen.findByTestId("analysis-board")).toBeTruthy();
+  });
+
+  it("applies browser history ply changes to the current board", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1");
+    window.history.pushState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(2));
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() => expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 2"));
+
+    await act(async () => {
+      window.history.back();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(window.location.search).toBe("?analysis=analysis-1"));
+    await waitFor(() => expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1"));
   });
 
   it("renders backend opening book lines instead of engine lines for book moves", async () => {

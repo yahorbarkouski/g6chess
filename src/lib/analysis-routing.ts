@@ -125,14 +125,31 @@ export function replaceAnalysisUrl(target: SharedAnalysisTarget, ply: number | n
   window.history.replaceState(null, "", path);
 }
 
+export function pushWithPath(path: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (path === currentBrowserPath()) {
+    return;
+  }
+  window.history.pushState(null, "", path);
+}
+
 export function replaceWithPath(path: string): void {
   if (typeof window === "undefined") {
     return;
   }
-  if (path === `${window.location.pathname}${window.location.search}`) {
+  if (path === currentBrowserPath()) {
     return;
   }
   window.history.replaceState(null, "", path);
+}
+
+export function currentBrowserPath(): string {
+  if (typeof window === "undefined") {
+    return "/";
+  }
+  return `${window.location.pathname}${window.location.search}`;
 }
 
 function homeRoute(): AnalysisRouteState {

@@ -1,13 +1,4 @@
-import {
-  type Arrow,
-  type BoardModel,
-  decodePackedMove,
-  makeArrow,
-  type PackedMove,
-  PieceType,
-  type SquareIndex,
-  toSquareIndex,
-} from "@ultrachess/core";
+import { type BoardModel, PieceType, type SquareIndex } from "@ultrachess/core";
 import { Chess, Color, type MoveInput, type VerboseMove } from "ultrachess/inline";
 import type { BoardSide, CapturedPieces, MaterialInfo } from "../types/analysis";
 
@@ -18,19 +9,6 @@ export const ENGINE_ARROW_COLORS = [
   "rgba(250, 204, 21, 0.48)",
 ] as const;
 export const MAIA_ARROW_COLOR = "rgba(236, 72, 153, 0.48)";
-
-const PROMOTION_PIECES = {
-  q: PieceType.Queen,
-  r: PieceType.Rook,
-  b: PieceType.Bishop,
-  n: PieceType.Knight,
-} as const;
-
-export interface ParsedUciMove {
-  from: SquareIndex;
-  to: SquareIndex;
-  promotion?: PieceType;
-}
 
 const STARTING_COUNTS = {
   p: 8,
@@ -51,34 +29,11 @@ const PIECE_VALUE = {
 const SCORED_PIECES = ["q", "r", "b", "n", "p"] as const;
 const PIECE_TYPE_TO_CHAR = ["p", "n", "b", "r", "q", "k"] as const;
 
-export function parseUciMove(uci: string): ParsedUciMove {
-  const promotionChar = uci[4]?.toLowerCase();
-  const promotion =
-    promotionChar === undefined
-      ? undefined
-      : PROMOTION_PIECES[promotionChar as keyof typeof PROMOTION_PIECES];
-  return {
-    from: squareToIndex(uci.slice(0, 2)),
-    to: squareToIndex(uci.slice(2, 4)),
-    ...(promotion === undefined ? {} : { promotion }),
-  };
-}
-
-export function uciToArrow(uci: string, color: string): Arrow {
-  const move = parseUciMove(uci);
-  return { ...makeArrow(move.from, move.to, color), managed: true };
-}
-
 export function uciToSquares(uci: string): [string, string] | null {
   if (uci.length < 4) {
     return null;
   }
   return [uci.slice(0, 2), uci.slice(2, 4)];
-}
-
-export function packedMoveToUci(move: PackedMove): string {
-  const decoded = decodePackedMove(move);
-  return `${squareName(decoded.from)}${squareName(decoded.to)}`;
 }
 
 export function squareName(square: SquareIndex): string {
@@ -87,7 +42,7 @@ export function squareName(square: SquareIndex): string {
   return `${String.fromCharCode("a".charCodeAt(0) + file)}${rank}`;
 }
 
-export function getSafeFen(fen: string | null | undefined): string {
+function getSafeFen(fen: string | null | undefined): string {
   if (!fen || fen === "start") {
     return START_FEN;
   }
@@ -157,7 +112,7 @@ export function tryApplyMove(
   });
 }
 
-export function pieceAtSquareFromFen(fen: string, square: string): string | null {
+function pieceAtSquareFromFen(fen: string, square: string): string | null {
   const placement = getSafeFen(fen).split(" ")[0] ?? "";
   const fileIndex = square.charCodeAt(0) - "a".charCodeAt(0);
   const rank = Number.parseInt(square[1] ?? "", 10);
@@ -255,15 +210,6 @@ export function formatEvalLong(cp: number | null): string {
   }
   const sign = cp >= 0 ? "+" : "";
   return `${sign}${(cp / 100).toFixed(2)}`;
-}
-
-function squareToIndex(square: string): SquareIndex {
-  const file = square.charCodeAt(0) - "a".charCodeAt(0);
-  const rank = Number.parseInt(square[1] ?? "", 10) - 1;
-  if (file < 0 || file > 7 || rank < 0 || rank > 7) {
-    throw new Error(`Invalid square: ${square}`);
-  }
-  return toSquareIndex(rank * 8 + file);
 }
 
 function withChess<T>(fen: string, fn: (chess: Chess) => T): T {

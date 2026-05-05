@@ -10,7 +10,7 @@ export interface PreviewState {
   source: PreviewSource;
 }
 
-export type PreviewSource = "engine" | "book";
+type PreviewSource = "engine" | "book";
 
 export interface DiscoveryState {
   anchorPly: number;

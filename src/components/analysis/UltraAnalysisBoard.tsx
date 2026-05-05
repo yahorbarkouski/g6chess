@@ -32,7 +32,7 @@ const NO_ANIMATION = { durationMs: 0 } as const;
 export type BoardArrow = readonly [string, string, string?];
 export type BoardTransitionMove = PositionTransition;
 
-export interface UltraAnalysisBoardProps {
+interface UltraAnalysisBoardProps {
   fen: string;
   orientation?: "white" | "black";
   arrows?: ReadonlyArray<BoardArrow>;

@@ -15,7 +15,7 @@ const PIECE_FONT_STYLE = {
   fontFamily: '"Apple Symbols","Noto Sans Symbols 2","Segoe UI Symbol",serif',
 } as const;
 
-export interface PreviewState {
+interface PreviewState {
   rootFen: string;
   lineMoves: string[];
   step: number;

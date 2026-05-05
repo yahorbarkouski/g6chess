@@ -11,7 +11,9 @@ import {
   analysisStatusUrl,
   canonicalPathForRoute,
   chessComLiveGameUrl,
+  currentBrowserPath,
   extractChessComLiveGameId,
+  pushWithPath,
   readAnalysisRoute,
   replaceAnalysisUrl,
   replaceWithPath,
@@ -131,14 +133,15 @@ interface MoveLoadingIndicatorState {
 
 export function AnalysisWorkspace() {
   const initialRoute = useMemo(() => readAnalysisRoute(), []);
+  const [route, setRoute] = useState(initialRoute);
   const storedJob = useMemo(() => readStoredGameAnalysisJob(), []);
   const initialJob = useMemo(
     () => selectInitialJob(initialRoute, storedJob),
     [initialRoute, storedJob],
   );
-  const initialRouteImportUrl =
-    initialRoute.kind === "chess_com_live" && initialRoute.externalGameId !== null
-      ? chessComLiveGameUrl(initialRoute.externalGameId)
+  const routeImportUrl =
+    route.kind === "chess_com_live" && route.externalGameId !== null
+      ? chessComLiveGameUrl(route.externalGameId)
       : null;
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
@@ -147,13 +150,74 @@ export function AnalysisWorkspace() {
   );
   const [importSnapshot, setImportSnapshot] = useState<GameAnalysisSnapshot | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const routeImportStartedRef = useRef(false);
+  const currentRouteJobIdRef = useRef(initialJob?.analysis_id ?? null);
+  const routeImportStartedRef = useRef<string | null>(null);
+
+  const updateRouteFromLocation = useCallback(() => {
+    setRoute(readAnalysisRoute());
+  }, []);
+
+  const pushPath = useCallback(
+    (path: string) => {
+      pushWithPath(path);
+      updateRouteFromLocation();
+    },
+    [updateRouteFromLocation],
+  );
+
+  const replacePath = useCallback(
+    (path: string) => {
+      replaceWithPath(path);
+      updateRouteFromLocation();
+    },
+    [updateRouteFromLocation],
+  );
 
   useEffect(() => {
-    if (initialRoute.canonicalPath !== null) {
-      replaceWithPath(initialRoute.canonicalPath);
+    window.addEventListener("popstate", updateRouteFromLocation);
+    return () => window.removeEventListener("popstate", updateRouteFromLocation);
+  }, [updateRouteFromLocation]);
+
+  useEffect(() => {
+    if (route.canonicalPath !== null && route.canonicalPath !== currentBrowserPath()) {
+      replacePath(route.canonicalPath);
     }
-  }, [initialRoute.canonicalPath]);
+  }, [replacePath, route.canonicalPath]);
+
+  useEffect(() => {
+    if (route.kind === "home") {
+      currentRouteJobIdRef.current = null;
+      routeImportStartedRef.current = null;
+      setActiveJob(null);
+      setAnalysis(null);
+      setImportSnapshot(null);
+      setImportError(null);
+      setImportStatus("idle");
+      return;
+    }
+
+    const nextJob = selectInitialJob(route, readStoredGameAnalysisJob());
+    if (nextJob !== null) {
+      const jobChanged = currentRouteJobIdRef.current !== nextJob.analysis_id;
+      currentRouteJobIdRef.current = nextJob.analysis_id;
+      routeImportStartedRef.current = null;
+      if (jobChanged) {
+        setAnalysis(null);
+        setImportSnapshot(null);
+        setImportError(null);
+        setImportStatus("polling");
+      }
+      setActiveJob((current) => (areStoredJobsEqual(current, nextJob) ? current : nextJob));
+      return;
+    }
+
+    currentRouteJobIdRef.current = null;
+    setActiveJob(null);
+    setAnalysis(null);
+    setImportSnapshot(null);
+    setImportError(null);
+    setImportStatus(route.kind === "chess_com_live" ? "submitting" : "idle");
+  }, [route]);
 
   useEffect(() => {
     if (activeJob === null) {
@@ -210,6 +274,26 @@ export function AnalysisWorkspace() {
     };
   }, [activeJob]);
 
+  const navigateToImportedGamePath = useCallback(
+    (
+      analysisId: string,
+      externalGameId: string | null,
+      ply: number | null,
+      mode: "push" | "replace",
+    ) => {
+      const nextPath = canonicalPathForRoute({ analysisId, externalGameId, ply });
+      if (nextPath === null) {
+        return;
+      }
+      if (mode === "push") {
+        pushPath(nextPath);
+      } else {
+        replacePath(nextPath);
+      }
+    },
+    [pushPath, replacePath],
+  );
+
   const handleImportedGameAnalysis = useCallback(
     async (request: GameAnalysisImportRequest) => {
       setImportStatus("submitting");
@@ -230,44 +314,45 @@ export function AnalysisWorkspace() {
           (request.url === undefined || request.url === null
             ? null
             : extractChessComLiveGameId(request.url));
-        replaceWithImportedGamePath(nextJob.analysis_id, externalGameId, initialRoute.ply);
+        navigateToImportedGamePath(
+          nextJob.analysis_id,
+          externalGameId,
+          route.ply,
+          route.kind === "home" ? "push" : "replace",
+        );
       } catch (error) {
         setImportStatus("failed");
         setImportError(importErrorMessage(error));
         throw error;
       }
     },
-    [initialRoute.ply],
+    [navigateToImportedGamePath, route.kind, route.ply],
   );
 
   useEffect(() => {
-    if (
-      initialRoute.kind !== "chess_com_live" ||
-      initialRoute.analysisId !== null ||
-      activeJob !== null ||
-      routeImportStartedRef.current
-    ) {
+    if (route.kind !== "chess_com_live" || route.analysisId !== null || activeJob !== null) {
       return;
     }
-    if (initialRoute.externalGameId === null) {
+    if (route.externalGameId === null) {
+      return;
+    }
+    if (routeImportStartedRef.current === route.externalGameId) {
       return;
     }
 
-    routeImportStartedRef.current = true;
+    const externalGameId = route.externalGameId;
+    routeImportStartedRef.current = externalGameId;
     let cancelled = false;
     const abortController = new AbortController();
 
     async function startRouteImport() {
-      if (initialRoute.externalGameId === null) {
-        return;
-      }
       setImportStatus("submitting");
       setImportError(null);
       setImportSnapshot(null);
       setAnalysis(null);
       try {
         const response = await getCachedChessComLiveGameAnalysis(
-          initialRoute.externalGameId,
+          externalGameId,
           abortController.signal,
         );
         if (cancelled) {
@@ -278,10 +363,11 @@ export function AnalysisWorkspace() {
           writeStorage: true,
         });
         setImportStatus("polling");
-        replaceWithImportedGamePath(
+        navigateToImportedGamePath(
           nextJob.analysis_id,
-          nextJob.source?.external_game_id ?? initialRoute.externalGameId,
-          initialRoute.ply,
+          nextJob.source?.external_game_id ?? externalGameId,
+          route.ply,
+          "replace",
         );
       } catch (error) {
         if (cancelled || isAbortError(error)) {
@@ -289,9 +375,7 @@ export function AnalysisWorkspace() {
         }
         if (error instanceof ApiError && error.status === 404) {
           try {
-            await handleImportedGameAnalysis(
-              buildChessComRouteImportRequest(initialRoute.externalGameId),
-            );
+            await handleImportedGameAnalysis(buildChessComRouteImportRequest(externalGameId));
           } catch {
             // handleImportedGameAnalysis already updates the visible import error.
           }
@@ -311,10 +395,11 @@ export function AnalysisWorkspace() {
   }, [
     activeJob,
     handleImportedGameAnalysis,
-    initialRoute.analysisId,
-    initialRoute.externalGameId,
-    initialRoute.kind,
-    initialRoute.ply,
+    navigateToImportedGamePath,
+    route.analysisId,
+    route.externalGameId,
+    route.kind,
+    route.ply,
   ]);
 
   const handleOpenImport = useCallback(() => {
@@ -324,17 +409,14 @@ export function AnalysisWorkspace() {
     setImportSnapshot(null);
     setImportError(null);
     setImportStatus("idle");
-    replaceWithPath("/");
-  }, []);
+    pushPath("/");
+  }, [pushPath]);
 
   const handleClearImportError = useCallback(() => {
     setImportError(null);
     setImportStatus((current) => (current === "failed" ? "idle" : current));
   }, []);
-  const shareTarget = useMemo(
-    () => buildShareTarget(activeJob, initialRoute),
-    [activeJob, initialRoute],
-  );
+  const shareTarget = useMemo(() => buildShareTarget(activeJob, route), [activeJob, route]);
 
   useDocumentTitle(
     useMemo(
@@ -347,7 +429,7 @@ export function AnalysisWorkspace() {
     return (
       <AnalysisImportHome
         error={importError}
-        initialUrl={importStatus === "idle" ? null : initialRouteImportUrl}
+        initialUrl={importStatus === "idle" ? null : routeImportUrl}
         onClearError={handleClearImportError}
         onImport={handleImportedGameAnalysis}
         status={importStatus}
@@ -358,7 +440,7 @@ export function AnalysisWorkspace() {
   return (
     <AnalysisGameWorkspace
       analysis={analysis}
-      initialPly={initialRoute.ply}
+      initialPly={route.ply}
       moveLoadingIndicator={buildMoveLoadingIndicator(importStatus, importSnapshot)}
       onOpenImport={handleOpenImport}
       shareTarget={shareTarget}
@@ -412,6 +494,7 @@ function AnalysisGameWorkspace({
   const currentTimelinePoint = indexes.timelineByPly.get(currentPly) ?? null;
   const currentFen = currentMove?.fen_after ?? analysis.moves[0]?.fen_before ?? "";
   const previousPlyRef = useRef(currentPly);
+  const routePlyRef = useRef(initialPly);
 
   const board = useAnalysisBoard({
     baseFen: currentFen,
@@ -509,6 +592,17 @@ function AnalysisGameWorkspace({
   useEffect(() => {
     setCurrentPly((ply) => clampPly(ply, analysis.moves.length));
   }, [analysis.moves.length]);
+
+  useEffect(() => {
+    if (routePlyRef.current === initialPly) {
+      return;
+    }
+    routePlyRef.current = initialPly;
+    board.clearPreview();
+    board.clearDiscovery();
+    setCurrentPly(clampPly(initialPly ?? 1, analysis.moves.length));
+    setMobileTab("board");
+  }, [analysis.moves.length, board.clearDiscovery, board.clearPreview, initialPly]);
 
   useEffect(() => {
     previousPlyRef.current = currentPly;
@@ -1553,15 +1647,16 @@ function activateImportedGameResponse(
   return nextJob;
 }
 
-function replaceWithImportedGamePath(
-  analysisId: string,
-  externalGameId: string | null,
-  ply: number | null,
-): void {
-  const nextPath = canonicalPathForRoute({ analysisId, externalGameId, ply });
-  if (nextPath !== null) {
-    replaceWithPath(nextPath);
-  }
+function areStoredJobsEqual(
+  current: StoredGameAnalysisJob | null,
+  next: StoredGameAnalysisJob,
+): boolean {
+  return (
+    current !== null &&
+    current.analysis_id === next.analysis_id &&
+    current.status_url === next.status_url &&
+    current.source?.external_game_id === next.source?.external_game_id
+  );
 }
 
 function buildShareTarget(

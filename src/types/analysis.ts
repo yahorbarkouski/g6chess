@@ -1,6 +1,6 @@
 export type BoardSide = "white" | "black";
 
-export type MoveQualityLabel =
+type MoveQualityLabel =
   | "best"
   | "excellent"
   | "good"
@@ -51,7 +51,7 @@ export interface BestLine {
   pv_uci: string[];
 }
 
-export interface BookLineMove {
+interface BookLineMove {
   san: string;
   uci: string;
 }

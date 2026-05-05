@@ -3,11 +3,11 @@ import type { ImportedGameMetadata } from "../types/api";
 
 export const HOME_DOCUMENT_TITLE = "g6: Free Chess Analysis";
 export const GAME_TITLE_SUFFIX = "g6: Free Chess Analysis";
-export const ANONYMOUS_PLAYER_LABEL = "Anonymous";
 
+const ANONYMOUS_PLAYER_LABEL = "Anonymous";
 const TITLE_SEPARATOR = " · ";
 
-export interface DocumentTitleInput {
+interface DocumentTitleInput {
   source: ImportedGameMetadata | null;
   importStatus: ImportPanelStatus;
 }

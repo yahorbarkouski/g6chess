@@ -42,49 +42,6 @@ export type GameAnalysisStatus = "pending" | "running" | "succeeded" | "failed";
 
 export type GameMoveAnalysisState = "context_ready" | "explained" | "explanation_failed";
 
-export interface VisualizationExampleCollection {
-  examples: VisualizationExampleSummary[];
-}
-
-export interface VisualizationExampleSummary {
-  id: string;
-  title: string;
-  source: string;
-  initial_fen: string;
-  orientation: ColorName;
-  move_count: number;
-  context_plies: number[];
-  tags: string[];
-}
-
-export interface VisualizationExample {
-  id: string;
-  title: string;
-  summary: string;
-  source: string;
-  initial_fen: string;
-  orientation: ColorName;
-  player_level: string;
-  tags: string[];
-  moves: VisualizationMove[];
-  contexts: VisualizationMoveContext[];
-}
-
-export interface VisualizationMove {
-  ply: number;
-  uci: string;
-  san: string;
-  fen_before: string;
-  fen_after: string;
-  player_color: ColorName;
-  has_context: boolean;
-}
-
-export interface VisualizationMoveContext {
-  ply: number;
-  result: ContextResult;
-}
-
 export interface ContextResult {
   evidence: EvidencePacket;
   llm_context: LLMContext;
