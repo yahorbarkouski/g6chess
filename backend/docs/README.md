@@ -10,6 +10,8 @@ durable decisions.
 - `product/end-goal.md`: product scope and API contract.
 - `product/context-engine.md`: evidence packet, LLM context, and candidate
   policy.
+- `product/move-labeling.md`: current quality, significance, and beauty labels
+  for reviewed moves.
 - `product/product-understanding.md`: domain boundaries and failure modes.
 - `product/prompt-guidelines.md`: prompt rules, claim limits, and verification
   loop.
