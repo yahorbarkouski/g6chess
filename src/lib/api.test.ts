@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getCachedChessComLiveGameAnalysis, startImportedGameAnalysis } from "./api";
+import { type ApiError, getCachedChessComLiveGameAnalysis, startImportedGameAnalysis } from "./api";
 
 describe("startImportedGameAnalysis", () => {
   afterEach(() => {
@@ -79,5 +79,37 @@ describe("startImportedGameAnalysis", () => {
       "http://127.0.0.1:8001/api/game-analysis/import/chess-com/live/168193636078",
       {},
     );
+  });
+
+  it("preserves backend error code and Retry-After for rate limits", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            detail: {
+              code: "import_start_rate_limited",
+              message: "Too many requests. Try again after the cooldown.",
+            },
+          }),
+          {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": "30",
+            },
+          },
+        ),
+      ),
+    );
+
+    await expect(
+      startImportedGameAnalysis({ source: "pgn", pgn: "1. e4 e5 *" }),
+    ).rejects.toMatchObject({
+      status: 429,
+      code: "import_start_rate_limited",
+      retryAfterSeconds: 30,
+      detail: "Too many requests. Try again after the cooldown.",
+    } satisfies Partial<ApiError>);
   });
 });

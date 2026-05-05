@@ -85,6 +85,12 @@ Point it at an analysis API with:
 VITE_G6_API_BASE_URL=http://127.0.0.1:8001
 ```
 
+Enable Cloudflare Turnstile for anonymous import starts with:
+
+```bash
+VITE_G6_TURNSTILE_SITE_KEY=...
+```
+
 Expected API shape today:
 
 - `POST /api/game-analysis/import`

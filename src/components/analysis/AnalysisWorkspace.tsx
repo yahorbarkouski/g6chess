@@ -228,6 +228,7 @@ export function AnalysisWorkspace() {
     let cancelled = false;
     let timer: number | undefined;
     const abortController = new AbortController();
+    const pollStartedAt = Date.now();
 
     async function poll() {
       try {
@@ -248,10 +249,16 @@ export function AnalysisWorkspace() {
             : "polling",
         );
         if (!isTerminalGameAnalysisStatus(snapshot.status)) {
-          timer = window.setTimeout(poll, 1200);
+          timer = window.setTimeout(poll, nextPollDelayMs(pollStartedAt));
         }
       } catch (error) {
         if (cancelled || isAbortError(error)) {
+          return;
+        }
+        if (error instanceof ApiError && error.status === 429) {
+          setImportStatus("polling");
+          setImportError(importErrorMessage(error));
+          timer = window.setTimeout(poll, retryAfterDelayMs(error));
           return;
         }
         setImportStatus("failed");
@@ -1723,12 +1730,38 @@ function clearStoredGameAnalysisJob(): void {
 
 function importErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 429 && error.retryAfterSeconds !== null) {
+      return `Too many requests. Try again in ${formatRetryAfter(error.retryAfterSeconds)}.`;
+    }
     return error.detail;
   }
   if (error instanceof Error) {
     return error.message;
   }
   return "Import failed.";
+}
+
+function nextPollDelayMs(pollStartedAt: number): number {
+  const elapsedMs = Date.now() - pollStartedAt;
+  if (elapsedMs < 20_000) {
+    return 1200;
+  }
+  if (elapsedMs < 120_000) {
+    return 3000;
+  }
+  return 7000;
+}
+
+function retryAfterDelayMs(error: ApiError): number {
+  return Math.max(1000, (error.retryAfterSeconds ?? 5) * 1000);
+}
+
+function formatRetryAfter(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  }
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
 function buildMoveLoadingIndicator(

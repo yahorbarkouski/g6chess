@@ -1,6 +1,13 @@
 import { ArrowUp, RotateCw, Smile } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   isSupportedChessComAnalysisUrl,
   normalizeChessComImportUrl,
@@ -22,6 +29,7 @@ interface AnalysisImportPanelProps {
 type Mode = "url" | "pgn";
 
 const DEFAULT_EXPLAIN_SIGNIFICANCE: readonly SignificanceLabel[] = ["critical"];
+const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_G6_TURNSTILE_SITE_KEY ?? "").trim();
 
 const FIELD_HEIGHT_URL = 46;
 const FIELD_HEIGHT_PGN = 232;
@@ -45,11 +53,16 @@ export function AnalysisImportPanel({
   const [url, setUrl] = useState(() => initialUrl ?? "");
   const [pgn, setPgn] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   const isBusy = status === "submitting" || status === "polling";
+  const needsTurnstile = TURNSTILE_SITE_KEY.length > 0;
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
-  const canSubmit = !isBusy && isValidInput(mode, value);
+  const canSubmit =
+    !isBusy && isValidInput(mode, value) && (!needsTurnstile || turnstileToken !== null);
+  const handleTurnstileExpire = useCallback(() => setTurnstileToken(null), []);
 
   function clearErrors() {
     setLocalError(null);
@@ -63,9 +76,13 @@ export function AnalysisImportPanel({
     }
     setLocalError(null);
     try {
-      await onImport(buildRequest(mode, { url: url.trim(), pgn }));
+      await onImport(buildRequest(mode, { url: url.trim(), pgn, turnstileToken }));
     } catch (err) {
       setLocalError(importErrorMessage(err));
+      if (needsTurnstile) {
+        setTurnstileToken(null);
+        setTurnstileResetKey((current) => current + 1);
+      }
     }
   }
 
@@ -104,6 +121,17 @@ export function AnalysisImportPanel({
           value={value}
         />
       </form>
+
+      {needsTurnstile ? (
+        <div className="mt-3 flex justify-center">
+          <TurnstileWidget
+            key={turnstileResetKey}
+            onExpire={handleTurnstileExpire}
+            onToken={setTurnstileToken}
+            siteKey={TURNSTILE_SITE_KEY}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-2 flex items-center justify-between gap-3 px-1">
         <ModeToggle
@@ -389,17 +417,24 @@ function isValidPgn(value: string): boolean {
   return PGN_TAG_PATTERN.test(trimmed) || PGN_MOVE_PATTERN.test(trimmed);
 }
 
-function buildRequest(mode: Mode, values: { url: string; pgn: string }): GameAnalysisImportRequest {
+function buildRequest(
+  mode: Mode,
+  values: { url: string; pgn: string; turnstileToken: string | null },
+): GameAnalysisImportRequest {
   const sourceFields =
     mode === "url"
       ? ({ source: "chess_com_live_url", url: normalizeChessComImportUrl(values.url) } as const)
       : ({ source: "pgn", pgn: values.pgn } as const);
-  return {
+  const request: GameAnalysisImportRequest = {
     ...sourceFields,
     explain_significance: [...DEFAULT_EXPLAIN_SIGNIFICANCE],
     include_context: true,
     use_baseline_fallback: false,
   };
+  if (values.turnstileToken !== null) {
+    request.turnstile_token = values.turnstileToken;
+  }
+  return request;
 }
 
 function importErrorMessage(error: unknown): string {
@@ -410,4 +445,89 @@ function importErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Import failed.";
+}
+
+interface TurnstileApi {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      callback: (token: string) => void;
+      "expired-callback": () => void;
+      "error-callback": () => void;
+      theme: "auto";
+    },
+  ) => string;
+  remove?: (widgetId: string) => void;
+}
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+    __g6TurnstileScriptLoading?: boolean;
+  }
+}
+
+function TurnstileWidget({
+  siteKey,
+  onToken,
+  onExpire,
+}: {
+  siteKey: string;
+  onToken: (token: string) => void;
+  onExpire: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let widgetId: string | null = null;
+    let timer: number | undefined;
+    ensureTurnstileScript();
+
+    function renderWhenReady() {
+      const container = containerRef.current;
+      if (!container || widgetId !== null || !window.turnstile) {
+        return;
+      }
+      widgetId = window.turnstile.render(container, {
+        sitekey: siteKey,
+        callback: onToken,
+        "expired-callback": onExpire,
+        "error-callback": onExpire,
+        theme: "auto",
+      });
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
+    }
+
+    renderWhenReady();
+    if (widgetId === null) {
+      timer = window.setInterval(renderWhenReady, 100);
+    }
+
+    return () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+      }
+      if (widgetId !== null && window.turnstile?.remove) {
+        window.turnstile.remove(widgetId);
+      }
+    };
+  }, [onExpire, onToken, siteKey]);
+
+  return <div ref={containerRef} />;
+}
+
+function ensureTurnstileScript() {
+  if (typeof window === "undefined" || window.turnstile || window.__g6TurnstileScriptLoading) {
+    return;
+  }
+  window.__g6TurnstileScriptLoading = true;
+  const script = document.createElement("script");
+  script.async = true;
+  script.defer = true;
+  script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  document.head.appendChild(script);
 }
