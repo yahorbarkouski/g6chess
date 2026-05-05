@@ -38,6 +38,10 @@ The worker function installs Stockfish and the Maia extra, mounts the
 `g6explanation-maia-models` Modal Volume at `/models/maia2`, and runs the
 existing `GameAnalysisRunner`.
 
+The worker image also prefetches the default CC0 Lichess openings dataset during
+image build so opening-book metadata is available without a runtime source-data
+download on the first analysis job.
+
 ## Required GitHub Secrets
 
 Add these repository or environment secrets before merging to `main` or running

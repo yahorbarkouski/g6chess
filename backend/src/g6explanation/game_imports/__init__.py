@@ -19,8 +19,11 @@ from g6explanation.game_imports.contracts import (
     ImportedGameMetadata,
 )
 from g6explanation.game_imports.import_service import (
+    GameAnalysisImportIndex,
     GameImportError,
     GameImportService,
+    InMemoryGameAnalysisImportIndex,
+    RedisGameAnalysisImportIndex,
     game_import_service_from_env,
     imported_game_from_pgn,
 )
@@ -32,6 +35,7 @@ __all__ = [
     "ChessComLiveGameNotFoundError",
     "ChessComLiveGameResolver",
     "ChessComLiveGameUnavailableError",
+    "GameAnalysisImportIndex",
     "GameAnalysisImportRequest",
     "GameAnalysisImportResponse",
     "GameImportError",
@@ -39,7 +43,9 @@ __all__ = [
     "GameImportSource",
     "ImportedGame",
     "ImportedGameMetadata",
+    "InMemoryGameAnalysisImportIndex",
     "InMemoryGameImportCache",
+    "RedisGameAnalysisImportIndex",
     "RedisGameImportCache",
     "extract_chess_com_live_game_id",
     "game_import_service_from_env",

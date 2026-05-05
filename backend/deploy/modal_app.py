@@ -38,10 +38,19 @@ def _image(*, include_maia: bool) -> modal.Image:
                 "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": "30",
             }
         )
-    return image.env({"PYTHONPATH": SOURCE_ROOT}).add_local_dir(
+    image = image.env({"PYTHONPATH": SOURCE_ROOT}).add_local_dir(
         "src/g6explanation",
         f"{SOURCE_ROOT}/g6explanation",
+        copy=include_maia,
     )
+    if include_maia:
+        image = image.run_commands(
+            'python -c "from g6explanation.game_analysis.opening_book import '
+            "prefetch_default_opening_book; book = prefetch_default_opening_book(); "
+            "print(f'Prefetched opening book entries={book.entry_count} "
+            "named_positions={book.opening_count}')\""
+        )
+    return image
 
 
 api_image = _image(include_maia=False)

@@ -67,6 +67,9 @@ def create_app(
     ) -> GameAnalysisImportResponse:
         return start_imported_game_analysis(request, import_service)
 
+    def read_cached_imported_game_analysis(external_game_id: str) -> GameAnalysisImportResponse:
+        return cached_imported_game_analysis(external_game_id, import_service)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins_from_env(),
@@ -107,6 +110,12 @@ def create_app(
         "/api/game-analysis/import",
         submit_imported_game_analysis,
         methods=["POST"],
+        response_model=GameAnalysisImportResponse,
+    )
+    app.add_api_route(
+        "/api/game-analysis/import/chess-com/live/{external_game_id}",
+        read_cached_imported_game_analysis,
+        methods=["GET"],
         response_model=GameAnalysisImportResponse,
     )
     app.add_api_route(
@@ -188,6 +197,16 @@ def start_imported_game_analysis(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (GameImportError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def cached_imported_game_analysis(
+    external_game_id: str,
+    service: GameImportService,
+) -> GameAnalysisImportResponse:
+    response = service.cached_chess_com_live_game_analysis(external_game_id)
+    if response is None:
+        raise HTTPException(status_code=404, detail="Cached game analysis not found.")
+    return response
 
 
 def game_analysis_state(

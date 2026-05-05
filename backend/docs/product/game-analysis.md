@@ -86,6 +86,8 @@ Each snapshot includes:
 - per-move quality, significance, beauty, SAN, UCI, color, and latency
 - per-move clock-before, remaining-clock, and think-time fields when PGN clock
   comments are available
+- optional per-move `opening_book` metadata with book status, novelty status,
+  ECO/opening name, and compact continuation lines for UI preview
 - verified explanation metadata when an explanation has completed
 - optional full `ContextResult` when `include_context=true`
 
@@ -103,6 +105,9 @@ Production-shaped local game analysis uses:
   `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`
 - OpenRouter concurrency configured by
   `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`
+- opening-book metadata enabled by default from the CC0 Lichess openings
+  dataset; the backend downloads and caches the TSV source automatically when
+  local data is missing
 
 Redis defaults to `redis://localhost:6379/0` and can be overridden with
 `G6EXPLANATION_REDIS_URL`.

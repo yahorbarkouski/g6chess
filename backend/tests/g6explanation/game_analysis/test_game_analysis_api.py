@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -28,8 +28,10 @@ from g6explanation.game_analysis import (
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
     InMemoryGameAnalysisStore,
+    OpeningBookPly,
     game_ply_requests,
 )
+from g6explanation.game_analysis.contracts import BookLine, BookLineMove, OpeningBookMetadata
 from g6explanation.visualization.http_api import create_app
 
 TINY_PGN = """
@@ -65,6 +67,7 @@ def test_game_analysis_http_api_starts_job_and_returns_completed_snapshot() -> N
         runner=GameAnalysisRunner(
             context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
             coach_provider_factory=PromptEchoCoachProvider,
+            opening_book_pass=empty_opening_book_pass,
             context_workers=2,
             openrouter_concurrency=4,
         ),
@@ -104,6 +107,7 @@ def test_game_analysis_http_api_returns_404_for_unknown_job() -> None:
         runner=GameAnalysisRunner(
             context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
             coach_provider_factory=PromptEchoCoachProvider,
+            opening_book_pass=empty_opening_book_pass,
         ),
         executor=InlineExecutor(),
     )
@@ -123,6 +127,7 @@ def test_game_analysis_http_api_uses_configured_cors_origins(
         runner=GameAnalysisRunner(
             context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
             coach_provider_factory=PromptEchoCoachProvider,
+            opening_book_pass=empty_opening_book_pass,
         ),
         executor=InlineExecutor(),
     )
@@ -147,6 +152,10 @@ def test_game_ply_requests_passes_player_and_opponent_levels_by_side() -> None:
     ply_requests = game_ply_requests(request)
 
     assert [item.request.player_color for item in ply_requests] == ["white", "black", "white"]
+    assert [item.opening_book_ply.san for item in ply_requests] == ["e4", "e5", "Nf3"]
+    first_ply = ply_requests[0]
+    assert first_ply.opening_book_ply.fen_before.startswith("rnbqkbnr/pppppppp")
+    assert first_ply.opening_book_ply.fen_after.startswith("rnbqkbnr/pppppppp")
     assert [item.request.player_level.value for item in ply_requests] == [1600, 1400, 1600]
     assert [cast(PlayerLevel, item.request.opponent_level).value for item in ply_requests] == [
         1400,
@@ -178,6 +187,7 @@ def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCapt
         runner=GameAnalysisRunner(
             context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
             coach_provider_factory=FailingCoachProvider,
+            opening_book_pass=empty_opening_book_pass,
             context_workers=1,
             openrouter_concurrency=1,
         ),
@@ -210,6 +220,51 @@ def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCapt
     assert "Explanation generation failed" in caplog.text
     assert "OpenRouter returned HTTP 400" in caplog.text
     assert "line_card_anchor" in caplog.text
+
+
+def test_game_analysis_http_api_exposes_opening_book_metadata() -> None:
+    store = RecordingGameAnalysisStore()
+    service = GameAnalysisService(
+        store=store,
+        runner=GameAnalysisRunner(
+            context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
+            coach_provider_factory=PromptEchoCoachProvider,
+            opening_book_pass=sample_opening_book_pass,
+            context_workers=1,
+            openrouter_concurrency=1,
+        ),
+        executor=InlineExecutor(),
+    )
+    client = TestClient(create_app(game_analysis_service=service))
+
+    response = client.post(
+        "/api/game-analysis",
+        json=GameAnalysisStartRequest(
+            pgn=TINY_PGN,
+            player_level=PlayerLevel.rating(1500),
+            time_control="rapid",
+            explain_significance=["critical"],
+            include_context=True,
+        ).to_dict(),
+    )
+
+    assert response.status_code == 200
+    snapshot = client.get(response.json()["status_url"]).json()
+    book = snapshot["moves"][0]["opening_book"]
+    assert book == {
+        "is_book_move": True,
+        "is_novelty": False,
+        "book_lines": [
+            {
+                "moves": [{"san": "e5", "uci": "e7e5"}, {"san": "Nf3", "uci": "g1f3"}],
+                "weight": 3,
+                "opening_name": "King's Pawn Game: Normal Variation",
+                "eco": "C20",
+            }
+        ],
+        "opening_name": "King's Pawn Game",
+        "eco": "C20",
+    }
 
 
 def _empty_snapshots() -> list[GameAnalysisSnapshot]:
@@ -324,3 +379,29 @@ def _engine_line(
         pv_uci=[move.uci()],
         pv_san=[board.san(move)],
     )
+
+
+def empty_opening_book_pass(_plies: Sequence[OpeningBookPly]) -> dict[int, OpeningBookMetadata]:
+    return {}
+
+
+def sample_opening_book_pass(plies: Sequence[OpeningBookPly]) -> dict[int, OpeningBookMetadata]:
+    assert [ply.san for ply in plies] == ["e4", "e5", "Nf3"]
+    return {
+        1: OpeningBookMetadata(
+            is_book_move=True,
+            book_lines=[
+                BookLine(
+                    moves=[
+                        BookLineMove(san="e5", uci="e7e5"),
+                        BookLineMove(san="Nf3", uci="g1f3"),
+                    ],
+                    weight=3,
+                    opening_name="King's Pawn Game: Normal Variation",
+                    eco="C20",
+                )
+            ],
+            opening_name="King's Pawn Game",
+            eco="C20",
+        )
+    }

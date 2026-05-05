@@ -24,7 +24,11 @@ from g6explanation.game_analysis import (
     GameAnalysisService,
     InMemoryGameAnalysisStore,
 )
-from g6explanation.game_imports import ChessComLiveGameResolver, GameImportService
+from g6explanation.game_imports import (
+    ChessComLiveGameResolver,
+    GameImportService,
+    InMemoryGameAnalysisImportIndex,
+)
 from g6explanation.visualization.http_api import create_app
 
 GAME_ID = "168193636078"
@@ -88,6 +92,82 @@ def test_import_api_starts_analysis_from_chess_com_url() -> None:
     assert [request["increment_seconds"] for request in requests] == [2.0, 2.0, 2.0]
     assert [move["remaining_clock_seconds"] for move in snapshot["moves"]] == [181.0, 179.0, 178.0]
     assert [move["think_time_seconds"] for move in snapshot["moves"]] == [1.0, 3.0, 5.0]
+
+
+def test_import_api_returns_cached_chess_com_analysis_without_resubmitting() -> None:
+    transport = CountingChessComTransport()
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=transport,
+            sleep=lambda _: None,
+        ),
+        analysis_index=InMemoryGameAnalysisImportIndex(),
+    )
+
+    first_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "explain_significance": ["critical"],
+            "include_context": True,
+        },
+    )
+    second_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "explain_significance": ["critical"],
+            "include_context": True,
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert second_response.json()["analysis_id"] == first_response.json()["analysis_id"]
+    assert transport.request_count == 2
+
+
+def test_cached_import_lookup_returns_existing_chess_com_analysis() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        analysis_index=InMemoryGameAnalysisImportIndex(),
+    )
+
+    import_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "explain_significance": ["critical"],
+            "include_context": True,
+        },
+    )
+    lookup_response = client.get(f"/api/game-analysis/import/chess-com/live/{GAME_ID}")
+
+    assert lookup_response.status_code == 200
+    assert lookup_response.json()["analysis_id"] == import_response.json()["analysis_id"]
+    assert lookup_response.json()["status_url"] == import_response.json()["status_url"]
+    assert lookup_response.json()["source"]["external_game_id"] == GAME_ID
+
+
+def test_cached_import_lookup_misses_unknown_chess_com_analysis() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        analysis_index=InMemoryGameAnalysisImportIndex(),
+    )
+
+    response = client.get("/api/game-analysis/import/chess-com/live/999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Cached game analysis not found."
 
 
 def test_import_api_starts_analysis_from_pasted_pgn() -> None:
@@ -164,7 +244,11 @@ def test_import_api_accepts_explicit_side_ratings_for_unrated_pgn() -> None:
     assert [request["player_level"]["value"] for request in requests] == [1400, 1300]
 
 
-def _client(resolver: ChessComLiveGameResolver) -> TestClient:
+def _client(
+    resolver: ChessComLiveGameResolver,
+    *,
+    analysis_index: InMemoryGameAnalysisImportIndex | None = None,
+) -> TestClient:
     store = InMemoryGameAnalysisStore()
     analysis_service = GameAnalysisService(
         store=store,
@@ -177,6 +261,7 @@ def _client(resolver: ChessComLiveGameResolver) -> TestClient:
         executor=InlineExecutor(),
     )
     import_service = GameImportService(
+        analysis_index=analysis_index,
         analysis_service=analysis_service,
         chess_com_resolver=resolver,
     )
@@ -224,6 +309,20 @@ class FakeChessComTransport:
         if "/player/beta/games/2026/05" in url:
             return 200, _json_bytes({"games": []})
         return 404, b"{}"
+
+
+class CountingChessComTransport(FakeChessComTransport):
+    def __init__(self) -> None:
+        self.request_count = 0
+
+    def __call__(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout_seconds: float,
+    ) -> tuple[int, bytes]:
+        self.request_count += 1
+        return super().__call__(url, headers, timeout_seconds)
 
 
 class InlineExecutor:

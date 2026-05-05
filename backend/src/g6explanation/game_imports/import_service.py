@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import io
+import os
+from collections.abc import Callable
+from typing import Any, Protocol, cast
 
 import chess.pgn
 
 from g6explanation.context_engine.contracts import ColorName, PlayerLevel
 from g6explanation.game_analysis import GameAnalysisService, GameAnalysisStartRequest
-from g6explanation.game_imports.chess_com_live_games import ChessComLiveGameResolver
+from g6explanation.game_imports.chess_com_live_games import (
+    ChessComLiveGameResolver,
+    extract_chess_com_live_game_id,
+)
 from g6explanation.game_imports.contracts import (
     GameAnalysisImportRequest,
     GameAnalysisImportResponse,
@@ -16,6 +22,102 @@ from g6explanation.game_imports.contracts import (
     ImportedGameMetadata,
     metadata_title,
 )
+
+DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS = 24 * 60 * 60
+
+
+class GameAnalysisImportIndex(Protocol):
+    """Best-effort source index for already-started imported analyses."""
+
+    def get(self, key: str) -> GameAnalysisImportResponse | None:
+        """Return an import response pointer if present."""
+        ...
+
+    def set(
+        self,
+        key: str,
+        response: GameAnalysisImportResponse,
+        ttl_seconds: int,
+    ) -> None:
+        """Persist an import response pointer."""
+        ...
+
+
+class InMemoryGameAnalysisImportIndex:
+    """Small deterministic import-analysis index for tests."""
+
+    def __init__(self) -> None:
+        self._items: dict[str, GameAnalysisImportResponse] = {}
+
+    def get(self, key: str) -> GameAnalysisImportResponse | None:
+        return self._items.get(key)
+
+    def set(
+        self,
+        key: str,
+        response: GameAnalysisImportResponse,
+        ttl_seconds: int,
+    ) -> None:
+        del ttl_seconds
+        self._items[key] = response
+
+
+class RedisGameAnalysisImportIndex:
+    """Redis-backed source index for imported analysis jobs."""
+
+    def __init__(
+        self,
+        redis_client: Any,
+        *,
+        key_prefix: str = "g6:game_import_analysis",
+    ) -> None:
+        self._redis: Any = redis_client
+        self._key_prefix = key_prefix
+
+    @classmethod
+    def from_url(
+        cls,
+        redis_url: str,
+        *,
+        key_prefix: str = "g6:game_import_analysis",
+    ) -> RedisGameAnalysisImportIndex:
+        from redis import Redis
+
+        return cls(
+            cast(
+                Callable[[str], Any],
+                Redis.from_url,  # pyright: ignore[reportUnknownMemberType]
+            )(redis_url),
+            key_prefix=key_prefix,
+        )
+
+    def get(self, key: str) -> GameAnalysisImportResponse | None:
+        try:
+            raw = self._redis.get(self._key(key))
+        except Exception:
+            return None
+        if raw is None:
+            return None
+        try:
+            if isinstance(raw, bytes):
+                return GameAnalysisImportResponse.model_validate_json(raw.decode("utf-8"))
+            return GameAnalysisImportResponse.model_validate_json(cast(str, raw))
+        except ValueError:
+            return None
+
+    def set(
+        self,
+        key: str,
+        response: GameAnalysisImportResponse,
+        ttl_seconds: int,
+    ) -> None:
+        try:
+            self._redis.set(self._key(key), response.model_dump_json(), ex=ttl_seconds)
+        except Exception:
+            return
+
+    def _key(self, key: str) -> str:
+        return f"{self._key_prefix}:{key}"
 
 
 class GameImportError(ValueError):
@@ -29,21 +131,44 @@ class GameImportService:
         self,
         *,
         analysis_service: GameAnalysisService,
+        analysis_index: GameAnalysisImportIndex | None = None,
+        analysis_index_ttl_seconds: int = DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS,
         chess_com_resolver: ChessComLiveGameResolver | None = None,
     ) -> None:
+        if analysis_index_ttl_seconds <= 0:
+            raise ValueError("analysis_index_ttl_seconds must be positive.")
         self._analysis_service = analysis_service
+        self._analysis_index = analysis_index
+        self._analysis_index_ttl_seconds = analysis_index_ttl_seconds
         self._chess_com_resolver = chess_com_resolver or ChessComLiveGameResolver.from_env()
 
     def start(self, request: GameAnalysisImportRequest) -> GameAnalysisImportResponse:
+        cached_response = self._cached_response_for_request(request)
+        if cached_response is not None:
+            return cached_response
+
         imported_game = self._imported_game(request)
         start_request = _analysis_request_from_import(imported_game, request)
         start_response = self._analysis_service.start(start_request)
-        return GameAnalysisImportResponse(
+        response = GameAnalysisImportResponse(
             analysis_id=start_response.analysis_id,
             status=start_response.status,
             status_url=start_response.status_url,
             source=imported_game.metadata,
         )
+        self._write_response_for_imported_game(imported_game, response)
+        return response
+
+    def cached_chess_com_live_game_analysis(
+        self,
+        external_game_id: str,
+    ) -> GameAnalysisImportResponse | None:
+        """Return an existing non-failed analysis pointer for a Chess.com live game."""
+
+        normalized = external_game_id.strip()
+        if not normalized.isdigit():
+            return None
+        return self._cached_index_response(_chess_com_live_analysis_key(normalized))
 
     def _imported_game(self, request: GameAnalysisImportRequest) -> ImportedGame:
         if request.source == "chess_com_live_url":
@@ -52,11 +177,65 @@ class GameImportService:
         assert request.pgn is not None
         return imported_game_from_pgn(request.pgn)
 
+    def _cached_response_for_request(
+        self,
+        request: GameAnalysisImportRequest,
+    ) -> GameAnalysisImportResponse | None:
+        if request.source != "chess_com_live_url" or request.url is None:
+            return None
+        external_game_id = extract_chess_com_live_game_id(request.url)
+        return self.cached_chess_com_live_game_analysis(external_game_id)
+
+    def _cached_index_response(self, key: str) -> GameAnalysisImportResponse | None:
+        if self._analysis_index is None:
+            return None
+        cached = self._analysis_index.get(key)
+        if cached is None:
+            return None
+        snapshot = self._analysis_service.get(cached.analysis_id)
+        if snapshot is None or snapshot.status == "failed":
+            return None
+        return GameAnalysisImportResponse(
+            analysis_id=cached.analysis_id,
+            status=snapshot.status,
+            status_url=cached.status_url,
+            source=cached.source,
+        )
+
+    def _write_response_for_imported_game(
+        self,
+        imported_game: ImportedGame,
+        response: GameAnalysisImportResponse,
+    ) -> None:
+        if self._analysis_index is None or imported_game.metadata.external_game_id is None:
+            return
+        if imported_game.metadata.source != "chess_com_live_url":
+            return
+        self._analysis_index.set(
+            _chess_com_live_analysis_key(imported_game.metadata.external_game_id),
+            response,
+            self._analysis_index_ttl_seconds,
+        )
+
 
 def game_import_service_from_env(analysis_service: GameAnalysisService) -> GameImportService:
     """Build the default import service for the HTTP API."""
 
-    return GameImportService(analysis_service=analysis_service)
+    analysis_index = RedisGameAnalysisImportIndex.from_url(
+        os.getenv("G6EXPLANATION_REDIS_URL", "redis://localhost:6379/0"),
+        key_prefix=os.getenv(
+            "G6EXPLANATION_GAME_IMPORT_ANALYSIS_REDIS_PREFIX",
+            "g6:game_import_analysis",
+        ),
+    )
+    return GameImportService(
+        analysis_index=analysis_index,
+        analysis_index_ttl_seconds=_int_env(
+            "G6EXPLANATION_GAME_IMPORT_ANALYSIS_CACHE_TTL_SECONDS",
+            DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS,
+        ),
+        analysis_service=analysis_service,
+    )
 
 
 def imported_game_from_pgn(pgn: str) -> ImportedGame:
@@ -180,3 +359,12 @@ def _blank_to_none(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _chess_com_live_analysis_key(external_game_id: str) -> str:
+    return f"chess_com_live:{external_game_id}"
+
+
+def _int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    return default if value is None else int(value)

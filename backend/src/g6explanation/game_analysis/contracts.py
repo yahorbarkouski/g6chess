@@ -72,6 +72,32 @@ class GameAnalysisStartRequest(ContextContract):
         raise ValueError(f"Missing player level for {player_color}.")
 
 
+class BookLineMove(ContextContract):
+    """One SAN/UCI move in an opening-book continuation."""
+
+    san: str
+    uci: str
+
+
+class BookLine(ContextContract):
+    """Opening-book continuation from the selected position."""
+
+    moves: list[BookLineMove]
+    weight: int = Field(ge=0)
+    opening_name: str | None = None
+    eco: str | None = None
+
+
+class OpeningBookMetadata(ContextContract):
+    """Opening-book status attached to a game-analysis ply."""
+
+    is_book_move: bool
+    is_novelty: bool = False
+    book_lines: list[BookLine] = Field(default_factory=list[BookLine])
+    opening_name: str | None = None
+    eco: str | None = None
+
+
 class GameMoveAnalysis(ContextContract):
     """Current analysis state for one ply."""
 
@@ -88,6 +114,7 @@ class GameMoveAnalysis(ContextContract):
     clock_before_seconds: float | None = None
     remaining_clock_seconds: float | None = None
     think_time_seconds: float | None = None
+    opening_book: OpeningBookMetadata | None = None
     explanation: str | None = None
     explanation_segments: list[ExplanationSegment] = Field(default_factory=list[ExplanationSegment])
     explanation_line_cards: list[ExplanationLineCard] = Field(

@@ -38,6 +38,9 @@ layer must not invent fallback ratings.
 - Keep mate scores separate from centipawns.
 - Store UCI for computation and SAN only for display.
 - Use Lichess CC0 exports as the default open source for global training data.
+- Opening-book metadata may use the CC0 Lichess openings dataset for display
+  context and continuation previews, but it must not override Stockfish move
+  quality or explanation-verification policy.
 - Do not train global models on user-imported games or Chess.com-derived data
   without explicit rights or prior written authorization.
 - Mark Chess.com and manual PGN imports as `allows_global_training=false` in

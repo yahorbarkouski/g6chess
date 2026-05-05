@@ -33,7 +33,9 @@ from g6explanation.game_analysis.contracts import (
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
     GameMoveAnalysis,
+    OpeningBookMetadata,
 )
+from g6explanation.game_analysis.opening_book import OpeningBookPly, run_opening_book_pass
 from g6explanation.game_analysis.provider_setup import real_game_analysis_context_builder
 from g6explanation.game_analysis.state_store import GameAnalysisStore
 
@@ -44,6 +46,7 @@ LOGGER = logging.getLogger(__name__)
 
 ContextBuilderFactory = Callable[[], MoveContextBuilder]
 CoachProviderFactory = Callable[[], CoachModelProvider]
+OpeningBookPass = Callable[[Sequence[OpeningBookPly]], dict[int, OpeningBookMetadata]]
 Clock = Callable[[], float]
 TimestampFactory = Callable[[], str]
 
@@ -56,6 +59,7 @@ def _utc_now() -> str:
 class _PlyRequest:
     ply: int
     request: MoveContextRequest
+    opening_book_ply: OpeningBookPly
     clock_after_seconds: float | None = None
     think_time_seconds: float | None = None
 
@@ -88,6 +92,7 @@ class GameAnalysisRunner:
         *,
         context_builder_factory: ContextBuilderFactory = real_game_analysis_context_builder,
         coach_provider_factory: CoachProviderFactory = OpenRouterCoachModelProvider.from_env,
+        opening_book_pass: OpeningBookPass = run_opening_book_pass,
         context_workers: int = DEFAULT_GAME_ANALYSIS_CONTEXT_WORKERS,
         openrouter_concurrency: int = DEFAULT_GAME_ANALYSIS_OPENROUTER_CONCURRENCY,
         clock: Clock = time.perf_counter,
@@ -99,6 +104,7 @@ class GameAnalysisRunner:
             raise ValueError("openrouter_concurrency must be at least 1.")
         self._context_builder_factory = context_builder_factory
         self._coach_provider_factory = coach_provider_factory
+        self._opening_book_pass = opening_book_pass
         self._context_workers = context_workers
         self._openrouter_concurrency = openrouter_concurrency
         self._clock = clock
@@ -137,9 +143,14 @@ class GameAnalysisRunner:
             ply_requests = game_ply_requests(request)
             if not ply_requests:
                 raise ValueError("PGN contains no mainline moves.")
+            opening_book_by_ply = _opening_book_metadata_for(
+                ply_requests,
+                opening_book_pass=self._opening_book_pass,
+            )
             snapshot = self._run_context_phase(
                 snapshot=snapshot,
                 ply_requests=ply_requests,
+                opening_book_by_ply=opening_book_by_ply,
                 request=request,
                 store=store,
             )
@@ -201,6 +212,7 @@ class GameAnalysisRunner:
         *,
         snapshot: GameAnalysisSnapshot,
         ply_requests: Sequence[_PlyRequest],
+        opening_book_by_ply: dict[int, OpeningBookMetadata],
         request: GameAnalysisStartRequest,
         store: GameAnalysisStore,
     ) -> GameAnalysisSnapshot:
@@ -249,6 +261,7 @@ class GameAnalysisRunner:
                     context_result,
                     requires_explanation=requires_explanation,
                     include_context=request.include_context,
+                    opening_book=opening_book_by_ply.get(context_result.ply),
                 )
                 snapshot = _snapshot_with_move(
                     snapshot,
@@ -362,6 +375,12 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
         move = node.move
         player_color = color_name(board.turn)
         opponent_color: ColorName = "black" if player_color == "white" else "white"
+        fen_before = board.fen()
+        san = board.san(move)
+        uci = move.uci()
+        board_after = board.copy(stack=False)
+        board_after.push(move)
+        fen_after = board_after.fen()
         clock_before_seconds = remaining_by_side[player_color]
         clock_after_seconds = _clock_seconds_from_comment(node.comment)
         think_time_seconds = _think_time_seconds(
@@ -381,6 +400,14 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
                     time_control=request.time_control,
                     clock_before_seconds=clock_before_seconds,
                     increment_seconds=increment_seconds,
+                ),
+                opening_book_ply=OpeningBookPly(
+                    ply=ply,
+                    san=san,
+                    uci=uci,
+                    side=player_color,
+                    fen_before=fen_before,
+                    fen_after=fen_after,
                 ),
                 clock_after_seconds=clock_after_seconds,
                 think_time_seconds=think_time_seconds,
@@ -488,6 +515,7 @@ def _move_from_context_result(
     *,
     requires_explanation: bool,
     include_context: bool,
+    opening_book: OpeningBookMetadata | None,
 ) -> GameMoveAnalysis:
     context = context_result.context
     return GameMoveAnalysis(
@@ -504,8 +532,21 @@ def _move_from_context_result(
         clock_before_seconds=context.evidence.request.clock_before_seconds,
         remaining_clock_seconds=context_result.clock_after_seconds,
         think_time_seconds=context_result.think_time_seconds,
+        opening_book=opening_book,
         context=context if include_context else None,
     )
+
+
+def _opening_book_metadata_for(
+    ply_requests: Sequence[_PlyRequest],
+    *,
+    opening_book_pass: OpeningBookPass,
+) -> dict[int, OpeningBookMetadata]:
+    try:
+        return opening_book_pass([item.opening_book_ply for item in ply_requests])
+    except Exception as exc:
+        LOGGER.warning("Opening-book pass failed; continuing without book metadata: %s", exc)
+        return {}
 
 
 def _snapshot_with_move(
