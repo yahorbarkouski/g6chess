@@ -682,6 +682,48 @@ def test_verifier_rejects_tactic_claim_not_named_by_tactic_evidence() -> None:
     assert "unsupported_tactic_claim" in _failure_codes(verification)
 
 
+def test_verifier_accepts_supported_rook_fork_and_square_references() -> None:
+    context = _rook_fork_context()
+    output = rich_output(
+        "Nb6 forked both rooks: the rook on d7 and the rook on a8. "
+        "It also attacked the bishop on c8, so the multi-piece attack is the "
+        "concrete point of the move."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_unsupported_attack_claim() -> None:
+    context = best_context()
+    output = rich_output("e4 was the best move because it attacked both rooks.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_supported_fianchetto_claim() -> None:
+    context = _fianchetto_context()
+    output = rich_output("g3 opened the fianchetto square on g2 for the bishop.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_unsupported_fianchetto_claim() -> None:
+    context = best_context()
+    output = rich_output("e4 was the best move because it prepared a fianchetto.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
+
+
 def test_verifier_rejects_unsupported_concept_claim() -> None:
     context = mistake_context_with_practical_alternative()
     output = rich_output(
@@ -1066,6 +1108,42 @@ def _context_with_extra_claim(context: ContextResult, claim: ConceptClaim) -> Co
             ),
         }
     )
+
+
+def _rook_fork_context() -> ContextResult:
+    board = chess.Board("r1b3k1/1p1r2pn/p7/5p2/2NppP2/6B1/PPP3PP/2KR3R w - - 0 22")
+    engine_analysis = analysis(
+        board,
+        played_uci="c4b6",
+        top_scores=[("c4b6", 325), ("g3f2", 125)],
+        played_score=325,
+        after_reply_uci="d7d6",
+        played_pv_uci=["c4b6", "d7d6", "b6a8"],
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="c4b6",
+        player_color="white",
+        player_level=PlayerLevel.rating(1215, "chess.com"),
+    )
+    return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+
+def _fianchetto_context() -> ContextResult:
+    board = chess.Board()
+    engine_analysis = analysis(
+        board,
+        played_uci="g2g3",
+        top_scores=[("g2g3", 40), ("g1f3", 25)],
+        played_score=40,
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="g2g3",
+        player_color="white",
+        player_level=PlayerLevel.rating(1400),
+    )
+    return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
 
 def _recapture_context() -> ContextResult:

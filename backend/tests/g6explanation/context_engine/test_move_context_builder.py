@@ -359,6 +359,89 @@ def test_candidate_capture_recaptured_in_pv_is_trade_not_material_win() -> None:
     assert "Bxf3 would have been the key alternative" in result.llm_context.allowed_claims
 
 
+def test_knight_fork_context_exposes_attacked_rooks_as_board_fact() -> None:
+    board = chess.Board("r1b3k1/1p1r2pn/p7/5p2/2NppP2/6B1/PPP3PP/2KR3R w - - 0 22")
+    engine_analysis = analysis(
+        board,
+        played_uci="c4b6",
+        top_scores=[("c4b6", 325), ("g3f2", 125)],
+        played_score=325,
+        after_reply_uci="d7d6",
+        played_pv_uci=["c4b6", "d7d6", "b6a8"],
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="c4b6",
+        player_color="white",
+        player_level=PlayerLevel.rating(1215, "chess.com"),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    claim_text = {claim.claim for claim in result.evidence.concept_claims}
+    assert "Nb6 attacked both rooks: the rook on d7 and the rook on a8" in claim_text
+    assert "Nb6 forked both rooks: the rook on d7 and the rook on a8" in claim_text
+    assert result.llm_context.main_point == (
+        "Nb6 forked both rooks: the rook on d7 and the rook on a8 in a critical position."
+    )
+    assert result.llm_context.allowed_claims[0] == (
+        "Nb6 forked both rooks: the rook on d7 and the rook on a8"
+    )
+    assert _concept_kinds(result) >= {"piece_activity", "tactic"}
+
+
+@pytest.mark.parametrize(
+    ("fen", "played_uci", "expected_san", "expected_claim"),
+    [
+        (
+            chess.STARTING_FEN,
+            "g2g3",
+            "g3",
+            "g3 opened the fianchetto square on g2 for the bishop",
+        ),
+        (
+            chess.STARTING_FEN,
+            "b2b3",
+            "b3",
+            "b3 opened the fianchetto square on b2 for the bishop",
+        ),
+        (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+            "g7g6",
+            "g6",
+            "g6 opened the fianchetto square on g7 for the bishop",
+        ),
+    ],
+)
+def test_flank_pawn_move_exposes_fianchetto_development_fact(
+    fen: str,
+    played_uci: str,
+    expected_san: str,
+    expected_claim: str,
+) -> None:
+    board = chess.Board(fen)
+    engine_analysis = analysis(
+        board,
+        played_uci=played_uci,
+        top_scores=[(played_uci, 40), ("g1f3" if board.turn == chess.WHITE else "g8f6", 25)],
+        played_score=40,
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move=played_uci,
+        player_color="white" if board.turn == chess.WHITE else "black",
+        player_level=PlayerLevel.rating(1400),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert result.evidence.played.san == expected_san
+    assert expected_claim in {claim.claim for claim in result.evidence.concept_claims}
+    assert result.llm_context.main_point == expected_claim
+    assert result.llm_context.allowed_claims[0] == expected_claim
+    assert "development" in _concept_kinds(result)
+
+
 def test_mate_transition_adds_king_safety_concept_claim() -> None:
     board = chess.Board("rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2")
     after_board = board.copy(stack=False)

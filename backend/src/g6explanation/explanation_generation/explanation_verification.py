@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v1"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v2"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -80,6 +80,9 @@ MATERIAL_TERM_ALIASES: dict[str, tuple[str, ...]] = {
 }
 TACTIC_TERMS = {
     "fork",
+    "forks",
+    "forked",
+    "double attack",
     "pin",
     "skewer",
     "deflection",
@@ -90,6 +93,21 @@ TACTIC_TERMS = {
     "zwischenzug",
     "intermezzo",
     "back rank",
+}
+FIANCHETTO_RE = re.compile(r"\bfianchetto\w*\b", re.IGNORECASE)
+ATTACK_TARGET_RE = re.compile(
+    r"\b(?:attacks|attacked|attacking|threatens?|threatened|threatening)\b"
+    r"[^.?!;]{0,100}"
+    r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b",
+    re.IGNORECASE,
+)
+ATTACK_TERM_ALIASES: dict[str, tuple[str, ...]] = {
+    "queen": ("queen", "queens"),
+    "rook": ("rook", "rooks"),
+    "bishop": ("bishop", "bishops"),
+    "knight": ("knight", "knights"),
+    "pawn": ("pawn", "pawns"),
+    "piece": ("piece", "pieces"),
 }
 CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "forced_move": ("forced move", "only legal move", "no legal alternative"),
@@ -358,8 +376,8 @@ def _is_square_reference(explanation: str, start: int, end: int, token: str) -> 
         return False
     prefix = explanation[max(0, start - 12) : start].lower()
     suffix = explanation[end : min(len(explanation), end + 14)].lower()
-    return bool(re.search(r"\b(?:on|from|at)\s+$", prefix)) or bool(
-        re.search(r"^\s+(?:pawn|piece|square)\b", suffix)
+    return bool(re.search(r"\b(?:on|from|at|to)\s+$", prefix)) or bool(
+        re.search(r"^\s+(?:fianchetto\s+)?(?:pawn|piece|square)\b", suffix)
     )
 
 
@@ -473,11 +491,27 @@ def _verify_supported_claim_terms(
     tactic = next((term for term in TACTIC_TERMS if _contains_phrase(text, term)), None)
     if tactic:
         tactic_support = _trusted_claim_text(context_result, {"tactic"})
-        if not _contains_phrase(tactic_support, tactic):
+        if not _tactic_supported(tactic_support, tactic):
             issues.fail(
                 "unsupported_tactic_claim",
                 "$.explanation",
                 f"Explanation includes unsupported tactic claim {tactic!r}.",
+            )
+    attack_support = _trusted_claim_text(context_result, {"piece_activity", "tactic"})
+    unsupported_attack_term = _unsupported_attack_claim(text, attack_support)
+    if unsupported_attack_term is not None:
+        issues.fail(
+            "unsupported_concept_claim",
+            "$.explanation",
+            f"Explanation includes unsupported attack claim {unsupported_attack_term!r}.",
+        )
+    if FIANCHETTO_RE.search(text):
+        fianchetto_support = _trusted_claim_text(context_result, {"development"})
+        if not _contains_phrase(fianchetto_support, "fianchetto"):
+            issues.fail(
+                "unsupported_concept_claim",
+                "$.explanation",
+                "Explanation includes unsupported fianchetto claim.",
             )
     concept = _unsupported_concept_claim(text, context_result, support)
     if concept is not None:
@@ -867,6 +901,47 @@ def _unsupported_material_claim(text: str, material_support: str) -> str | None:
         if unsupported_term := _unsupported_material_term(match.group(0), material_support):
             return unsupported_term
     return None
+
+
+def _unsupported_attack_claim(text: str, attack_support: str) -> str | None:
+    if not ATTACK_TARGET_RE.search(text):
+        return None
+    if not attack_support:
+        return "attack"
+    for match in ATTACK_TARGET_RE.finditer(text):
+        if unsupported_term := _unsupported_attack_term(match.group(0), attack_support):
+            return unsupported_term
+    return None
+
+
+def _unsupported_attack_term(text: str, attack_support: str) -> str | None:
+    for term, aliases in ATTACK_TERM_ALIASES.items():
+        if not any(_contains_phrase(text, alias) for alias in aliases):
+            continue
+        if term == "piece" and _has_any_concrete_attack_target(attack_support):
+            continue
+        if any(_contains_phrase(attack_support, alias) for alias in aliases):
+            continue
+        return term
+    return None
+
+
+def _has_any_concrete_attack_target(attack_support: str) -> bool:
+    return any(
+        _contains_phrase(attack_support, alias)
+        for term, aliases in ATTACK_TERM_ALIASES.items()
+        if term != "piece"
+        for alias in aliases
+    )
+
+
+def _tactic_supported(tactic_support: str, tactic: str) -> bool:
+    if tactic in {"fork", "forks", "forked", "double attack"}:
+        return any(
+            _contains_phrase(tactic_support, alias)
+            for alias in ("fork", "forks", "forked", "double attack")
+        )
+    return _contains_phrase(tactic_support, tactic)
 
 
 def _unsupported_material_term(text: str, material_support: str) -> str | None:

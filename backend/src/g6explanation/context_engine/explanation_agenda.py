@@ -227,7 +227,14 @@ def build_concept_claims(
 
     if featured_candidate is not None:
         claims.extend(
-            _featured_concept_claims(played, quality, quality_claim, featured_candidate, analysis)
+            _featured_concept_claims(
+                board,
+                played,
+                quality,
+                quality_claim,
+                featured_candidate,
+                analysis,
+            )
         )
         claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
         claims.extend(
@@ -417,6 +424,8 @@ def _primary_played_purpose_claim_with_kind(
     )
     priority = (
         "forced_mate",
+        "tactic",
+        "piece_activity",
         "forcing_move",
         "recapture",
         "material",
@@ -465,8 +474,9 @@ def _featured_best_concept(
         and analysis.played_line.score.mate_for == "player"
     ):
         return "forced mate"
-    if _primary_played_purpose_kind(board, played, analysis.played_line.pv_uci) == "recapture":
-        return "recapture"
+    primary_kind = _primary_played_purpose_kind(board, played, analysis.played_line.pv_uci)
+    if primary_kind in {"tactic", "piece_activity", "recapture", "development"}:
+        return primary_kind.replace("_", " ")
     if played.is_check:
         return "forcing move"
     if played.is_capture:
@@ -503,6 +513,7 @@ def _featured_best_claim(
 
 
 def _featured_concept_claims(
+    board: chess.Board,
     played: PlayedMoveFacts,
     quality: MoveQuality,
     quality_claim: str,
@@ -557,7 +568,7 @@ def _featured_concept_claims(
         ConceptClaim(
             kind="critical_best_move",
             subject="featured_move",
-            claim=_featured_best_claim(played, quality_claim, analysis),
+            claim=_featured_best_claim(played, quality_claim, analysis, board),
             source="candidate_policy",
             move_san=played.san,
         )

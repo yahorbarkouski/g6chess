@@ -119,6 +119,20 @@ def build_coach_prompt(
                 "practical, or hidden move unless the main_point itself needs a direct contrast."
             ),
             (
+                "When concept_claims supplies concrete board-feature facts such as a "
+                "move attacking valuable pieces, forking pieces, opening a bishop route, "
+                "or opening a fianchetto square, prefer that board fact over generic "
+                "continuation wording."
+            ),
+            (
+                "If a supplied claim says the move attacks or forks pieces, name the "
+                "attacked pieces exactly as supplied before using any line-card continuation."
+            ),
+            (
+                "Mention fianchetto plans or fianchetto squares only when a supplied "
+                "concept_claim explicitly uses fianchetto wording."
+            ),
+            (
                 "For unplayed alternatives, use counterfactual review wording such as "
                 "'MOVE would have been better', 'the better idea was MOVE', or "
                 "'MOVE would trade ...'. Do not phrase an unplayed alternative as if "

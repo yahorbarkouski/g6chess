@@ -191,6 +191,9 @@ Current deterministic concept evidence is intentionally conservative:
   piece but the supplied PV immediately recaptures the moving piece and erases
   the material gain, the model gets trade or exchange wording, not a material
   win claim
+- direct attacks by the moved piece on valuable enemy pieces, including clear
+  multi-target fork evidence such as a knight attacking both rooks
+- flank-pawn moves that open an actual fianchetto square for a home bishop
 - minor-piece development from the home rank
 - rook or queen use of a file with no pawns
 - passed-pawn advances

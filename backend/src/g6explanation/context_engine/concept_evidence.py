@@ -26,6 +26,13 @@ DEVELOPMENT_HOME_SQUARES = {
     chess.BLACK: {chess.B8, chess.C8, chess.F8, chess.G8},
 }
 CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
+VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
+FIANCHETTO_PREPARATION_ROUTES = {
+    (chess.WHITE, chess.B2, chess.B3): (chess.C1, chess.B2),
+    (chess.WHITE, chess.G2, chess.G3): (chess.F1, chess.G2),
+    (chess.BLACK, chess.B7, chess.B6): (chess.C8, chess.B7),
+    (chess.BLACK, chess.G7, chess.G6): (chess.F8, chess.G7),
+}
 
 
 def build_move_concept_claims(
@@ -59,6 +66,8 @@ def build_move_concept_claims(
             line_pv_uci,
         )
     )
+    claims.extend(_attacked_piece_claims(after_board, piece, move, move_san, subject))
+    claims.extend(_fianchetto_claims(board, after_board, piece, move, move_san, subject))
     if board.gives_check(move):
         claims.append(
             ConceptClaim(
@@ -120,6 +129,153 @@ def build_move_concept_claims(
             )
         )
     return claims
+
+
+def _attacked_piece_claims(
+    after_board: chess.Board,
+    piece: chess.Piece,
+    move: chess.Move,
+    move_san: str,
+    subject: ConceptClaimSubject,
+) -> list[ConceptClaim]:
+    targets = _valuable_targets_attacked_by_moved_piece(after_board, piece.color, move.to_square)
+    if not targets:
+        return []
+
+    target_phrase = _attacked_targets_phrase(targets)
+    claims = [
+        ConceptClaim(
+            kind="piece_activity",
+            subject=subject,
+            claim=f"{move_san} attacked {target_phrase}",
+            source="deterministic_detector",
+            move_san=move_san,
+        )
+    ]
+    if len(targets) >= 2:
+        claims.append(
+            ConceptClaim(
+                kind="tactic",
+                subject=subject,
+                claim=f"{move_san} forked {target_phrase}",
+                source="deterministic_detector",
+                move_san=move_san,
+            )
+        )
+    claims.extend(_same_type_fork_claims(targets, move_san, subject))
+    return claims
+
+
+def _valuable_targets_attacked_by_moved_piece(
+    board: chess.Board,
+    attacker_color: chess.Color,
+    attacker_square: chess.Square,
+) -> list[tuple[chess.Square, chess.Piece]]:
+    targets: list[tuple[chess.Square, chess.Piece]] = []
+    for square in board.attacks(attacker_square):
+        target = board.piece_at(square)
+        if (
+            target is None
+            or target.color == attacker_color
+            or target.piece_type not in VALUABLE_ATTACK_TARGETS
+        ):
+            continue
+        targets.append((square, target))
+    return sorted(
+        targets,
+        key=lambda item: (
+            -PIECE_VALUES[item[1].piece_type],
+            _piece_name(item[1].piece_type),
+            item[0],
+        ),
+    )
+
+
+def _same_type_fork_claims(
+    targets: list[tuple[chess.Square, chess.Piece]],
+    move_san: str,
+    subject: ConceptClaimSubject,
+) -> list[ConceptClaim]:
+    claims: list[ConceptClaim] = []
+    by_piece_type: dict[chess.PieceType, list[tuple[chess.Square, chess.Piece]]] = {}
+    for target in targets:
+        by_piece_type.setdefault(target[1].piece_type, []).append(target)
+    for grouped_targets in by_piece_type.values():
+        if len(grouped_targets) < 2:
+            continue
+        target_phrase = _attacked_targets_phrase(grouped_targets)
+        claims.append(
+            ConceptClaim(
+                kind="piece_activity",
+                subject=subject,
+                claim=f"{move_san} attacked {target_phrase}",
+                source="deterministic_detector",
+                move_san=move_san,
+            )
+        )
+        claims.append(
+            ConceptClaim(
+                kind="tactic",
+                subject=subject,
+                claim=f"{move_san} forked {target_phrase}",
+                source="deterministic_detector",
+                move_san=move_san,
+            )
+        )
+    return claims
+
+
+def _attacked_targets_phrase(targets: list[tuple[chess.Square, chess.Piece]]) -> str:
+    target_descriptions = [_attacked_target_description(square, piece) for square, piece in targets]
+    if len(targets) == 2 and targets[0][1].piece_type == targets[1][1].piece_type:
+        piece_type = targets[0][1].piece_type
+        return f"both {_piece_plural_name(piece_type)}: {_join_phrases(target_descriptions)}"
+    return _join_phrases(target_descriptions)
+
+
+def _attacked_target_description(square: chess.Square, piece: chess.Piece) -> str:
+    return f"the {_piece_name(piece.piece_type)} on {chess.square_name(square)}"
+
+
+def _join_phrases(values: list[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+def _fianchetto_claims(
+    board: chess.Board,
+    after_board: chess.Board,
+    piece: chess.Piece,
+    move: chess.Move,
+    move_san: str,
+    subject: ConceptClaimSubject,
+) -> list[ConceptClaim]:
+    if piece.piece_type != chess.PAWN:
+        return []
+    route = FIANCHETTO_PREPARATION_ROUTES.get((piece.color, move.from_square, move.to_square))
+    if route is None:
+        return []
+    bishop_home_square, fianchetto_square = route
+    bishop = board.piece_at(bishop_home_square)
+    if bishop is None or bishop.color != piece.color or bishop.piece_type != chess.BISHOP:
+        return []
+    if after_board.piece_at(fianchetto_square) is not None:
+        return []
+    return [
+        ConceptClaim(
+            kind="development",
+            subject=subject,
+            claim=(
+                f"{move_san} opened the fianchetto square on "
+                f"{chess.square_name(fianchetto_square)} for the bishop"
+            ),
+            source="deterministic_detector",
+            move_san=move_san,
+        )
+    ]
 
 
 def _material_claims(
@@ -345,6 +501,10 @@ def _piece_name(piece_type: chess.PieceType) -> str:
         chess.KING: "king",
     }
     return names[piece_type]
+
+
+def _piece_plural_name(piece_type: chess.PieceType) -> str:
+    return f"{_piece_name(piece_type)}s"
 
 
 def _piece_with_article(piece_type: chess.PieceType) -> str:

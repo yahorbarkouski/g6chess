@@ -47,6 +47,7 @@ from g6explanation.real_game_evaluation.real_games import (
     OPERA_GAME,
 )
 from g6explanation.real_game_evaluation.source_rights import (
+    CHESS_COM_REQUIRES_AUTHORIZATION_SOURCE,
     LICHESS_DATABASE_CC0_SOURCE,
     PROJECT_HISTORICAL_GAME_SOURCE,
     PROJECT_SYNTHETIC_SOURCE,
@@ -369,6 +370,29 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         time_control="rapid",
         expected_san="Bh5",
         tags=("synthetic", "material-trade", "black-perspective", "alternative"),
+    ),
+    RealExplanationEvalCase(
+        case_id="chesscom-168288554622-nb6-rook-fork",
+        description="User-requested Chess.com position where Nb6 attacks both rooks",
+        fen_before="r1b3k1/1p1r2pn/p7/5p2/2NppP2/6B1/PPP3PP/2KR3R w - - 0 22",
+        played_move="c4b6",
+        player_color="white",
+        player_level=PlayerLevel.rating(1215, "chess.com"),
+        time_control="180",
+        expected_san="Nb6",
+        tags=("chesscom", "user-requested", "rook-fork", "critical"),
+        source=CHESS_COM_REQUIRES_AUTHORIZATION_SOURCE,
+    ),
+    RealExplanationEvalCase(
+        case_id="synthetic-g3-fianchetto-development",
+        description="Opening pawn move that opens the fianchetto square for the bishop",
+        fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        played_move="g2g3",
+        player_color="white",
+        player_level=PlayerLevel.rating(1400, "synthetic-edge"),
+        time_control="rapid",
+        expected_san="g3",
+        tags=("synthetic", "opening", "fianchetto", "development"),
     ),
     RealExplanationEvalCase(
         case_id="castling-low-time-beginner",
