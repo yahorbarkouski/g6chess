@@ -21,14 +21,9 @@ def _image(*, include_maia: bool) -> modal.Image:
     optional_dependencies = ["deployment"]
     if include_maia:
         optional_dependencies.append("maia")
-    image = (
-        modal.Image.debian_slim(python_version="3.11")
-        .pip_install_from_pyproject(
-            "pyproject.toml",
-            optional_dependencies=optional_dependencies,
-        )
-        .add_local_dir("src/g6explanation", f"{SOURCE_ROOT}/g6explanation")
-        .env({"PYTHONPATH": SOURCE_ROOT})
+    image = modal.Image.debian_slim(python_version="3.11").pip_install_from_pyproject(
+        "pyproject.toml",
+        optional_dependencies=optional_dependencies,
     )
     if include_maia:
         image = image.apt_install("stockfish").env(
@@ -43,7 +38,10 @@ def _image(*, include_maia: bool) -> modal.Image:
                 "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": "30",
             }
         )
-    return image
+    return image.env({"PYTHONPATH": SOURCE_ROOT}).add_local_dir(
+        "src/g6explanation",
+        f"{SOURCE_ROOT}/g6explanation",
+    )
 
 
 api_image = _image(include_maia=False)
