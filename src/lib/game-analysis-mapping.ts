@@ -3,6 +3,7 @@ import type {
   AnalysisResponse,
   AnalysisTimelinePoint,
   BestLine,
+  BookLine,
   ExplanationLineCard,
   ExplanationSegment,
   GameMove,
@@ -19,6 +20,7 @@ import type {
   GameAnalysisSnapshot,
   GameMoveAnalysis,
   ImportedGameMetadata,
+  OpeningBookMetadata,
   Score,
   Wdl,
 } from "../types/api";
@@ -83,6 +85,8 @@ function mapTimelinePoint(
   move: GameMoveAnalysis & { context: ContextResult },
 ): AnalysisTimelinePoint {
   const evidence = move.context.evidence;
+  const openingBook = move.opening_book ?? null;
+  const bookLines = mapBookLines(openingBook?.book_lines ?? []);
   return {
     ply: move.ply,
     san: evidence.played.san || move.san,
@@ -90,6 +94,15 @@ function mapTimelinePoint(
     eval_cp: scoreToWhitePovCp(evidence.engine.played_line.score, move.player_color),
     fen_before: evidence.position.fen_before,
     best_lines: evidence.engine.top_lines.map((line) => mapBestLine(line, move.player_color)),
+    ...(openingBook === null
+      ? {}
+      : {
+          is_book_move: openingBook.is_book_move,
+          is_novelty: openingBook.is_novelty,
+          book_lines: bookLines,
+          opening_name: openingBook.opening_name,
+          eco: openingBook.eco,
+        }),
   };
 }
 
@@ -98,11 +111,13 @@ function mapMoveMarker(
   index: number,
 ): AnalysisMoveMarker {
   const evidence = move.context.evidence;
+  const openingBook = move.opening_book ?? null;
+  const bookLines = mapBookLines(openingBook?.book_lines ?? []);
   const topLine = evidence.engine.top_lines[0] ?? evidence.engine.played_line;
   const naturalMove = humanCommonCandidate(evidence.candidates);
   const evalBeforeCp = scoreToWhitePovCp(topLine.score, move.player_color) ?? 0;
   const evalAfterCp = scoreToWhitePovCp(evidence.engine.played_line.score, move.player_color) ?? 0;
-  const tags = markerTags(move, evidence.main_point.concept);
+  const tags = markerTags(move, evidence.main_point.concept, openingBook);
   const explanation = move.explanation ?? evidence.main_point.claim;
   const explanationLineCards = mapExplanationLineCards(move.explanation_line_cards);
   const explanationSegments = mapExplanationSegments(
@@ -122,7 +137,7 @@ function mapMoveMarker(
     best_move_uci: topLine.move_uci,
     natural_move_san: naturalMove?.san ?? null,
     natural_move_uci: naturalMove?.uci ?? null,
-    primary_class: primaryClassFromApi(move.quality),
+    primary_class: openingBook?.is_book_move ? "book" : primaryClassFromApi(move.quality),
     tags,
     label_metadata: {
       state: move.state,
@@ -147,7 +162,21 @@ function mapMoveMarker(
       context_latency_seconds: move.context_latency_seconds,
       explanation_model: move.explanation_model,
       explanation_error: move.explanation_error,
+      is_book_move: openingBook?.is_book_move ?? false,
+      is_novelty: openingBook?.is_novelty ?? false,
+      book_lines: bookLines,
+      opening_name: openingBook?.opening_name ?? null,
+      eco: openingBook?.eco ?? null,
     },
+    ...(openingBook === null
+      ? {}
+      : {
+          is_book_move: openingBook.is_book_move,
+          is_novelty: openingBook.is_novelty,
+          book_lines: bookLines,
+          opening_name: openingBook.opening_name,
+          eco: openingBook.eco,
+        }),
     eval_before_cp: evalBeforeCp,
     eval_after_cp: evalAfterCp,
     drop_cp: move.context.evidence.quality.score_loss_vs_best_cp ?? 0,
@@ -156,6 +185,28 @@ function mapMoveMarker(
     explanation_line_cards: explanationLineCards,
     best_lines: evidence.engine.top_lines.map((line) => mapBestLine(line, move.player_color)),
   };
+}
+
+function mapBookLines(apiBookLines: OpeningBookMetadata["book_lines"]): BookLine[] {
+  return apiBookLines
+    .map((line) => {
+      const moves = line.moves
+        .map((move) => ({
+          san: move.san.trim(),
+          uci: move.uci.trim(),
+        }))
+        .filter((move) => move.san.length > 0 && move.uci.length > 0);
+      if (moves.length === 0) {
+        return null;
+      }
+      return {
+        moves,
+        weight: Math.max(0, line.weight),
+        opening_name: cleanNullableString(line.opening_name),
+        eco: cleanNullableString(line.eco),
+      };
+    })
+    .filter((line): line is BookLine => line !== null);
 }
 
 function mapExplanationSegments(
@@ -258,10 +309,20 @@ function humanCommonCandidate(candidates: CandidateMove[]): CandidateMove | null
   );
 }
 
-function markerTags(move: GameMoveAnalysis, concept: string): string[] {
+function markerTags(
+  move: GameMoveAnalysis,
+  concept: string,
+  openingBook: OpeningBookMetadata | null,
+): string[] {
   const tags = new Set<string>();
   if (move.quality === "forced") {
     tags.add("forced");
+  }
+  if (openingBook?.is_book_move) {
+    tags.add("opening");
+  }
+  if (openingBook?.is_novelty) {
+    tags.add("novelty");
   }
   if (move.significance.label !== "low") {
     tags.add(`${move.significance.label}_significance`);
@@ -274,6 +335,11 @@ function markerTags(move: GameMoveAnalysis, concept: string): string[] {
     tags.add(conceptTag);
   }
   return Array.from(tags);
+}
+
+function cleanNullableString(value: string | null | undefined): string | null {
+  const clean = value?.trim();
+  return clean ? clean : null;
 }
 
 function sourceHeaders(source: ImportedGameMetadata | null): Record<string, string> {

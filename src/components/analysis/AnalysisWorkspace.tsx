@@ -1,10 +1,11 @@
-import { ArrowLeft } from "lucide-react";
+import { Activity, ArrowLeft, ArrowUpDown, LayoutGrid, ListOrdered, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DiscoveryState,
   type PreviewState,
   useAnalysisBoard,
 } from "../../hooks/useAnalysisBoard";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import {
   type AnalysisRouteState,
   analysisStatusUrl,
@@ -16,14 +17,21 @@ import {
   replaceWithPath,
   type SharedAnalysisTarget,
 } from "../../lib/analysis-routing";
-import { ApiError, pollGameAnalysis, startImportedGameAnalysis } from "../../lib/api";
+import {
+  ApiError,
+  getCachedChessComLiveGameAnalysis,
+  pollGameAnalysis,
+  startImportedGameAnalysis,
+} from "../../lib/api";
 import {
   computeCapturedMaterial,
   ENGINE_ARROW_COLORS,
+  formatEval,
   MAIA_ARROW_COLOR,
   sideToMoveFromFen,
   uciToSquares,
 } from "../../lib/chess";
+import { buildDocumentTitle } from "../../lib/document-title";
 import {
   isTerminalGameAnalysisStatus,
   mapGameAnalysisSnapshot,
@@ -34,6 +42,7 @@ import type {
   AnalysisResponse,
   BestLine,
   BoardSide,
+  BookLine,
   GameMove,
 } from "../../types/analysis";
 import type {
@@ -43,9 +52,10 @@ import type {
 } from "../../types/api";
 import { AnalysisImportPanel, type ImportPanelStatus } from "./AnalysisImportPanel";
 import { AnalysisNavigationBar } from "./AnalysisNavigationBar";
+import { AnalysisSettingsPopover } from "./AnalysisSettingsPopover";
 import { BoardSidebar } from "./BoardSidebar";
 import { DiscoveryLineBar, DiscoveryLineSidebar } from "./DiscoveryLine";
-import { EngineLinesView } from "./EngineLinesView";
+import { BookLinesView, EngineLinesView } from "./EngineLinesView";
 import { type MarkerDisplayMode, MoveList } from "./MoveList";
 import { PlayerBar } from "./PlayerBar";
 import { PositionInfo } from "./PositionInfo";
@@ -62,12 +72,23 @@ import {
 import { WorkspaceFooter } from "./WorkspaceFooter";
 
 const EMPTY_BOARD_ARROWS: BoardArrow[] = [];
-const DESKTOP_MEDIA_QUERY = "(min-width: 1280px)";
+const DESKTOP_MEDIA_QUERY = "(min-width: 1100px)";
 const MIN_BROWSER_EVAL_BAR_DEPTH = 13;
 const MAX_PRE_ANALYZE_FENS = 12;
 const PRE_ANALYZE_NEIGHBOR_PLIES = 4;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
+type MobileTab = "board" | "moves" | "analysis";
+
+const MOBILE_TAB_ITEMS: Array<{
+  id: MobileTab;
+  label: string;
+  icon: typeof LayoutGrid;
+}> = [
+  { id: "board", label: "Board", icon: LayoutGrid },
+  { id: "moves", label: "Moves", icon: ListOrdered },
+  { id: "analysis", label: "Analysis", icon: Sparkles },
+];
 
 interface StoredGameAnalysisJob {
   analysis_id: string;
@@ -78,6 +99,7 @@ interface StoredGameAnalysisJob {
 interface AnalysisImportHomeProps {
   status: ImportPanelStatus;
   error: string | null;
+  initialUrl: string | null;
   onImport: (request: GameAnalysisImportRequest) => Promise<void>;
   onClearError: () => void;
 }
@@ -90,9 +112,14 @@ interface AnalysisGameWorkspaceProps {
   shareTarget: SharedAnalysisTarget | null;
 }
 
-interface EngineLineSet {
+export interface EngineLineSet {
   fen: string;
   lines: BestLine[];
+}
+
+interface BookLineSet {
+  fen: string;
+  lines: BookLine[];
 }
 
 type BrowserAnalysisReason = "discovery" | "preview" | "missing-server-lines";
@@ -109,6 +136,10 @@ export function AnalysisWorkspace() {
     () => selectInitialJob(initialRoute, storedJob),
     [initialRoute, storedJob],
   );
+  const initialRouteImportUrl =
+    initialRoute.kind === "chess_com_live" && initialRoute.externalGameId !== null
+      ? chessComLiveGameUrl(initialRoute.externalGameId)
+      : null;
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
   const [importStatus, setImportStatus] = useState<ImportPanelStatus>(
@@ -188,28 +219,18 @@ export function AnalysisWorkspace() {
       setAnalysis(null);
       try {
         const response = await startImportedGameAnalysis(request);
-        const nextJob: StoredGameAnalysisJob = {
-          analysis_id: response.analysis_id,
-          status_url: response.status_url,
-          source: response.source,
-        };
-        writeStoredGameAnalysisJob(nextJob);
-        setActiveJob(nextJob);
+        const nextJob = activateImportedGameResponse(response, {
+          setActiveJob,
+          writeStorage: true,
+        });
         setImportStatus("polling");
 
         const externalGameId =
-          response.source.external_game_id ??
+          nextJob.source?.external_game_id ??
           (request.url === undefined || request.url === null
             ? null
             : extractChessComLiveGameId(request.url));
-        const nextPath = canonicalPathForRoute({
-          analysisId: response.analysis_id,
-          externalGameId,
-          ply: initialRoute.ply,
-        });
-        if (nextPath !== null) {
-          replaceWithPath(nextPath);
-        }
+        replaceWithImportedGamePath(nextJob.analysis_id, externalGameId, initialRoute.ply);
       } catch (error) {
         setImportStatus("failed");
         setImportError(importErrorMessage(error));
@@ -233,13 +254,67 @@ export function AnalysisWorkspace() {
     }
 
     routeImportStartedRef.current = true;
-    void handleImportedGameAnalysis(buildChessComRouteImportRequest(initialRoute.externalGameId));
+    let cancelled = false;
+    const abortController = new AbortController();
+
+    async function startRouteImport() {
+      if (initialRoute.externalGameId === null) {
+        return;
+      }
+      setImportStatus("submitting");
+      setImportError(null);
+      setImportSnapshot(null);
+      setAnalysis(null);
+      try {
+        const response = await getCachedChessComLiveGameAnalysis(
+          initialRoute.externalGameId,
+          abortController.signal,
+        );
+        if (cancelled) {
+          return;
+        }
+        const nextJob = activateImportedGameResponse(response, {
+          setActiveJob,
+          writeStorage: true,
+        });
+        setImportStatus("polling");
+        replaceWithImportedGamePath(
+          nextJob.analysis_id,
+          nextJob.source?.external_game_id ?? initialRoute.externalGameId,
+          initialRoute.ply,
+        );
+      } catch (error) {
+        if (cancelled || isAbortError(error)) {
+          return;
+        }
+        if (error instanceof ApiError && error.status === 404) {
+          try {
+            await handleImportedGameAnalysis(
+              buildChessComRouteImportRequest(initialRoute.externalGameId),
+            );
+          } catch {
+            // handleImportedGameAnalysis already updates the visible import error.
+          }
+          return;
+        }
+        setImportStatus("failed");
+        setImportError(importErrorMessage(error));
+      }
+    }
+
+    void startRouteImport();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
   }, [
     activeJob,
     handleImportedGameAnalysis,
     initialRoute.analysisId,
     initialRoute.externalGameId,
     initialRoute.kind,
+    initialRoute.ply,
   ]);
 
   const handleOpenImport = useCallback(() => {
@@ -261,10 +336,18 @@ export function AnalysisWorkspace() {
     [activeJob, initialRoute],
   );
 
+  useDocumentTitle(
+    useMemo(
+      () => buildDocumentTitle({ source: activeJob?.source ?? null, importStatus }),
+      [activeJob, importStatus],
+    ),
+  );
+
   if (analysis === null) {
     return (
       <AnalysisImportHome
         error={importError}
+        initialUrl={importStatus === "idle" ? null : initialRouteImportUrl}
         onClearError={handleClearImportError}
         onImport={handleImportedGameAnalysis}
         status={importStatus}
@@ -283,12 +366,19 @@ export function AnalysisWorkspace() {
   );
 }
 
-function AnalysisImportHome({ error, onClearError, onImport, status }: AnalysisImportHomeProps) {
+function AnalysisImportHome({
+  error,
+  initialUrl,
+  onClearError,
+  onImport,
+  status,
+}: AnalysisImportHomeProps) {
   return (
     <div className="min-h-dvh bg-white text-stone-600 dark:bg-stone-950 dark:text-stone-400">
       <main className="mx-auto flex min-h-dvh w-full max-w-[640px] flex-col justify-center px-4 pb-[10dvh] sm:px-6">
         <AnalysisImportPanel
           error={error}
+          initialUrl={initialUrl}
           onClearError={onClearError}
           onImport={onImport}
           status={status}
@@ -306,15 +396,14 @@ function AnalysisGameWorkspace({
   onOpenImport,
   shareTarget,
 }: AnalysisGameWorkspaceProps) {
-  const desiredInitialPlyRef = useRef(initialPly);
   const [currentPly, setCurrentPly] = useState(() =>
     clampPly(initialPly ?? 1, analysis.moves.length),
   );
   const [flippedBoard, setFlippedBoard] = useState(false);
   const [arrowCount, setArrowCount] = useState(1);
-  const [showMaiaArrow, setShowMaiaArrow] = useState(true);
+  const [showMaiaArrow, setShowMaiaArrow] = useState(false);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
-  const [mobileTab, setMobileTab] = useState<"board" | "moves" | "analysis">("board");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("board");
   const isDesktopLayout = useMediaQuery(DESKTOP_MEDIA_QUERY);
 
   const indexes = useMemo(() => buildAnalysisIndexes(analysis), [analysis]);
@@ -333,7 +422,6 @@ function AnalysisGameWorkspace({
     baseSan: currentMove?.san ?? null,
     baseMovedByPlayer: currentMove?.side === analysis.player_side,
     onExitDiscovery: (ply) => {
-      desiredInitialPlyRef.current = null;
       setCurrentPly(ply);
     },
   });
@@ -349,13 +437,44 @@ function AnalysisGameWorkspace({
     }
     return null;
   }, [currentFen, currentMarker, currentMove?.fen_before, currentTimelinePoint]);
+  const currentBookLineSet = useMemo<BookLineSet | null>(() => {
+    if (currentMarker?.primary_class !== "book") {
+      return null;
+    }
+    const lines = currentMarker.book_lines ?? currentTimelinePoint?.book_lines ?? [];
+    if (lines.length === 0) {
+      return null;
+    }
+    return {
+      fen: currentMove?.fen_after ?? currentMove?.fen_before ?? currentFen,
+      lines,
+    };
+  }, [
+    currentFen,
+    currentMarker?.book_lines,
+    currentMarker?.primary_class,
+    currentMove?.fen_after,
+    currentMove?.fen_before,
+    currentTimelinePoint?.book_lines,
+  ]);
+  const currentOpeningName =
+    currentMarker?.opening_name ?? currentTimelinePoint?.opening_name ?? null;
+  const previewNeedsBrowserAnalysis = board.preview !== null && board.preview.source !== "book";
+  const bookLinesVisible = !board.discovery && currentBookLineSet !== null;
   const browserAnalysisReason = browserAnalysisReasonForPosition({
     analysisFen,
     discoveryActive: Boolean(board.discovery),
-    previewActive: Boolean(board.preview),
+    previewActive: previewNeedsBrowserAnalysis,
     serverEngineLines,
+    suppressMissingServerLines: bookLinesVisible,
   });
   const shouldAnalyzeBrowserLines = browserAnalysisReason !== null;
+  const handleBookPreview = useCallback(
+    (rootFen: string, lineMoves: string[], step: number) => {
+      board.handlePreview(rootFen, lineMoves, step, "book");
+    },
+    [board.handlePreview],
+  );
   const material = useMemo(() => computeCapturedMaterial(currentFen), [currentFen]);
   const boardOrientation = flippedBoard ? oppositeSide(analysis.player_side) : analysis.player_side;
   const boardTransitionMove = useMemo<BoardTransitionMove | null>(() => {
@@ -388,15 +507,6 @@ function AnalysisGameWorkspace({
   );
 
   useEffect(() => {
-    const desiredPly = desiredInitialPlyRef.current;
-    if (desiredPly !== null) {
-      const nextPly = clampPly(desiredPly, analysis.moves.length);
-      setCurrentPly(nextPly);
-      if (desiredPly <= analysis.moves.length) {
-        desiredInitialPlyRef.current = null;
-      }
-      return;
-    }
     setCurrentPly((ply) => clampPly(ply, analysis.moves.length));
   }, [analysis.moves.length]);
 
@@ -408,12 +518,11 @@ function AnalysisGameWorkspace({
     if (shareTarget === null) {
       return;
     }
-    replaceAnalysisUrl(shareTarget, desiredInitialPlyRef.current ?? currentPly);
+    replaceAnalysisUrl(shareTarget, currentPly);
   }, [currentPly, shareTarget]);
 
   const handleSelectPly = useCallback(
     (ply: number) => {
-      desiredInitialPlyRef.current = null;
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(ply);
@@ -427,7 +536,6 @@ function AnalysisGameWorkspace({
       if (board.stepInDiscovery(delta)) {
         return;
       }
-      desiredInitialPlyRef.current = null;
       board.clearPreview();
       setCurrentPly((ply) => Math.max(1, Math.min(analysis.moves.length, ply + delta)));
     },
@@ -436,7 +544,6 @@ function AnalysisGameWorkspace({
 
   const goToBoundary = useCallback(
     (direction: "start" | "end") => {
-      desiredInitialPlyRef.current = null;
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(direction === "start" ? 1 : analysis.moves.length);
@@ -470,7 +577,7 @@ function AnalysisGameWorkspace({
         {moveLoadingIndicator.show ? (
           <WorkspaceMoveLoadingIndicator progress={moveLoadingIndicator.progress} />
         ) : null}
-        <main className="mx-auto max-w-[1320px] px-4 pt-16 pb-7 sm:px-6 xl:pt-5 xl:pb-7">
+        <main className="mx-auto max-w-[1320px] px-3 pt-12 pb-7 sm:px-6 min-[1100px]:pt-5 min-[1100px]:pb-7">
           {isDesktopLayout ? (
             <DesktopLayout
               analysis={analysis}
@@ -482,7 +589,9 @@ function AnalysisGameWorkspace({
               currentFen={currentFen}
               currentMarker={currentMarker}
               currentMove={currentMove}
+              currentBookLineSet={currentBookLineSet}
               currentPly={currentPly}
+              currentOpeningName={currentOpeningName}
               displayFen={displayFen}
               fallbackEvalCp={fallbackEvalCp}
               flippedBoard={flippedBoard}
@@ -498,6 +607,7 @@ function AnalysisGameWorkspace({
               onFlipBoard={handleFlipBoard}
               onGoToBoundary={goToBoundary}
               onOpenImport={onOpenImport}
+              onBookPreview={handleBookPreview}
               onPreview={board.handlePreview}
               onSelectPly={handleSelectPly}
               onShowMaiaArrowChange={setShowMaiaArrow}
@@ -520,7 +630,9 @@ function AnalysisGameWorkspace({
               currentFen={currentFen}
               currentMarker={currentMarker}
               currentMove={currentMove}
+              currentBookLineSet={currentBookLineSet}
               currentPly={currentPly}
+              currentOpeningName={currentOpeningName}
               displayFen={displayFen}
               fallbackEvalCp={fallbackEvalCp}
               flippedBoard={flippedBoard}
@@ -537,6 +649,7 @@ function AnalysisGameWorkspace({
               onFlipBoard={handleFlipBoard}
               onGoToBoundary={goToBoundary}
               onOpenImport={onOpenImport}
+              onBookPreview={handleBookPreview}
               onPreview={board.handlePreview}
               onSelectPly={handleSelectPly}
               onSetMobileTab={setMobileTab}
@@ -597,6 +710,8 @@ function DesktopLayout({
   currentPly,
   currentMove,
   currentMarker,
+  currentBookLineSet,
+  currentOpeningName,
   currentFen,
   displayFen,
   highlightedMove,
@@ -620,6 +735,7 @@ function DesktopLayout({
   preview,
   dimmed,
   onPreview,
+  onBookPreview,
   handleDiscoveryStepClick,
   handlePieceDrop,
   onSelectPly,
@@ -629,7 +745,7 @@ function DesktopLayout({
   onExitPreview,
 }: WorkspaceLayoutProps) {
   return (
-    <div className="grid gap-0 xl:grid-cols-[minmax(0,832px)_420px]">
+    <div className="grid gap-0 min-[1100px]:grid-cols-[minmax(0,832px)_420px]">
       <section className="flex min-h-0 min-w-0 flex-col">
         <div className="flex min-h-0 max-w-[822px] flex-col items-center px-2 pt-1">
           <div className="relative flex w-full items-stretch gap-3">
@@ -708,6 +824,7 @@ function DesktopLayout({
             currentMove={currentMove}
             emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
             onMoveClick={onPreview}
+            openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? currentFen}
             selectedMarker={currentMarker}
           />
@@ -725,6 +842,8 @@ function DesktopLayout({
             analysisPlayerSide={analysis.player_side}
             discoveryActive={Boolean(discovery)}
             displayFen={displayFen}
+            bookLineSet={currentBookLineSet}
+            onBookPreview={onBookPreview}
             onPreview={onPreview}
             previewActive={Boolean(preview)}
             serverEngineLines={serverEngineLines}
@@ -749,6 +868,8 @@ function MobileLayout({
   currentPly,
   currentMove,
   currentMarker,
+  currentBookLineSet,
+  currentOpeningName,
   displayFen,
   highlightedMove,
   boardOrientation,
@@ -761,11 +882,17 @@ function MobileLayout({
   fallbackEvalCp,
   serverEngineLines,
   showMaiaArrow,
+  flippedBoard,
   discovery,
   preview,
   dimmed,
   markerDisplayMode,
+  onArrowCountChange,
+  onMarkerDisplayModeChange,
+  onFlipBoard,
+  onShowMaiaArrowChange,
   onPreview,
+  onBookPreview,
   handleDiscoveryStepClick,
   handlePieceDrop,
   onSelectPly,
@@ -777,60 +904,59 @@ function MobileLayout({
   onSetMobileTab,
 }: MobileLayoutProps) {
   return (
-    <div className="relative">
+    <div className="relative mx-auto max-w-[760px]">
       <BackToImportButton className="-top-11 left-0 absolute" onClick={onOpenImport} />
-      <div className="mb-3 grid grid-cols-3 rounded-md bg-stone-100 p-1 dark:bg-stone-900">
-        {(["board", "moves", "analysis"] as const).map((tab) => (
-          <button
-            className={cn(
-              "h-9 rounded text-sm font-medium transition-colors",
-              mobileTab === tab
-                ? "bg-white text-stone-900 shadow-sm dark:bg-stone-800 dark:text-stone-100"
-                : "text-stone-500 dark:text-stone-400",
-            )}
-            key={tab}
-            onClick={() => onSetMobileTab(tab)}
-            type="button"
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <MobileViewSwitcher activeTab={mobileTab} onChange={onSetMobileTab} />
       {mobileTab === "board" ? (
-        <div className="space-y-3 border-stone-200 border-y py-4 dark:border-stone-800">
-          <PlayerBar
-            captured={playerMeta[topSide].captured}
-            clockSeconds={playerMeta[topSide].clock}
-            materialAdvantage={materialAdvantage}
-            name={playerMeta[topSide].name}
-            rating={playerMeta[topSide].rating}
-            side={topSide}
-          />
-          <EngineAwareUltraAnalysisBoard
-            allowDragging
+        <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-16rem)))] space-y-2.5">
+          <MobileBoardControls
             analysisFen={analysisFen}
             arrowCount={arrowCount}
-            currentMarker={currentMarker}
-            dimmed={dimmed}
-            discoveryActive={Boolean(discovery)}
-            fen={displayFen}
-            highlightedMove={highlightedMove}
-            onPieceDrop={handlePieceDrop}
-            orientation={boardOrientation}
-            previewActive={Boolean(preview)}
-            serverEngineLines={serverEngineLines}
-            shadowed={false}
+            fallbackEvalCp={fallbackEvalCp}
+            flippedBoard={flippedBoard}
+            markerDisplayMode={markerDisplayMode}
+            onArrowCountChange={onArrowCountChange}
+            onFlipBoard={onFlipBoard}
+            onMarkerDisplayModeChange={onMarkerDisplayModeChange}
+            onShowMaiaArrowChange={onShowMaiaArrowChange}
+            preferBrowserEval={Boolean(discovery || preview)}
             showMaiaArrow={showMaiaArrow}
-            transitionMove={boardTransitionMove}
           />
-          <PlayerBar
-            captured={playerMeta[bottomSide].captured}
-            clockSeconds={playerMeta[bottomSide].clock}
-            materialAdvantage={materialAdvantage}
-            name={playerMeta[bottomSide].name}
-            rating={playerMeta[bottomSide].rating}
-            side={bottomSide}
-          />
+          <div className="space-y-2.5 border-stone-200 border-y py-3 dark:border-stone-800">
+            <PlayerBar
+              captured={playerMeta[topSide].captured}
+              clockSeconds={playerMeta[topSide].clock}
+              materialAdvantage={materialAdvantage}
+              name={playerMeta[topSide].name}
+              rating={playerMeta[topSide].rating}
+              side={topSide}
+            />
+            <EngineAwareUltraAnalysisBoard
+              allowDragging
+              analysisFen={analysisFen}
+              arrowCount={arrowCount}
+              currentMarker={currentMarker}
+              dimmed={dimmed}
+              discoveryActive={Boolean(discovery)}
+              fen={displayFen}
+              highlightedMove={highlightedMove}
+              onPieceDrop={handlePieceDrop}
+              orientation={boardOrientation}
+              previewActive={Boolean(preview)}
+              serverEngineLines={serverEngineLines}
+              shadowed={false}
+              showMaiaArrow={showMaiaArrow}
+              transitionMove={boardTransitionMove}
+            />
+            <PlayerBar
+              captured={playerMeta[bottomSide].captured}
+              clockSeconds={playerMeta[bottomSide].clock}
+              materialAdvantage={materialAdvantage}
+              name={playerMeta[bottomSide].name}
+              rating={playerMeta[bottomSide].rating}
+              side={bottomSide}
+            />
+          </div>
           {discovery ? (
             <DiscoveryLineBar
               discovery={discovery}
@@ -853,7 +979,7 @@ function MobileLayout({
       ) : null}
       {mobileTab === "moves" ? (
         <MoveList
-          className="h-[70dvh]"
+          className="h-[calc(100dvh-8rem)] min-h-[360px]"
           currentPly={currentPly}
           markerDisplayMode={markerDisplayMode}
           moveMarkers={analysis.move_markers}
@@ -868,6 +994,7 @@ function MobileLayout({
             currentMove={currentMove}
             emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
             onMoveClick={onPreview}
+            openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? null}
             selectedMarker={currentMarker}
           />
@@ -885,12 +1012,116 @@ function MobileLayout({
             analysisPlayerSide={analysis.player_side}
             discoveryActive={Boolean(discovery)}
             displayFen={displayFen}
+            bookLineSet={currentBookLineSet}
+            onBookPreview={onBookPreview}
             onPreview={onPreview}
             previewActive={Boolean(preview)}
             serverEngineLines={serverEngineLines}
           />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MobileViewSwitcher({
+  activeTab,
+  onChange,
+}: {
+  activeTab: MobileTab;
+  onChange: (tab: MobileTab) => void;
+}) {
+  return (
+    <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-stone-100/80 p-1 shadow-[inset_0_0_0_1px_rgba(68,64,60,0.06)] backdrop-blur-sm dark:bg-stone-900/80 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
+      {MOBILE_TAB_ITEMS.map((tab) => {
+        const Icon = tab.icon;
+        const active = activeTab === tab.id;
+        return (
+          <button
+            aria-pressed={active}
+            className={cn(
+              "flex h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-2 text-sm font-medium transition-[background-color,box-shadow,color,transform] active:scale-[0.96]",
+              active
+                ? "bg-white text-stone-950 shadow-sm shadow-stone-950/5 dark:bg-stone-800 dark:text-stone-100 dark:shadow-black/20"
+                : "text-stone-500 hover:bg-white/50 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/50 dark:hover:text-stone-200",
+            )}
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            type="button"
+          >
+            <Icon className="size-4 shrink-0" />
+            <span className="truncate">{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MobileBoardControls({
+  analysisFen,
+  fallbackEvalCp,
+  preferBrowserEval,
+  arrowCount,
+  onArrowCountChange,
+  showMaiaArrow,
+  onShowMaiaArrowChange,
+  markerDisplayMode,
+  onMarkerDisplayModeChange,
+  flippedBoard,
+  onFlipBoard,
+}: {
+  analysisFen: string;
+  fallbackEvalCp: number | null;
+  preferBrowserEval: boolean;
+  arrowCount: number;
+  onArrowCountChange: (value: number) => void;
+  showMaiaArrow: boolean;
+  onShowMaiaArrowChange: (value: boolean) => void;
+  markerDisplayMode: MarkerDisplayMode;
+  onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  flippedBoard: boolean;
+  onFlipBoard: () => void;
+}) {
+  const evalCp = useDisplayEvalCp(analysisFen, fallbackEvalCp, preferBrowserEval);
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-stone-100/75 p-1 shadow-[inset_0_0_0_1px_rgba(68,64,60,0.06)] dark:bg-stone-900/75 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
+      <div className="flex items-center gap-1">
+        <AnalysisSettingsPopover
+          arrowCount={arrowCount}
+          buttonClassName="size-10 rounded-md"
+          markerDisplayMode={markerDisplayMode}
+          onArrowCountChange={onArrowCountChange}
+          onMarkerDisplayModeChange={onMarkerDisplayModeChange}
+          onShowMaiaArrowChange={onShowMaiaArrowChange}
+          placement="bottom-start"
+          showMaiaArrow={showMaiaArrow}
+        />
+        <button
+          aria-label="Flip board"
+          className="flex size-10 cursor-pointer items-center justify-center rounded-md text-stone-500 transition-[background-color,color,transform] hover:bg-white/70 hover:text-stone-950 active:scale-[0.96] dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-50"
+          onClick={onFlipBoard}
+          title="Flip board"
+          type="button"
+        >
+          <ArrowUpDown
+            className={cn(
+              "size-4 transition-transform duration-300 ease-out",
+              flippedBoard && "rotate-180",
+            )}
+          />
+        </button>
+      </div>
+      <output
+        aria-label={`Evaluation ${formatEval(evalCp)}`}
+        className="flex h-10 min-w-0 items-center gap-2 rounded-md bg-white px-3 text-stone-700 shadow-sm shadow-stone-950/5 dark:bg-stone-800 dark:text-stone-200 dark:shadow-black/20"
+      >
+        <Activity className="size-4 shrink-0 text-stone-400 dark:text-stone-500" />
+        <span className="min-w-[3.25rem] text-right font-mono text-sm font-semibold tabular-nums">
+          {formatEval(evalCp)}
+        </span>
+      </output>
     </div>
   );
 }
@@ -1000,8 +1231,10 @@ function EngineLinesSlot({
   activePreview,
   analysisFen,
   analysisPlayerSide,
+  bookLineSet,
   discoveryActive,
   displayFen,
+  onBookPreview,
   onPreview,
   previewActive,
   serverEngineLines,
@@ -1009,18 +1242,32 @@ function EngineLinesSlot({
   activePreview: PreviewState | null;
   analysisFen: string;
   analysisPlayerSide: BoardSide;
+  bookLineSet: BookLineSet | null;
   discoveryActive: boolean;
   displayFen: string;
+  onBookPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   onPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   previewActive: boolean;
   serverEngineLines: EngineLineSet | null;
 }) {
   const browserEngineLines = useBrowserEngineLines(analysisFen);
-  const engineLines = discoveryActive
-    ? browserEngineLines
-    : previewActive
-      ? (browserEngineLines ?? serverEngineLines)
-      : (serverEngineLines ?? browserEngineLines);
+
+  if (!discoveryActive && bookLineSet?.lines.length) {
+    return (
+      <BookLinesView
+        activePreview={activePreview}
+        bookLines={bookLineSet.lines}
+        onPreview={onBookPreview}
+        rootFen={bookLineSet.fen}
+      />
+    );
+  }
+
+  const engineLines = selectDisplayedEngineLines({
+    browserEngineLines,
+    discoveryActive,
+    serverEngineLines,
+  });
 
   if (!engineLines) {
     return null;
@@ -1040,6 +1287,21 @@ function EngineLinesSlot({
       rootFen={engineLines.fen}
     />
   );
+}
+
+export function selectDisplayedEngineLines({
+  browserEngineLines,
+  discoveryActive,
+  serverEngineLines,
+}: {
+  browserEngineLines: EngineLineSet | null;
+  discoveryActive: boolean;
+  serverEngineLines: EngineLineSet | null;
+}): EngineLineSet | null {
+  if (discoveryActive) {
+    return browserEngineLines;
+  }
+  return serverEngineLines ?? browserEngineLines;
 }
 
 function useDisplayEvalCp(
@@ -1147,6 +1409,8 @@ interface WorkspaceLayoutProps {
   currentPly: number;
   currentMove: GameMove | null;
   currentMarker: AnalysisMoveMarker | null;
+  currentBookLineSet: BookLineSet | null;
+  currentOpeningName: string | null;
   currentFen: string;
   displayFen: string;
   highlightedMove: string | null;
@@ -1170,6 +1434,7 @@ interface WorkspaceLayoutProps {
   preview: PreviewState | null;
   dimmed: boolean;
   onPreview: (rootFen: string, lineMoves: string[], step: number) => void;
+  onBookPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   handleDiscoveryStepClick: (step: number) => void;
   handlePieceDrop: (args: {
     sourceSquare: string;
@@ -1184,8 +1449,8 @@ interface WorkspaceLayoutProps {
 }
 
 interface MobileLayoutProps extends WorkspaceLayoutProps {
-  mobileTab: "board" | "moves" | "analysis";
-  onSetMobileTab: (tab: "board" | "moves" | "analysis") => void;
+  mobileTab: MobileTab;
+  onSetMobileTab: (tab: MobileTab) => void;
 }
 
 interface PlayerMeta {
@@ -1260,6 +1525,43 @@ function buildChessComRouteImportRequest(externalGameId: string): GameAnalysisIm
     include_context: true,
     use_baseline_fallback: false,
   };
+}
+
+function activateImportedGameResponse(
+  response: {
+    analysis_id: string;
+    status_url: string;
+    source: ImportedGameMetadata;
+  },
+  {
+    setActiveJob,
+    writeStorage,
+  }: {
+    setActiveJob: (job: StoredGameAnalysisJob) => void;
+    writeStorage: boolean;
+  },
+): StoredGameAnalysisJob {
+  const nextJob: StoredGameAnalysisJob = {
+    analysis_id: response.analysis_id,
+    status_url: response.status_url,
+    source: response.source,
+  };
+  if (writeStorage) {
+    writeStoredGameAnalysisJob(nextJob);
+  }
+  setActiveJob(nextJob);
+  return nextJob;
+}
+
+function replaceWithImportedGamePath(
+  analysisId: string,
+  externalGameId: string | null,
+  ply: number | null,
+): void {
+  const nextPath = canonicalPathForRoute({ analysisId, externalGameId, ply });
+  if (nextPath !== null) {
+    replaceWithPath(nextPath);
+  }
 }
 
 function buildShareTarget(
@@ -1392,11 +1694,13 @@ export function browserAnalysisReasonForPosition({
   discoveryActive,
   previewActive,
   serverEngineLines,
+  suppressMissingServerLines = false,
 }: {
   analysisFen: string;
   discoveryActive: boolean;
   previewActive: boolean;
   serverEngineLines: EngineLineSet | null;
+  suppressMissingServerLines?: boolean;
 }): BrowserAnalysisReason | null {
   if (!analysisFen) {
     return null;
@@ -1406,6 +1710,9 @@ export function browserAnalysisReasonForPosition({
   }
   if (previewActive) {
     return "preview";
+  }
+  if (suppressMissingServerLines) {
+    return null;
   }
   return serverEngineLines === null ? "missing-server-lines" : null;
 }

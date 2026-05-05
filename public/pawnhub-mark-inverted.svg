@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">PawnHub mark inverted</title>
+  <desc id="desc">A simplified white chess pawn logo on a dark circle.</desc>
+  <rect width="96" height="96" rx="48" fill="#181717" />
+  <path
+    fill="#ffffff"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M48 10a14 14 0 1 1 0 28 14 14 0 0 1 0-28Zm-7 28h14v14H41V38Zm-10 14h34a5 5 0 0 1 0 10H31a5 5 0 0 1 0-10Zm4 15h26l5 12H30l5-12Zm-12 12h50a5 5 0 0 1 0 10H23a5 5 0 0 1 0-10Z"
+  />
+</svg>

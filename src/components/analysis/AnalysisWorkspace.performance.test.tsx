@@ -349,7 +349,7 @@ function countBoardPropChanges(samples: BoardRenderSample[]): number {
 
 function installMatchMedia(isDesktop: boolean): void {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: query === "(min-width: 1280px)" ? isDesktop : false,
+    matches: query === "(min-width: 1100px)" ? isDesktop : false,
     media: query,
     onchange: null,
     addListener: vi.fn(),

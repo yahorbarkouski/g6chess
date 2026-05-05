@@ -1,7 +1,8 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../../lib/api";
 import type {
   EngineLine,
   GameAnalysisSnapshot,
@@ -11,6 +12,7 @@ import type {
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 
 const apiMocks = vi.hoisted(() => ({
+  getCachedChessComLiveGameAnalysis: vi.fn(),
   startImportedGameAnalysis: vi.fn(),
   pollGameAnalysis: vi.fn(),
 }));
@@ -24,6 +26,7 @@ vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
   return {
     ...actual,
+    getCachedChessComLiveGameAnalysis: apiMocks.getCachedChessComLiveGameAnalysis,
     startImportedGameAnalysis: apiMocks.startImportedGameAnalysis,
     pollGameAnalysis: apiMocks.pollGameAnalysis,
   };
@@ -60,7 +63,7 @@ describe("AnalysisWorkspace imports", () => {
     window.history.replaceState(null, "", "/");
     window.localStorage.clear();
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: query === "(min-width: 1280px)",
+      matches: query === "(min-width: 1100px)",
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -72,6 +75,10 @@ describe("AnalysisWorkspace imports", () => {
     Element.prototype.scrollIntoView = vi.fn();
     Element.prototype.getAnimations = vi.fn().mockReturnValue([]);
     Element.prototype.animate = vi.fn().mockReturnValue({ cancel: vi.fn() });
+    apiMocks.getCachedChessComLiveGameAnalysis.mockReset();
+    apiMocks.getCachedChessComLiveGameAnalysis.mockRejectedValue(
+      new ApiError(404, "Cached game analysis not found."),
+    );
     apiMocks.startImportedGameAnalysis.mockReset();
     apiMocks.pollGameAnalysis.mockReset();
     stockfishMocks.analyze.mockReset();
@@ -80,6 +87,7 @@ describe("AnalysisWorkspace imports", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   it("starts URL import, polls, maps the completed snapshot, and renders the real move", async () => {
@@ -146,12 +154,55 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
+    expect(screen.getByLabelText("Chess.com URL")).toHaveValue(
+      "https://www.chess.com/game/live/168193636078",
+    );
+    await waitFor(() =>
+      expect(apiMocks.getCachedChessComLiveGameAnalysis).toHaveBeenCalledWith(
+        "168193636078",
+        expect.any(AbortSignal),
+      ),
+    );
     await waitFor(() =>
       expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
           source: "chess_com_live_url",
           url: "https://www.chess.com/game/live/168193636078",
         }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("reuses a cached Chess.com route analysis without starting a new import", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078");
+    const source = importedSource();
+    apiMocks.getCachedChessComLiveGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "succeeded",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(screen.getByLabelText("Chess.com URL")).toHaveValue(
+      "https://www.chess.com/game/live/168193636078",
+    );
+    await waitFor(() =>
+      expect(apiMocks.getCachedChessComLiveGameAnalysis).toHaveBeenCalledWith(
+        "168193636078",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(apiMocks.pollGameAnalysis).toHaveBeenCalledWith(
+        "/api/game-analysis/analysis-1",
+        expect.any(AbortSignal),
       ),
     );
     expect(await screen.findByText("1. a4")).toBeTruthy();
@@ -192,6 +243,35 @@ describe("AnalysisWorkspace imports", () => {
     await waitFor(() => expect(window.location.search).toBe("?analysis=analysis-1"));
   });
 
+  it("does not chase a shared ply while a partial analysis grows", async () => {
+    vi.useFakeTimers();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
+    apiMocks.pollGameAnalysis
+      .mockResolvedValueOnce(snapshotWithMoves(1, { status: "running", totalPlies: 2 }))
+      .mockResolvedValueOnce(snapshotWithMoves(2));
+
+    render(<AnalysisWorkspace />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1200);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMocks.pollGameAnalysis).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
   it("returns from an imported game to the centered import flow", async () => {
     const user = userEvent.setup();
     const source = importedSource();
@@ -221,6 +301,24 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
   });
+
+  it("renders backend opening book lines instead of engine lines for book moves", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithBookMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect((await screen.findAllByText("King's Pawn Game")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: /1\. a4 Book/i })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Preview e5 Nf3" }));
+
+    expect(screen.getByRole("button", { name: "Preview e5 Nf3" })).toBeTruthy();
+    expect(screen.queryByText("Engine lines")).toBeNull();
+    await waitForNoBrowserEngineTick();
+    expect(stockfishMocks.analyze).not.toHaveBeenCalled();
+    expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
+  });
 });
 
 async function waitForNoBrowserEngineTick(): Promise<void> {
@@ -248,12 +346,48 @@ function snapshotWithMove(): GameAnalysisSnapshot {
   return snapshotWithMoves(1);
 }
 
-function snapshotWithMoves(count: 1 | 2): GameAnalysisSnapshot {
+function snapshotWithBookMove(): GameAnalysisSnapshot {
+  return {
+    ...snapshotWithMoves(1),
+    moves: [
+      moveAnalysis({
+        openingBook: {
+          is_book_move: true,
+          is_novelty: false,
+          book_lines: [
+            {
+              moves: [
+                { san: "e5", uci: "e7e5" },
+                { san: "Nf3", uci: "g1f3" },
+              ],
+              weight: 4,
+              opening_name: "King's Pawn Game: Open Game",
+              eco: "C20",
+            },
+          ],
+          opening_name: "King's Pawn Game",
+          eco: "C20",
+        },
+        engineTopLines: [],
+        requiresExplanation: false,
+        significance: { label: "low", score: 0 },
+      }),
+    ],
+  };
+}
+
+function snapshotWithMoves(
+  count: 1 | 2,
+  {
+    status = "succeeded",
+    totalPlies = count,
+  }: { status?: GameAnalysisSnapshot["status"]; totalPlies?: number } = {},
+): GameAnalysisSnapshot {
   return {
     snapshot_version: "game_analysis_snapshot.v1",
     analysis_id: "analysis-1",
-    status: "succeeded",
-    total_plies: count,
+    status,
+    total_plies: totalPlies,
     context_completed: count,
     explanation_required: count,
     explanation_completed: count,
@@ -262,13 +396,25 @@ function snapshotWithMoves(count: 1 | 2): GameAnalysisSnapshot {
     created_at: "2026-05-04T10:00:00Z",
     updated_at: "2026-05-04T10:00:01Z",
     started_at: "2026-05-04T10:00:00Z",
-    completed_at: "2026-05-04T10:00:01Z",
-    error: null,
+    completed_at: status === "succeeded" || status === "failed" ? "2026-05-04T10:00:01Z" : null,
+    error: status === "failed" ? "Analysis failed." : null,
     moves: count === 1 ? [moveAnalysis()] : [moveAnalysis(), moveAnalysis({ ply: 2 })],
   };
 }
 
-function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
+function moveAnalysis({
+  engineTopLines: providedEngineTopLines = null,
+  openingBook = null,
+  ply = 1,
+  requiresExplanation = true,
+  significance = { label: "critical", score: 1 },
+}: {
+  engineTopLines?: EngineLine[] | null;
+  openingBook?: NonNullable<GameMoveAnalysis["opening_book"]> | null;
+  ply?: 1 | 2;
+  requiresExplanation?: boolean;
+  significance?: GameMoveAnalysis["significance"];
+} = {}): GameMoveAnalysis {
   const isBlackMove = ply === 2;
   const san = isBlackMove ? "a5" : "a4";
   const uci = isBlackMove ? "a7a5" : "a2a4";
@@ -278,17 +424,19 @@ function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
   const fenAfter = isBlackMove
     ? "rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 2"
     : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1";
+  const engineTopLines = providedEngineTopLines ?? [engineLine(uci, san)];
   return {
     ply,
     san,
     uci,
     player_color: isBlackMove ? "black" : "white",
     state: "explained",
-    requires_explanation: true,
+    requires_explanation: requiresExplanation,
     quality: "excellent",
-    significance: { label: "critical", score: 1 },
+    significance,
     beauty: { label: "ordinary", score: 0 },
     context_latency_seconds: 0.01,
+    opening_book: openingBook,
     explanation: "a4 gains space without weakening the center.",
     explanation_latency_seconds: 0.02,
     explanation_attempts: 1,
@@ -330,7 +478,7 @@ function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
           engine_version: "test-stockfish",
           analysis_budget: { kind: "static", value: 1, multipv: 1 },
           engine_options: {},
-          top_lines: [engineLine(uci, san)],
+          top_lines: engineTopLines,
           played_line: engineLine(uci, san),
           after_line: null,
         },
@@ -342,7 +490,7 @@ function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
           wdl_expected_score_loss: null,
           severity_text: "excellent",
         },
-        significance: { label: "critical", score: 1 },
+        significance,
         beauty: { label: "ordinary", score: 0 },
         candidates: [],
         main_point: {
@@ -354,7 +502,7 @@ function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
       llm_context: {
         played: san,
         quality: "excellent",
-        significance: { label: "critical", score: 1 },
+        significance,
         beauty: { label: "ordinary", score: 0 },
         player_level: "1500",
         time_situation: "normal",

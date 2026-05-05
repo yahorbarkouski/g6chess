@@ -154,6 +154,24 @@ describe("PositionInfo", () => {
 
     expect(onMoveClick).toHaveBeenCalledWith(ROOT_FEN, ["Kd8", "Bxf7", "Kc7"], 2);
   });
+
+  it("uses the opening name as the selected book move badge", () => {
+    render(
+      <PositionInfo
+        currentMove={move()}
+        openingName="King's Pawn Game: Open Game"
+        rootFen={ROOT_FEN}
+        selectedMarker={{
+          ...markerWithRichExplanation(),
+          primary_class: "book",
+          label_metadata: { is_book_move: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("King's Pawn Game")).toBeInTheDocument();
+    expect(screen.queryByText("Book")).toBeNull();
+  });
 });
 
 function move(): GameMove {

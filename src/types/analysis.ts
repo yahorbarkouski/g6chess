@@ -51,6 +51,18 @@ export interface BestLine {
   pv_uci: string[];
 }
 
+export interface BookLineMove {
+  san: string;
+  uci: string;
+}
+
+export interface BookLine {
+  moves: BookLineMove[];
+  weight: number;
+  opening_name: string | null;
+  eco: string | null;
+}
+
 export interface ExplanationSegment {
   text: string;
   line_card_id: string | null;
@@ -71,6 +83,11 @@ export interface AnalysisTimelinePoint {
   eval_cp: number | null;
   fen_before: string;
   best_lines: BestLine[];
+  is_book_move?: boolean;
+  is_novelty?: boolean;
+  book_lines?: BookLine[];
+  opening_name?: string | null;
+  eco?: string | null;
 }
 
 export interface AnalysisMoveMarker {
@@ -87,6 +104,11 @@ export interface AnalysisMoveMarker {
   primary_class: MovePrimaryClass;
   tags: string[];
   label_metadata: Record<string, unknown>;
+  is_book_move?: boolean;
+  is_novelty?: boolean;
+  book_lines?: BookLine[];
+  opening_name?: string | null;
+  eco?: string | null;
   eval_before_cp: number;
   eval_after_cp: number;
   drop_cp: number;

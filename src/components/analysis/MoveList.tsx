@@ -40,7 +40,7 @@ export function MoveList({
 }: MoveListProps) {
   const pairs = useMemo(() => pairMoves(moves), [moves]);
   const displayedMarkers = useMemo(
-    () => (markerDisplayMode === "all" ? moveMarkers : moveMarkers.filter(isCriticalMarker)),
+    () => (markerDisplayMode === "all" ? moveMarkers : moveMarkers.filter(isDefaultVisibleMarker)),
     [markerDisplayMode, moveMarkers],
   );
   const markerByPly = useMemo(
@@ -252,6 +252,10 @@ function isCriticalMarker(marker: AnalysisMoveMarker): boolean {
     marker.label_metadata.requires_explanation === true ||
     marker.tags.includes("critical_significance")
   );
+}
+
+function isDefaultVisibleMarker(marker: AnalysisMoveMarker): boolean {
+  return isCriticalMarker(marker) || marker.primary_class === "book";
 }
 
 function pairMoves(moves: GameMove[]): MovePair[] {

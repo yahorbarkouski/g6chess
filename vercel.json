@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/game/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/live/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/analysis/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">PawnHub logo preview</title>
+  <desc id="desc">Preview sheet for a pawn logo in a monochrome GitHub-inspired SVG style.</desc>
+  <rect width="960" height="540" fill="#f6f8fa" />
+  <rect x="56" y="56" width="392" height="428" rx="28" fill="#ffffff" />
+  <rect x="512" y="56" width="392" height="428" rx="28" fill="#181717" />
+  <g transform="translate(144 102) scale(2.25)">
+    <path
+      fill="#181717"
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M48 8a15 15 0 1 1 0 30 15 15 0 0 1 0-30Zm-8 30h16v15H40V38Zm-10 15h36a5 5 0 0 1 0 10H30a5 5 0 0 1 0-10Zm4 15h28l5 13H29l5-13Zm-13 13h54a5 5 0 0 1 0 10H21a5 5 0 0 1 0-10Z"
+    />
+  </g>
+  <g transform="translate(600 102) scale(2.25)">
+    <path
+      fill="#ffffff"
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M48 8a15 15 0 1 1 0 30 15 15 0 0 1 0-30Zm-8 30h16v15H40V38Zm-10 15h36a5 5 0 0 1 0 10H30a5 5 0 0 1 0-10Zm4 15h28l5 13H29l5-13Zm-13 13h54a5 5 0 0 1 0 10H21a5 5 0 0 1 0-10Z"
+    />
+  </g>
+  <text x="252" y="404" fill="#181717" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">PawnHub</text>
+  <text x="252" y="438" fill="#57606a" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">simplified centered SVG mark</text>
+  <text x="708" y="404" fill="#ffffff" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">PawnHub</text>
+  <text x="708" y="438" fill="#8b949e" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">inverted mark on dark</text>
+</svg>

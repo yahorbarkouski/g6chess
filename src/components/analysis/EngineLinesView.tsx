@@ -1,6 +1,7 @@
+import { Info } from "lucide-react";
 import { formatEvalLong, sideToMoveFromFen } from "../../lib/chess";
 import { cn } from "../../lib/utils";
-import type { BestLine, BoardSide } from "../../types/analysis";
+import type { BestLine, BoardSide, BookLine } from "../../types/analysis";
 import { MorphText } from "../ui/morph-text";
 
 type PieceType = "K" | "Q" | "R" | "B" | "N";
@@ -57,6 +58,106 @@ export function EngineLinesView({
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+interface BookLinesViewProps {
+  bookLines: BookLine[];
+  rootFen: string;
+  onPreview: (rootFen: string, moves: string[], step: number) => void;
+  activePreview?: PreviewState | null;
+  className?: string;
+}
+
+const BOOK_LINE_COLORS = {
+  rowBg: "bg-amber-50/70 dark:bg-stone-800/50",
+  barBg: "bg-amber-100/70 dark:bg-amber-900/20",
+  label: "text-amber-900 dark:text-amber-300",
+  info: "text-amber-800 dark:text-amber-300",
+  chipActive: "border-amber-300/70 bg-amber-100/90 dark:border-amber-600/60 dark:bg-amber-900/55",
+  chipIdle:
+    "border-amber-200/60 bg-white/70 hover:border-amber-300 dark:border-stone-700 dark:bg-stone-900/60 dark:hover:border-stone-600",
+} as const;
+
+export function BookLinesView({
+  activePreview = null,
+  bookLines,
+  className,
+  onPreview,
+  rootFen,
+}: BookLinesViewProps) {
+  if (bookLines.length === 0) {
+    return null;
+  }
+
+  const rootSide = sideToMoveFromFen(rootFen);
+  const maxWeight = Math.max(...bookLines.map((line) => line.weight));
+
+  return (
+    <section className={cn("space-y-1.5", className)} aria-label="Opening book lines">
+      {bookLines.map((line, index) => {
+        const moveSans = line.moves.map((move) => move.san);
+        const percent = maxWeight > 0 ? Math.max(6, (line.weight / maxWeight) * 100) : 0;
+        const label = openingLineLabel(line, index);
+        const key = line.moves[0]?.uci ?? `${label}-${index}`;
+
+        return (
+          <div className={cn("relative rounded px-2 py-1.5", BOOK_LINE_COLORS.rowBg)} key={key}>
+            {percent > 0 ? (
+              <div className="absolute inset-0 overflow-hidden rounded">
+                <div
+                  className={cn("absolute inset-y-0 left-0", BOOK_LINE_COLORS.barBg)}
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+            ) : null}
+
+            <div className="relative">
+              <div className="mb-1 flex min-w-0 items-center gap-1">
+                <span
+                  className={cn(
+                    "truncate text-[10px] font-medium uppercase tracking-wide",
+                    BOOK_LINE_COLORS.label,
+                  )}
+                >
+                  {label}
+                </span>
+                {line.opening_name?.includes(":") ? (
+                  <span className="group relative inline-flex shrink-0">
+                    <Info className={cn("size-3 cursor-help", BOOK_LINE_COLORS.info)} />
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 max-w-72 -translate-x-1/2 whitespace-nowrap rounded bg-stone-900 px-2 py-1 text-[10px] font-normal tracking-normal text-stone-100 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-stone-100 dark:text-stone-900">
+                      {line.opening_name}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="scrollbar-hide flex items-center gap-1 overflow-x-auto">
+                {moveSans.map((san, stepIndex) => {
+                  const moveSide = stepIndex % 2 === 0 ? rootSide : otherSide(rootSide);
+                  const isActive = previewMatches(activePreview, rootFen, moveSans, stepIndex + 1);
+                  const moveKey = moveSans.slice(0, stepIndex + 1).join(" ");
+                  return (
+                    <button
+                      aria-label={`Preview ${moveKey}`}
+                      className={cn(
+                        "inline-flex shrink-0 items-center rounded border px-1 py-0.5 transition-colors",
+                        isActive ? BOOK_LINE_COLORS.chipActive : BOOK_LINE_COLORS.chipIdle,
+                      )}
+                      key={moveKey}
+                      onClick={() => onPreview(rootFen, moveSans, stepIndex + 1)}
+                      type="button"
+                    >
+                      <SanMove san={san} side={moveSide} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -170,6 +271,14 @@ function evalColorClass(evalCp: number, playerSide: BoardSide): string {
     return "text-rose-500 dark:text-rose-400";
   }
   return "text-stone-500 dark:text-stone-400";
+}
+
+function openingLineLabel(line: BookLine, index: number): string {
+  if (!line.opening_name) {
+    return index === 0 ? "Main line" : "Alternative";
+  }
+  const splitAt = line.opening_name.indexOf(":");
+  return splitAt === -1 ? line.opening_name : line.opening_name.slice(0, splitAt);
 }
 
 function otherSide(side: BoardSide): BoardSide {

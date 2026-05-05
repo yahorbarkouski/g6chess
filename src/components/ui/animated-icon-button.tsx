@@ -28,7 +28,9 @@ export function AnimatedIconButton({
   return (
     <button
       className={cn(
-        "flex size-8 cursor-pointer items-center justify-center overflow-hidden rounded-full text-stone-300 transition-colors hover:text-stone-400 dark:text-stone-600 dark:hover:text-stone-500",
+        "flex size-8 cursor-pointer items-center justify-center overflow-hidden rounded-full text-stone-400 transition-[background-color,color,transform] hover:bg-stone-100/70 hover:text-stone-700 active:scale-[0.96] dark:text-stone-500 dark:hover:bg-stone-800/70 dark:hover:text-stone-300",
+        active &&
+          "bg-stone-200 text-stone-800 hover:bg-stone-200 hover:text-stone-900 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-800 dark:hover:text-stone-100",
         className,
       )}
       onClick={(event) => {

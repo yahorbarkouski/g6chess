@@ -44,6 +44,16 @@ export async function startImportedGameAnalysis(
   return postJson<GameAnalysisImportResponse>("/api/game-analysis/import", request, signal);
 }
 
+export async function getCachedChessComLiveGameAnalysis(
+  externalGameId: string,
+  signal?: AbortSignal,
+): Promise<GameAnalysisImportResponse> {
+  return getJson<GameAnalysisImportResponse>(
+    `/api/game-analysis/import/chess-com/live/${encodeURIComponent(externalGameId)}`,
+    signal,
+  );
+}
+
 export async function pollGameAnalysis(
   statusUrl: string,
   signal?: AbortSignal,

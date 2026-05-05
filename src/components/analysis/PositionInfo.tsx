@@ -22,6 +22,7 @@ interface PositionInfoProps {
   rootFen?: string | null;
   boardOrientation?: BoardSide | null;
   emptyMessage?: string | null;
+  openingName?: string | null;
   onMoveClick?: (rootFen: string, moves: string[], step: number) => void;
   className?: string;
 }
@@ -36,6 +37,7 @@ export function PositionInfo({
   rootFen = null,
   boardOrientation = null,
   emptyMessage = null,
+  openingName = null,
   onMoveClick,
   className,
 }: PositionInfoProps) {
@@ -67,7 +69,9 @@ export function PositionInfo({
                 primaryClassClass(selectedMarker.primary_class),
               )}
             >
-              {primaryClassLabel(selectedMarker.primary_class)}
+              {selectedMarker.primary_class === "book" && openingName
+                ? openingNameBase(openingName)
+                : primaryClassLabel(selectedMarker.primary_class)}
             </Badge>
           ) : null}
         </div>
@@ -628,6 +632,11 @@ function parseExplanationWithMoves(
       knownMoves.add(san);
     }
   }
+  for (const line of marker.book_lines ?? []) {
+    for (const move of line.moves) {
+      knownMoves.add(move.san);
+    }
+  }
 
   const parts: Array<string | { move: string; key: string }> = [];
   let lastIndex = 0;
@@ -681,6 +690,13 @@ function previewForMove(
       return { moves: card.moves, step: idx + 1 };
     }
   }
+  for (const line of marker.book_lines ?? []) {
+    const moves = line.moves.map((move) => move.san);
+    const idx = moves.indexOf(san);
+    if (idx !== -1) {
+      return { moves, step: idx + 1 };
+    }
+  }
   for (const line of marker.best_lines) {
     const idx = line.pv_san.indexOf(san);
     if (idx !== -1) {
@@ -695,6 +711,11 @@ function formatMoveLabel(move: GameMove | null) {
     return "Starting position";
   }
   return `${move.move_number}${move.side === "white" ? "." : "..."} ${move.san}`;
+}
+
+function openingNameBase(openingName: string): string {
+  const splitAt = openingName.indexOf(":");
+  return splitAt === -1 ? openingName : openingName.slice(0, splitAt);
 }
 
 function formatCp(cp: number): string {

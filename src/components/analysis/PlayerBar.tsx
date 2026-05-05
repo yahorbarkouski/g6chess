@@ -34,7 +34,7 @@ export function PlayerBar({
     (side === "white" && materialAdvantage > 0) || (side === "black" && materialAdvantage < 0);
 
   return (
-    <div className={cn("flex items-center gap-3 pl-2", className)}>
+    <div className={cn("flex min-w-0 items-center gap-2 pl-1 sm:gap-3 sm:pl-2", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <div className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate text-sm font-medium text-stone-900 dark:text-stone-100">
@@ -45,9 +45,12 @@ export function PlayerBar({
           </span>
         </div>
       </div>
-      <div className="flex min-h-5 items-center gap-px">
+      <div className="flex min-h-5 min-w-0 max-w-[42%] shrink items-center gap-px overflow-hidden sm:max-w-none">
         {capturedPieceTokens(captured).map(({ id, piece }) => (
-          <span className="text-base leading-none text-stone-500 dark:text-stone-400" key={id}>
+          <span
+            className="text-sm leading-none text-stone-500 dark:text-stone-400 sm:text-base"
+            key={id}
+          >
             {PIECE_UNICODE[capturedSide][piece]}
           </span>
         ))}
@@ -57,7 +60,7 @@ export function PlayerBar({
           </span>
         ) : null}
       </div>
-      <div className="rounded border-stone-300 bg-stone-100/80 px-2 py-1 font-mono text-sm text-stone-700 tabular-nums dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
+      <div className="shrink-0 rounded border-stone-300 bg-stone-100/80 px-2 py-1 font-mono text-sm text-stone-700 tabular-nums dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
         <MorphText>{formatClock(clockSeconds)}</MorphText>
       </div>
     </div>

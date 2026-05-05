@@ -4,6 +4,7 @@ import {
   browserAnalysisReasonForPosition,
   buildAnalysisIndexes,
   buildPreAnalysisFens,
+  selectDisplayedEngineLines,
 } from "./AnalysisWorkspace";
 
 describe("buildPreAnalysisFens", () => {
@@ -85,4 +86,72 @@ describe("browserAnalysisReasonForPosition", () => {
       }),
     ).toBe("missing-server-lines");
   });
+
+  it("can suppress missing-server fallback for backend book-line panels", () => {
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "book fen",
+        discoveryActive: false,
+        previewActive: false,
+        serverEngineLines: null,
+        suppressMissingServerLines: true,
+      }),
+    ).toBeNull();
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "book discovery fen",
+        discoveryActive: true,
+        previewActive: false,
+        serverEngineLines: null,
+        suppressMissingServerLines: true,
+      }),
+    ).toBe("discovery");
+  });
 });
+
+describe("selectDisplayedEngineLines", () => {
+  const serverEngineLines = engineLineSet("server fen", "e4", "e2e4");
+  const browserEngineLines = engineLineSet("preview fen", "Nf3", "g1f3");
+
+  it("keeps server-backed lines stable outside discovery even when browser lines are available", () => {
+    expect(
+      selectDisplayedEngineLines({
+        browserEngineLines,
+        discoveryActive: false,
+        serverEngineLines,
+      }),
+    ).toBe(serverEngineLines);
+  });
+
+  it("uses browser lines for discovery and as a fallback when server lines are missing", () => {
+    expect(
+      selectDisplayedEngineLines({
+        browserEngineLines,
+        discoveryActive: true,
+        serverEngineLines,
+      }),
+    ).toBe(browserEngineLines);
+    expect(
+      selectDisplayedEngineLines({
+        browserEngineLines,
+        discoveryActive: false,
+        serverEngineLines: null,
+      }),
+    ).toBe(browserEngineLines);
+  });
+});
+
+function engineLineSet(fen: string, san: string, uci: string) {
+  return {
+    fen,
+    lines: [
+      {
+        san,
+        uci,
+        eval_cp: 30,
+        pv_san: [san],
+        pv_uci: [uci],
+      },
+    ],
+  };
+}

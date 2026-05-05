@@ -57,6 +57,23 @@ describe("mapGameAnalysisSnapshot", () => {
           remainingClockSeconds: 181,
           thinkTimeSeconds: 1,
           explanation: "e4 was strong.",
+          openingBook: {
+            is_book_move: true,
+            is_novelty: false,
+            book_lines: [
+              {
+                moves: [
+                  { san: "e5", uci: "e7e5" },
+                  { san: "Nf3", uci: "g1f3" },
+                ],
+                weight: 3,
+                opening_name: "King's Pawn Game: Open Game",
+                eco: "C20",
+              },
+            ],
+            opening_name: "King's Pawn Game",
+            eco: "C20",
+          },
           explanationSegments: [
             {
               text: "e4 was strong.",
@@ -111,7 +128,23 @@ describe("mapGameAnalysisSnapshot", () => {
     expect(mapped.timeline[0]?.eval_cp).toBe(40);
     expect(mapped.timeline[1]?.eval_cp).toBe(120);
     expect(mapped.timeline[1]?.best_lines[0]?.eval_cp).toBe(-80);
-    expect(mapped.move_markers[0]?.primary_class).toBe("excellent");
+    expect(mapped.timeline[0]).toMatchObject({
+      is_book_move: true,
+      opening_name: "King's Pawn Game",
+      eco: "C20",
+    });
+    expect(mapped.timeline[0]?.book_lines?.[0]?.moves.map((move) => move.san)).toEqual([
+      "e5",
+      "Nf3",
+    ]);
+    expect(mapped.move_markers[0]?.primary_class).toBe("book");
+    expect(mapped.move_markers[0]?.opening_name).toBe("King's Pawn Game");
+    expect(mapped.move_markers[0]?.book_lines?.[0]?.weight).toBe(3);
+    expect(mapped.move_markers[0]?.label_metadata).toMatchObject({
+      is_book_move: true,
+      opening_name: "King's Pawn Game",
+      eco: "C20",
+    });
     expect(mapped.move_markers[0]?.explanation).toBe("e4 was strong.");
     expect(mapped.move_markers[0]?.explanation_segments).toEqual([
       { text: "e4 was strong.", line_card_id: "central-line", line_card_anchor: "e4" },
@@ -168,6 +201,7 @@ function moveAnalysis({
   explanation,
   explanationSegments,
   explanationLineCards,
+  openingBook,
 }: {
   ply: number;
   moveNumber: number;
@@ -184,6 +218,7 @@ function moveAnalysis({
   explanation: string;
   explanationSegments?: NonNullable<GameMoveAnalysis["explanation_segments"]>;
   explanationLineCards?: NonNullable<GameMoveAnalysis["explanation_line_cards"]>;
+  openingBook?: NonNullable<GameMoveAnalysis["opening_book"]>;
 }): GameMoveAnalysis {
   return {
     ply,
@@ -202,6 +237,7 @@ function moveAnalysis({
         : remainingClockSeconds + thinkTimeSeconds,
     remaining_clock_seconds: remainingClockSeconds ?? null,
     think_time_seconds: thinkTimeSeconds ?? null,
+    opening_book: openingBook ?? null,
     explanation,
     ...(explanationSegments === undefined ? {} : { explanation_segments: explanationSegments }),
     ...(explanationLineCards === undefined ? {} : { explanation_line_cards: explanationLineCards }),

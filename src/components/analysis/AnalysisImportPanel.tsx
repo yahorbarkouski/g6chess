@@ -14,6 +14,7 @@ export type ImportPanelStatus = "idle" | "submitting" | "polling" | "succeeded" 
 interface AnalysisImportPanelProps {
   status: ImportPanelStatus;
   error: string | null;
+  initialUrl?: string | null;
   onImport: (request: GameAnalysisImportRequest) => Promise<void>;
   onClearError?: () => void;
 }
@@ -36,11 +37,12 @@ const FEEDBACK_URL = "mailto:admin@g6chess.com";
 export function AnalysisImportPanel({
   status,
   error,
+  initialUrl = null,
   onImport,
   onClearError,
 }: AnalysisImportPanelProps) {
   const [mode, setMode] = useState<Mode>("url");
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(() => initialUrl ?? "");
   const [pgn, setPgn] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 

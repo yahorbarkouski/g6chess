@@ -12,20 +12,36 @@ interface AnalysisSettingsPopoverProps {
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  buttonClassName?: string;
+  className?: string;
+  placement?: "side" | "bottom-start";
+  popoverClassName?: string;
 }
+
+const MARKER_MODES: ReadonlyArray<{ value: MarkerDisplayMode; label: string }> = [
+  { value: "critical", label: "Critical" },
+  { value: "all", label: "All" },
+];
+
+const ROW_LABEL_CLASS = "text-[12px] font-medium text-stone-700 dark:text-stone-300";
 
 export function AnalysisSettingsPopover({
   arrowCount,
+  buttonClassName,
+  className,
   onArrowCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
   onMarkerDisplayModeChange,
+  placement = "side",
+  popoverClassName,
 }: AnalysisSettingsPopoverProps) {
   const [open, setOpen] = useState(false);
   const popoverId = useId();
   const prefersReducedMotion = useReducedMotion();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const opensBelow = placement === "bottom-start";
 
   useEffect(() => {
     if (!open) {
@@ -50,14 +66,14 @@ export function AnalysisSettingsPopover({
   }, [open]);
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className={cn("relative", className)} ref={rootRef}>
       <AnimatedIconButton
         aria-controls={popoverId}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label="Board settings"
         active={open}
-        className="size-6"
+        className={cn("size-6", buttonClassName)}
         icon={<Settings2 className="size-3.5" />}
         onClick={() => setOpen((value) => !value)}
         title="Board settings"
@@ -65,31 +81,38 @@ export function AnalysisSettingsPopover({
       <AnimatePresence initial={false}>
         {open ? (
           <motion.div
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            className="absolute top-0 left-[calc(100%+0.5rem)] z-50 flex w-52 origin-left flex-col gap-2.5 rounded-lg bg-white p-2.5 text-sm text-stone-900 shadow-md ring-1 ring-stone-950/10 outline-none dark:bg-stone-900 dark:text-stone-100 dark:ring-white/10"
-            exit={{ opacity: 0, scale: 0.96, x: prefersReducedMotion ? 0 : -4 }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            className={cn(
+              "absolute z-50 flex w-56 flex-col rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-900 shadow-[0_18px_45px_rgba(28,25,23,0.18),0_1px_0_rgba(255,255,255,0.8)_inset] outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:shadow-[0_18px_45px_rgba(0,0,0,0.45)]",
+              opensBelow
+                ? "top-[calc(100%+0.5rem)] left-0 origin-top-left"
+                : "top-0 left-[calc(100%+0.5rem)] origin-left",
+              popoverClassName,
+            )}
+            exit={{
+              opacity: 0,
+              scale: 0.96,
+              x: prefersReducedMotion || opensBelow ? 0 : -4,
+              y: prefersReducedMotion || !opensBelow ? 0 : -4,
+            }}
             id={popoverId}
-            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.96, x: -4 }}
+            initial={
+              prefersReducedMotion
+                ? false
+                : { opacity: 0, scale: 0.96, x: opensBelow ? 0 : -4, y: opensBelow ? -4 : 0 }
+            }
             role="dialog"
             transition={
               prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label
-                    className="text-xs font-medium text-stone-700 dark:text-stone-300"
-                    htmlFor={`${popoverId}-arrows`}
-                  >
-                    Best line arrows
-                  </label>
-                  <span className="text-xs text-stone-400 tabular-nums dark:text-stone-500">
-                    {arrowCount}
-                  </span>
-                </div>
+            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-3">
+              <label className={ROW_LABEL_CLASS} htmlFor={`${popoverId}-arrows`}>
+                Best line arrows
+              </label>
+              <div className="flex items-center gap-2">
                 <input
-                  className="h-1 w-full cursor-pointer appearance-none rounded-full bg-stone-200 accent-stone-950 dark:bg-stone-700 dark:accent-stone-100"
+                  className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-stone-200 accent-stone-900 dark:bg-stone-700 dark:accent-stone-100"
                   id={`${popoverId}-arrows`}
                   max={3}
                   min={0}
@@ -98,60 +121,90 @@ export function AnalysisSettingsPopover({
                   type="range"
                   value={arrowCount}
                 />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-                  Natural move arrow
+                <span className="w-2 text-right font-mono text-[11px] text-stone-500 tabular-nums dark:text-stone-400">
+                  {arrowCount}
                 </span>
-                <button
-                  aria-checked={showMaiaArrow}
-                  className={cn(
-                    "relative inline-flex h-[14px] w-6 shrink-0 items-center rounded-full border border-transparent transition-colors after:absolute after:-inset-x-3 after:-inset-y-2",
-                    showMaiaArrow
-                      ? "bg-stone-900 dark:bg-stone-100"
-                      : "bg-stone-200 dark:bg-stone-700",
-                  )}
-                  onClick={() => onShowMaiaArrowChange(!showMaiaArrow)}
-                  role="switch"
-                  type="button"
+              </div>
+
+              <span className={ROW_LABEL_CLASS}>
+                <a
+                  className="underline decoration-pink-400 decoration-1 underline-offset-[3px] hover:text-stone-950 dark:hover:text-stone-50"
+                  href="https://www.maiachess.com/"
+                  rel="noreferrer"
+                  target="_blank"
                 >
-                  <motion.span
-                    animate={{ x: showMaiaArrow ? 10 : 0 }}
-                    className="block size-3 rounded-full bg-white shadow-sm dark:bg-stone-950"
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0 }
-                        : { type: "spring", duration: 0.24, bounce: 0 }
-                    }
-                  />
-                </button>
+                  Maia
+                </a>{" "}
+                human move
+              </span>
+              <div className="flex justify-end">
+                <Switch
+                  checked={showMaiaArrow}
+                  label="Show Maia arrow"
+                  onChange={onShowMaiaArrowChange}
+                  prefersReducedMotion={prefersReducedMotion ?? false}
+                />
               </div>
-              <div className="space-y-2">
-                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-                  Move markers
-                </span>
-                <div className="grid grid-cols-2 rounded bg-stone-100 p-0.5 dark:bg-stone-800">
-                  {(["critical", "all"] as const).map((mode) => (
+
+              <span className={ROW_LABEL_CLASS}>Move markers</span>
+              <div className="flex items-center justify-end gap-1">
+                {MARKER_MODES.map(({ value, label }) => {
+                  const active = markerDisplayMode === value;
+                  return (
                     <button
+                      aria-pressed={active}
                       className={cn(
-                        "h-7 rounded text-xs font-medium transition-colors",
-                        markerDisplayMode === mode
-                          ? "bg-white text-stone-900 shadow-sm dark:bg-stone-700 dark:text-stone-100"
-                          : "text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200",
+                        "h-6 cursor-pointer rounded px-2 text-[11px] font-medium transition-colors",
+                        active
+                          ? "bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900"
+                          : "text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300",
                       )}
-                      key={mode}
-                      onClick={() => onMarkerDisplayModeChange(mode)}
+                      key={value}
+                      onClick={() => onMarkerDisplayModeChange(value)}
                       type="button"
                     >
-                      {mode === "critical" ? "Critical" : "All"}
+                      {label}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
     </div>
+  );
+}
+
+interface SwitchProps {
+  checked: boolean;
+  label: string;
+  onChange: (next: boolean) => void;
+  prefersReducedMotion: boolean;
+}
+
+function Switch({ checked, label, onChange, prefersReducedMotion }: SwitchProps) {
+  return (
+    <button
+      aria-checked={checked}
+      aria-label={label}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors after:absolute after:-inset-2",
+        checked
+          ? "bg-stone-900 dark:bg-stone-100"
+          : "bg-stone-200 hover:bg-stone-300 dark:bg-stone-700 dark:hover:bg-stone-600",
+      )}
+      onClick={() => onChange(!checked)}
+      role="switch"
+      type="button"
+    >
+      <motion.span
+        animate={{ x: checked ? 18 : 2 }}
+        className="block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(28,25,23,0.2)] dark:bg-stone-950"
+        transition={
+          prefersReducedMotion ? { duration: 0 } : { type: "spring", duration: 0.24, bounce: 0 }
+        }
+      />
+    </button>
   );
 }

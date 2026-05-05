@@ -308,6 +308,26 @@ export interface ExplanationLineCard {
   why: string;
 }
 
+export interface BookLineMove {
+  san: string;
+  uci: string;
+}
+
+export interface BookLine {
+  moves: BookLineMove[];
+  weight: number;
+  opening_name: string | null;
+  eco: string | null;
+}
+
+export interface OpeningBookMetadata {
+  is_book_move: boolean;
+  is_novelty: boolean;
+  book_lines: BookLine[];
+  opening_name: string | null;
+  eco: string | null;
+}
+
 export interface GameMoveAnalysis {
   ply: number;
   san: string;
@@ -322,6 +342,7 @@ export interface GameMoveAnalysis {
   clock_before_seconds?: number | null;
   remaining_clock_seconds?: number | null;
   think_time_seconds?: number | null;
+  opening_book?: OpeningBookMetadata | null;
   explanation: string | null;
   explanation_segments?: ExplanationSegment[];
   explanation_line_cards?: ExplanationLineCard[];

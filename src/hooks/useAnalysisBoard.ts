@@ -7,7 +7,10 @@ export interface PreviewState {
   rootFen: string;
   lineMoves: string[];
   step: number;
+  source: PreviewSource;
 }
+
+export type PreviewSource = "engine" | "book";
 
 export interface DiscoveryState {
   anchorPly: number;
@@ -152,19 +155,23 @@ export function useAnalysisBoard({
     [discovery, exitDiscovery],
   );
 
-  const handlePreview = useCallback((rootFen: string, lineMoves: string[], step: number) => {
-    setPreview((current) => {
-      if (
-        current?.rootFen === rootFen &&
-        current.step === step &&
-        current.lineMoves.length === lineMoves.length &&
-        current.lineMoves.every((move, index) => move === lineMoves[index])
-      ) {
-        return null;
-      }
-      return { rootFen, lineMoves, step };
-    });
-  }, []);
+  const handlePreview = useCallback(
+    (rootFen: string, lineMoves: string[], step: number, source: PreviewSource = "engine") => {
+      setPreview((current) => {
+        if (
+          current?.rootFen === rootFen &&
+          current.step === step &&
+          current.source === source &&
+          current.lineMoves.length === lineMoves.length &&
+          current.lineMoves.every((move, index) => move === lineMoves[index])
+        ) {
+          return null;
+        }
+        return { rootFen, lineMoves, step, source };
+      });
+    },
+    [],
+  );
 
   const handlePieceDrop = useCallback(
     ({

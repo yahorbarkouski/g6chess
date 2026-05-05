@@ -37,6 +37,7 @@ export function BoardSidebar({
     <div className={className}>
       <AnalysisSettingsPopover
         arrowCount={arrowCount}
+        buttonClassName="relative after:absolute after:-inset-2"
         onArrowCountChange={onArrowCountChange}
         onMarkerDisplayModeChange={onMarkerDisplayModeChange}
         onShowMaiaArrowChange={onShowMaiaArrowChange}
@@ -46,7 +47,7 @@ export function BoardSidebar({
       <EvalBar evalCp={evalCp} orientation={orientation} className="flex-1" />
       <button
         aria-label="Flip board"
-        className="flex size-6 cursor-pointer items-center justify-center rounded-full text-stone-300 transition-colors hover:text-stone-400 dark:text-stone-600 dark:hover:text-stone-500"
+        className="relative flex size-6 cursor-pointer items-center justify-center rounded-full text-stone-400 transition-[background-color,color,transform] after:absolute after:-inset-2 hover:bg-stone-100/70 hover:text-stone-700 active:scale-[0.96] dark:text-stone-500 dark:hover:bg-stone-800/70 dark:hover:text-stone-300"
         onClick={onFlipBoard}
         title="Flip board"
         type="button"
