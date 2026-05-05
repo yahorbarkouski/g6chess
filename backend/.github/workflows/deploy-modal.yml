@@ -65,7 +65,7 @@ jobs:
           sudo apt-get install -y stockfish
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
 
