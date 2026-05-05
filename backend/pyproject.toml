@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+deployment = [
+  "modal>=1.1,<2",
+]
 maia = [
   "einops>=0.8",
   "gdown>=5",

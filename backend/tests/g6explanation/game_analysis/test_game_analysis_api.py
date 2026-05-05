@@ -100,6 +100,29 @@ def test_game_analysis_http_api_returns_404_for_unknown_job() -> None:
     assert response.status_code == 404
 
 
+def test_game_analysis_http_api_uses_configured_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("G6EXPLANATION_CORS_ORIGINS", "https://app.g6chess.example")
+    service = GameAnalysisService(
+        store=InMemoryGameAnalysisStore(),
+        runner=GameAnalysisRunner(
+            context_builder_factory=lambda: MoveContextBuilder(DynamicStaticAnalysisProvider()),
+            coach_provider_factory=PromptEchoCoachProvider,
+        ),
+        executor=InlineExecutor(),
+    )
+    client = TestClient(create_app(game_analysis_service=service))
+
+    response = client.get(
+        "/api/visualization/health",
+        headers={"Origin": "https://app.g6chess.example"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://app.g6chess.example"
+
+
 def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCaptureFixture) -> None:
     store = RecordingGameAnalysisStore()
     service = GameAnalysisService(

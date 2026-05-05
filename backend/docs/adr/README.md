@@ -10,6 +10,7 @@ development standards.
 - `0001-product-truth-boundary.md`
 - `0002-context-contract-and-verification.md`
 - `0003-development-standards.md`
+- `0004-modal-deployment-boundary.md`
 
 ## Rules
 

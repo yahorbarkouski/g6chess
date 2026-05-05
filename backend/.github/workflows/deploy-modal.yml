@@ -1,0 +1,114 @@
+name: Deploy Modal
+
+on:
+  workflow_dispatch:
+    inputs:
+      modal_environment:
+        description: Modal environment to deploy into.
+        required: true
+        default: main
+      api_min_containers:
+        description: Warm API containers to keep running.
+        required: true
+        default: "0"
+      worker_min_containers:
+        description: Warm worker containers to keep running.
+        required: true
+        default: "0"
+      worker_max_containers:
+        description: Maximum concurrent worker containers.
+        required: true
+        default: "10"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modal-deploy-${{ inputs.modal_environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test And Deploy
+    runs-on: ubuntu-latest
+    environment: modal-${{ inputs.modal_environment }}
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      MODAL_ENVIRONMENT: ${{ inputs.modal_environment }}
+      MODAL_RUNTIME_REDIS_URL: ${{ secrets.G6EXPLANATION_REDIS_URL }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      G6EXPLANATION_CORS_ORIGINS: ${{ vars.G6EXPLANATION_CORS_ORIGINS }}
+      G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ inputs.api_min_containers }}
+      G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ inputs.worker_min_containers }}
+      G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ inputs.worker_max_containers }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Stockfish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y stockfish
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --locked --dev --extra deployment
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check with mypy
+        run: uv run mypy src tests
+
+      - name: Type check with pyright
+        run: uv run pyright
+
+      - name: Test
+        env:
+          G6EXPLANATION_REDIS_URL: redis://localhost:6379/0
+          G6EXPLANATION_STOCKFISH_BINARY: /usr/games/stockfish
+          G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY: /usr/games/stockfish
+        run: uv run pytest -q
+
+      - name: Validate deployment secrets
+        run: |
+          missing=0
+          for name in MODAL_TOKEN_ID MODAL_TOKEN_SECRET MODAL_RUNTIME_REDIS_URL OPENROUTER_API_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for Modal deployment."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Sync Modal runtime secret
+        run: |
+          uv run modal secret create g6explanation-runtime \
+            OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
+            G6EXPLANATION_REDIS_URL="$MODAL_RUNTIME_REDIS_URL" \
+            G6EXPLANATION_CORS_ORIGINS="$G6EXPLANATION_CORS_ORIGINS" \
+            --force
+
+      - name: Deploy Modal app
+        run: uv run modal deploy deploy/modal_app.py

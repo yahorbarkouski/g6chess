@@ -17,6 +17,7 @@ from g6explanation.game_analysis.job_service import (
     GameAnalysisService,
     game_analysis_service_from_env,
 )
+from g6explanation.game_analysis.modal_job_executor import ModalSpawnGameAnalysisExecutor
 from g6explanation.game_analysis.provider_setup import (
     GameAnalysisSetupError,
     real_game_analysis_context_builder,
@@ -39,6 +40,7 @@ __all__ = [
     "GameAnalysisStoreError",
     "GameMoveAnalysis",
     "InMemoryGameAnalysisStore",
+    "ModalSpawnGameAnalysisExecutor",
     "RedisGameAnalysisStore",
     "count_game_plies",
     "game_analysis_context_workers_from_env",

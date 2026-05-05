@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,6 +39,11 @@ from g6explanation.visualization.example_catalog import (
     visualization_examples,
 )
 
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
 
 def create_app(
     game_analysis_service: GameAnalysisService | None = None,
@@ -62,10 +69,7 @@ def create_app(
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-        ],
+        allow_origins=_cors_origins_from_env(),
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
@@ -116,6 +120,14 @@ def create_app(
 
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def _cors_origins_from_env() -> list[str]:
+    raw_origins = os.getenv("G6EXPLANATION_CORS_ORIGINS")
+    if raw_origins is None:
+        return DEFAULT_CORS_ORIGINS
+    configured_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    return configured_origins or DEFAULT_CORS_ORIGINS
 
 
 def examples() -> VisualizationExampleCollection:

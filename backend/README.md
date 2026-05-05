@@ -159,6 +159,20 @@ The polling response is a partial `GameAnalysisSnapshot` while the job is
 running. Completed moves already include SAN, UCI, quality, significance,
 beauty, and explanations when they are ready.
 
+## Deploy On Modal
+
+The first public deployment path is documented in
+`docs/development/modal-deployment.md`.
+
+It deploys one Modal App with:
+
+- a lightweight FastAPI web endpoint for job start, import, health, and polling
+- a spawned worker function for real Stockfish, Maia2, and OpenRouter analysis
+- Redis snapshots shared between API, worker, and frontend polling
+- a Modal Volume for Maia model files
+
+The deploy workflow is `.github/workflows/deploy-modal.yml`.
+
 ## Required Checks
 
 Run before checkpoint commits:

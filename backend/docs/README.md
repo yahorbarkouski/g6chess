@@ -29,6 +29,8 @@ durable decisions.
   ledger for the verified explanation-generation track.
 - `development/game-analysis-integration.md`: real-world integration guide for
   the Redis-backed async game-analysis API and user-requested imports.
+- `development/modal-deployment.md`: Modal CI/CD and deployment guide for the
+  FastAPI API, spawned analysis workers, Redis, and Maia model volume.
 - `development/training-data.md`: source-rights, acceptance, and manifest gates
   for future supervised training data.
 - `development/testing-playbook.md`: unit, integration, golden, adversarial, and
