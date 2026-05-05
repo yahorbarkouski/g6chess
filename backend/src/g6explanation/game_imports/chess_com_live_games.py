@@ -233,6 +233,7 @@ class ChessComLiveGameResolver:
         )
         imported_game = _imported_game_from_archive_match(
             matched,
+            callback_game=callback_game,
             external_game_id=external_game_id,
         )
         if self._cache is not None:
@@ -352,6 +353,7 @@ def _callback_month(headers: dict[str, Any]) -> tuple[int, int]:
 def _imported_game_from_archive_match(
     archive_match: dict[str, Any],
     *,
+    callback_game: dict[str, Any],
     external_game_id: str,
 ) -> ImportedGame:
     source_url = archive_match.get("url")
@@ -364,13 +366,31 @@ def _imported_game_from_archive_match(
             "Resolved Chess.com game is not a supported chess game."
         )
     headers = _pgn_headers(pgn)
-    white_username = _optional_str(headers.get("White")) or _username_from_archive(
-        archive_match,
-        "white",
+    white_username = (
+        _optional_str(headers.get("White"))
+        or _username_from_archive(
+            archive_match,
+            "white",
+        )
+        or _username_from_callback(callback_game, "white")
     )
-    black_username = _optional_str(headers.get("Black")) or _username_from_archive(
-        archive_match,
-        "black",
+    black_username = (
+        _optional_str(headers.get("Black"))
+        or _username_from_archive(
+            archive_match,
+            "black",
+        )
+        or _username_from_callback(callback_game, "black")
+    )
+    white_rating = (
+        _positive_int(headers.get("WhiteElo"))
+        or _rating_from_archive(archive_match, "white")
+        or _rating_from_callback(callback_game, "white")
+    )
+    black_rating = (
+        _positive_int(headers.get("BlackElo"))
+        or _rating_from_archive(archive_match, "black")
+        or _rating_from_callback(callback_game, "black")
     )
     metadata = ImportedGameMetadata(
         source="chess_com_live_url",
@@ -383,10 +403,8 @@ def _imported_game_from_archive_match(
         ),
         white_username=white_username,
         black_username=black_username,
-        white_rating=_int_from_header(headers.get("WhiteElo"))
-        or _rating_from_archive(archive_match, "white"),
-        black_rating=_int_from_header(headers.get("BlackElo"))
-        or _rating_from_archive(archive_match, "black"),
+        white_rating=white_rating,
+        black_rating=black_rating,
         time_control=_optional_str(headers.get("TimeControl"))
         or _optional_str(archive_match.get("time_control")),
         result=_optional_str(headers.get("Result")),
@@ -426,13 +444,39 @@ def _username_from_archive(archive_match: dict[str, Any], side: str) -> str | No
     return _optional_str(side_payload.get("username"))
 
 
+def _username_from_callback(callback_game: dict[str, Any], side: str) -> str | None:
+    payload = _callback_player_for_side(callback_game, side)
+    if payload is None:
+        return None
+    return _optional_str(payload.get("username"))
+
+
 def _rating_from_archive(archive_match: dict[str, Any], side: str) -> int | None:
     payload = archive_match.get(side)
     if not isinstance(payload, dict):
         return None
     side_payload = cast(dict[str, object], payload)
-    value = side_payload.get("rating")
-    return value if isinstance(value, int) else None
+    return _positive_int(side_payload.get("rating"))
+
+
+def _rating_from_callback(callback_game: dict[str, Any], side: str) -> int | None:
+    payload = _callback_player_for_side(callback_game, side)
+    if payload is None:
+        return None
+    return _positive_int(payload.get("rating"))
+
+
+def _callback_player_for_side(callback_game: dict[str, Any], side: str) -> dict[str, object] | None:
+    players = callback_game.get("players")
+    if not isinstance(players, dict):
+        return None
+    for raw_player in cast(dict[str, object], players).values():
+        if not isinstance(raw_player, dict):
+            continue
+        player = cast(dict[str, object], raw_player)
+        if _optional_str(player.get("color")) == side:
+            return player
+    return None
 
 
 def _optional_str(value: Any) -> str | None:
@@ -446,11 +490,12 @@ def _url_matches_game_id(url: str, external_game_id: str) -> bool:
         return False
 
 
-def _int_from_header(value: Any) -> int | None:
+def _positive_int(value: Any) -> int | None:
     if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value.strip())
+        return parsed if parsed > 0 else None
     return None
 
 

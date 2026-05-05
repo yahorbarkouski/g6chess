@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -17,7 +18,7 @@ import chess
 import chess.pgn
 
 from g6explanation.context_engine import MoveContextBuilder, MoveContextRequest
-from g6explanation.context_engine.contracts import ContextResult
+from g6explanation.context_engine.contracts import ColorName, ContextResult
 from g6explanation.context_engine.position_reconstruction import color_name
 from g6explanation.explanation_generation import ExplanationService
 from g6explanation.explanation_generation.coach_model import CoachModelProvider
@@ -38,6 +39,7 @@ from g6explanation.game_analysis.state_store import GameAnalysisStore
 
 DEFAULT_GAME_ANALYSIS_CONTEXT_WORKERS = min(os.cpu_count() or 1, 16)
 DEFAULT_GAME_ANALYSIS_OPENROUTER_CONCURRENCY = 30
+PGN_CLOCK_RE = re.compile(r"\[%clk\s+(?P<clock>[^\]]+)\]")
 LOGGER = logging.getLogger(__name__)
 
 ContextBuilderFactory = Callable[[], MoveContextBuilder]
@@ -54,6 +56,8 @@ def _utc_now() -> str:
 class _PlyRequest:
     ply: int
     request: MoveContextRequest
+    clock_after_seconds: float | None = None
+    think_time_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,8 @@ class _ContextBuildResult:
     ply: int
     context: ContextResult
     latency_seconds: float
+    clock_after_seconds: float | None = None
+    think_time_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -344,11 +350,25 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
     game = chess.pgn.read_game(io.StringIO(request.pgn))
     if game is None:
         raise ValueError("PGN could not be parsed.")
-    moves = list(game.mainline_moves())
+    nodes = list(game.mainline())
     board = game.board()
+    base_seconds, increment_seconds = _parse_time_control(request.time_control)
+    remaining_by_side: dict[ColorName, float | None] = {
+        "white": base_seconds,
+        "black": base_seconds,
+    }
     ply_requests: list[_PlyRequest] = []
-    for ply, move in enumerate(moves, start=1):
+    for ply, node in enumerate(nodes, start=1):
+        move = node.move
         player_color = color_name(board.turn)
+        opponent_color: ColorName = "black" if player_color == "white" else "white"
+        clock_before_seconds = remaining_by_side[player_color]
+        clock_after_seconds = _clock_seconds_from_comment(node.comment)
+        think_time_seconds = _think_time_seconds(
+            clock_before_seconds=clock_before_seconds,
+            clock_after_seconds=clock_after_seconds,
+            increment_seconds=increment_seconds,
+        )
         ply_requests.append(
             _PlyRequest(
                 ply=ply,
@@ -357,10 +377,16 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
                     ply=ply,
                     player_color=player_color,
                     player_level=request.level_for(player_color),
+                    opponent_level=request.level_for(opponent_color),
                     time_control=request.time_control,
+                    clock_before_seconds=clock_before_seconds,
+                    increment_seconds=increment_seconds,
                 ),
+                clock_after_seconds=clock_after_seconds,
+                think_time_seconds=think_time_seconds,
             )
         )
+        remaining_by_side[player_color] = clock_after_seconds
         board.push(move)
     return ply_requests
 
@@ -370,6 +396,61 @@ def count_game_plies(pgn: str) -> int:
     if game is None:
         raise ValueError("PGN could not be parsed.")
     return len(list(game.mainline_moves()))
+
+
+def _parse_time_control(time_control: str) -> tuple[float | None, float | None]:
+    stripped = time_control.strip()
+    if not stripped or stripped in {"-", "unknown"}:
+        return None, None
+    base_text, separator, increment_text = stripped.partition("+")
+    if not base_text.isdigit():
+        return None, None
+    base_seconds = float(int(base_text))
+    if not separator:
+        return base_seconds, 0.0
+    try:
+        increment_seconds = float(increment_text)
+    except ValueError:
+        return base_seconds, None
+    return base_seconds, increment_seconds if increment_seconds >= 0 else None
+
+
+def _clock_seconds_from_comment(comment: str) -> float | None:
+    match = PGN_CLOCK_RE.search(comment)
+    if match is None:
+        return None
+    return _parse_clock_token(match.group("clock").strip())
+
+
+def _parse_clock_token(value: str) -> float | None:
+    parts = value.split(":")
+    try:
+        if len(parts) == 3:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = float(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        if len(parts) == 2:
+            minutes = int(parts[0])
+            seconds = float(parts[1])
+            return minutes * 60 + seconds
+        if len(parts) == 1:
+            return float(parts[0])
+    except ValueError:
+        return None
+    return None
+
+
+def _think_time_seconds(
+    *,
+    clock_before_seconds: float | None,
+    clock_after_seconds: float | None,
+    increment_seconds: float | None,
+) -> float | None:
+    if clock_before_seconds is None or clock_after_seconds is None:
+        return None
+    increment = increment_seconds or 0.0
+    return round(max(0.0, clock_before_seconds + increment - clock_after_seconds), 3)
 
 
 def game_analysis_context_workers_from_env() -> int:
@@ -397,6 +478,8 @@ def _build_context(
         ply=ply_request.ply,
         context=context,
         latency_seconds=round(clock() - start, 3),
+        clock_after_seconds=ply_request.clock_after_seconds,
+        think_time_seconds=ply_request.think_time_seconds,
     )
 
 
@@ -418,6 +501,9 @@ def _move_from_context_result(
         significance=context.evidence.significance,
         beauty=context.evidence.beauty,
         context_latency_seconds=context_result.latency_seconds,
+        clock_before_seconds=context.evidence.request.clock_before_seconds,
+        remaining_clock_seconds=context_result.clock_after_seconds,
+        think_time_seconds=context_result.think_time_seconds,
         context=context if include_context else None,
     )
 

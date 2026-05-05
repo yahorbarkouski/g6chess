@@ -142,7 +142,6 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
   -d '{
     "source": "chess_com_live_url",
     "url": "https://www.chess.com/game/168193636078",
-    "player_level": {"kind": "rating", "value": 1500},
     "time_control": "rapid",
     "explain_significance": ["critical"],
     "include_context": true,
@@ -168,7 +167,9 @@ The response mirrors `POST /api/game-analysis` and includes source metadata:
 ```
 
 The frontend integration should set `include_context=true` while it still needs
-FENs and principal variation data to hydrate the existing board UI.
+FENs and principal variation data to hydrate the existing board UI. It should
+not send a default `player_level`; Chess.com imports derive both side ratings
+from Chess.com payloads and fail if those source ratings are unavailable.
 
 If URL import fails, reveal the PGN paste fallback and submit the same endpoint
 with `source: "pgn"`:
@@ -178,12 +179,20 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
   -H 'Content-Type: application/json' \
   -d '{
     "source": "pgn",
-    "pgn": "[Event \"Example\"]\n\n1. e4 e5 2. Nf3 Nc6 *",
-    "player_level": {"kind": "rating", "value": 1500},
+    "pgn": "[Event \"Example\"]\n[WhiteElo \"1500\"]\n[BlackElo \"1450\"]\n[TimeControl \"180\"]\n\n1. e4 e5 2. Nf3 Nc6 *",
     "explain_significance": ["critical"],
     "include_context": true
   }'
 ```
+
+Pasted PGNs must contain both `WhiteElo` and `BlackElo` headers unless the
+caller provides explicit `white_player_level` and `black_player_level`. The
+import endpoint must not invent fallback ratings.
+
+When the PGN includes Chess.com clock comments, for example
+`1. e4 {[%clk 0:03:01]}`, the API parses them during game analysis. Each
+completed move snapshot includes the clock before the move, remaining clock
+after the move, and computed think time when enough clock data is available.
 
 ## Poll A Job
 
@@ -236,7 +245,6 @@ async function startAnalysis(pgn: string) {
     body: JSON.stringify({
       source: "pgn",
       pgn,
-      player_level: {kind: "rating", value: 1500},
       time_control: "rapid",
       explain_significance: ["critical"],
       include_context: true,

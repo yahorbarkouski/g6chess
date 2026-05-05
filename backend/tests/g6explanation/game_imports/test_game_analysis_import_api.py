@@ -41,7 +41,7 @@ TINY_PGN = """
 [TimeControl "180+2"]
 [Link "https://www.chess.com/game/live/168193636078"]
 
-1. e4 e5 2. Nf3 1-0
+1. e4 {[%clk 0:03:01]} 1... e5 {[%clk 0:02:59]} 2. Nf3 {[%clk 0:02:58]} 1-0
 """.strip()
 
 
@@ -76,6 +76,18 @@ def test_import_api_starts_analysis_from_chess_com_url() -> None:
     assert snapshot["total_plies"] == 3
     assert [move["san"] for move in snapshot["moves"]] == ["e4", "e5", "Nf3"]
     assert all(move["context"] is not None for move in snapshot["moves"])
+    requests = [move["context"]["evidence"]["request"] for move in snapshot["moves"]]
+    assert [request["player_level"]["value"] for request in requests] == [1600, 1500, 1600]
+    assert [request["player_level"]["system"] for request in requests] == [
+        "chess.com",
+        "chess.com",
+        "chess.com",
+    ]
+    assert [request["opponent_level"]["value"] for request in requests] == [1500, 1600, 1500]
+    assert [request["clock_before_seconds"] for request in requests] == [180.0, 180.0, 181.0]
+    assert [request["increment_seconds"] for request in requests] == [2.0, 2.0, 2.0]
+    assert [move["remaining_clock_seconds"] for move in snapshot["moves"]] == [181.0, 179.0, 178.0]
+    assert [move["think_time_seconds"] for move in snapshot["moves"]] == [1.0, 3.0, 5.0]
 
 
 def test_import_api_starts_analysis_from_pasted_pgn() -> None:
@@ -104,6 +116,52 @@ def test_import_api_starts_analysis_from_pasted_pgn() -> None:
     assert payload["source"]["allows_global_training"] is False
     snapshot = client.get(payload["status_url"]).json()
     assert snapshot["status"] == "succeeded"
+
+
+def test_import_api_rejects_pgn_without_ratings_instead_of_defaulting() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        )
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "pgn",
+            "pgn": '[Event "No ratings"]\n\n1. e4 e5 *',
+        },
+    )
+
+    assert response.status_code == 422
+    assert "PGN import did not include a white rating" in response.json()["detail"]
+
+
+def test_import_api_accepts_explicit_side_ratings_for_unrated_pgn() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        )
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "pgn",
+            "pgn": '[Event "No ratings"]\n\n1. e4 e5 *',
+            "white_player_level": {"kind": "rating", "value": 1400, "system": "manual"},
+            "black_player_level": {"kind": "rating", "value": 1300, "system": "manual"},
+            "include_context": True,
+        },
+    )
+
+    assert response.status_code == 200
+    snapshot = client.get(response.json()["status_url"]).json()
+    assert snapshot["status"] == "succeeded"
+    requests = [move["context"]["evidence"]["request"] for move in snapshot["moves"]]
+    assert [request["player_level"]["value"] for request in requests] == [1400, 1300]
 
 
 def _client(resolver: ChessComLiveGameResolver) -> TestClient:

@@ -7,7 +7,6 @@ from typing import Literal, TypeAlias
 from pydantic import Field, model_validator
 
 from g6explanation.context_engine.contracts import (
-    ColorName,
     ContextContract,
     PlayerLevel,
     SignificanceLabel,
@@ -85,20 +84,6 @@ class GameAnalysisImportResponse(ContextContract):
     source: ImportedGameMetadata
 
 
-def default_player_level() -> PlayerLevel:
-    """Return the default user level for imports without ratings."""
-
-    return PlayerLevel.rating(1500, "frontend-default")
-
-
-def level_from_rating(value: int | None) -> PlayerLevel:
-    """Return a rating level or the import default."""
-
-    if value is None:
-        return default_player_level()
-    return PlayerLevel.rating(value)
-
-
 def metadata_title(
     *,
     white_username: str | None,
@@ -110,9 +95,3 @@ def metadata_title(
     if white_username and black_username:
         return f"{white_username} vs {black_username}"
     return fallback
-
-
-def side_rating(metadata: ImportedGameMetadata, side: ColorName) -> int | None:
-    """Return the rating for one side from import metadata."""
-
-    return metadata.white_rating if side == "white" else metadata.black_rating

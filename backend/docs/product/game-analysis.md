@@ -49,13 +49,20 @@ The request provides either:
 - `source: "pgn"` with pasted `pgn`
 
 It also accepts the same analysis knobs as `POST /api/game-analysis`:
-player-level fields, `time_control`, `explain_significance`,
-`include_context`, and `use_baseline_fallback`.
+`time_control`, `explain_significance`, `include_context`, and
+`use_baseline_fallback`. Imported games derive player levels from source
+ratings: Chess.com imports require both side ratings from Chess.com data, and
+pasted PGNs use `WhiteElo` and `BlackElo` headers when present. Only unrated
+pasted PGNs may provide explicit `white_player_level` and `black_player_level`;
+the import endpoint must not invent a default rating.
 
 The response returns the normal `analysis_id`, `status`, and `status_url` plus
 source metadata such as source kind, external Chess.com game id when known,
 title, players, ratings, time control, result, and
 `allows_global_training=false`.
+Chess.com-style PGN clock comments such as `[%clk 0:02:59.1]` are parsed into
+per-ply clock fields so snapshots can expose the clock before the move,
+remaining clock after the move, increment, and computed think time.
 
 Poll a job:
 
@@ -77,6 +84,8 @@ Each snapshot includes:
 - explanation required, completed, and failed counts
 - one `GameMoveAnalysis` per completed context
 - per-move quality, significance, beauty, SAN, UCI, color, and latency
+- per-move clock-before, remaining-clock, and think-time fields when PGN clock
+  comments are available
 - verified explanation metadata when an explanation has completed
 - optional full `ContextResult` when `include_context=true`
 

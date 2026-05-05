@@ -6,6 +6,7 @@ import io
 
 import chess.pgn
 
+from g6explanation.context_engine.contracts import ColorName, PlayerLevel
 from g6explanation.game_analysis import GameAnalysisService, GameAnalysisStartRequest
 from g6explanation.game_imports.chess_com_live_games import ChessComLiveGameResolver
 from g6explanation.game_imports.contracts import (
@@ -13,7 +14,6 @@ from g6explanation.game_imports.contracts import (
     GameAnalysisImportResponse,
     ImportedGame,
     ImportedGameMetadata,
-    level_from_rating,
     metadata_title,
 )
 
@@ -93,26 +93,67 @@ def _analysis_request_from_import(
         or imported_game.metadata.time_control
         or "unknown"
     )
-    if import_request.player_level is not None:
-        return GameAnalysisStartRequest(
-            pgn=imported_game.pgn,
-            player_level=import_request.player_level,
-            time_control=time_control,
-            explain_significance=import_request.explain_significance,
-            include_context=import_request.include_context,
-            use_baseline_fallback=import_request.use_baseline_fallback,
-        )
     return GameAnalysisStartRequest(
         pgn=imported_game.pgn,
-        white_player_level=import_request.white_player_level
-        or level_from_rating(imported_game.metadata.white_rating),
-        black_player_level=import_request.black_player_level
-        or level_from_rating(imported_game.metadata.black_rating),
+        white_player_level=_level_for_imported_side(imported_game, import_request, "white"),
+        black_player_level=_level_for_imported_side(imported_game, import_request, "black"),
         time_control=time_control,
         explain_significance=import_request.explain_significance,
         include_context=import_request.include_context,
         use_baseline_fallback=import_request.use_baseline_fallback,
     )
+
+
+def _level_for_imported_side(
+    imported_game: ImportedGame,
+    import_request: GameAnalysisImportRequest,
+    side: ColorName,
+) -> PlayerLevel:
+    rating = (
+        imported_game.metadata.white_rating
+        if side == "white"
+        else imported_game.metadata.black_rating
+    )
+    if rating is not None:
+        return _level_from_source_rating(rating, imported_game.metadata.source)
+    if imported_game.metadata.source == "chess_com_live_url":
+        raise GameImportError(
+            f"Chess.com import did not include a {side} rating; cannot analyze without "
+            "source-derived ratings."
+        )
+
+    explicit_side_level = (
+        import_request.white_player_level if side == "white" else import_request.black_player_level
+    )
+    if explicit_side_level is not None:
+        return _validated_explicit_import_level(explicit_side_level, side)
+    if import_request.player_level is not None:
+        return _validated_explicit_import_level(import_request.player_level, side)
+    raise GameImportError(
+        f"PGN import did not include a {side} rating. Add WhiteElo and BlackElo headers "
+        "or provide explicit player levels."
+    )
+
+
+def _level_from_source_rating(value: int, source: str) -> PlayerLevel:
+    if value <= 0:
+        raise GameImportError("Imported ratings must be positive integers.")
+    system = "chess.com" if source == "chess_com_live_url" else "pgn"
+    return PlayerLevel.rating(value, system)
+
+
+def _validated_explicit_import_level(level: PlayerLevel, side: ColorName) -> PlayerLevel:
+    if level.system == "frontend-default":
+        raise GameImportError(
+            "Import requests may not use frontend-default player levels; use source ratings "
+            "or explicit side ratings."
+        )
+    rating = level.rating_value()
+    if rating is None:
+        raise GameImportError(f"Explicit {side} player level for imports must be a rating.")
+    if rating <= 0:
+        raise GameImportError(f"Explicit {side} player rating must be positive.")
+    return level
 
 
 def _pgn_headers(pgn: str) -> dict[str, str]:
@@ -128,7 +169,10 @@ def _rating_from_header(value: str | None) -> int | None:
     if value is None:
         return None
     stripped = value.strip()
-    return int(stripped) if stripped.isdigit() else None
+    if not stripped.isdigit():
+        return None
+    rating = int(stripped)
+    return rating if rating > 0 else None
 
 
 def _blank_to_none(value: str | None) -> str | None:

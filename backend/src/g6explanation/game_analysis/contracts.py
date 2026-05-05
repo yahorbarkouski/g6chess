@@ -85,6 +85,9 @@ class GameMoveAnalysis(ContextContract):
     significance: MoveSignificance
     beauty: MoveBeauty
     context_latency_seconds: float
+    clock_before_seconds: float | None = None
+    remaining_clock_seconds: float | None = None
+    think_time_seconds: float | None = None
     explanation: str | None = None
     explanation_segments: list[ExplanationSegment] = Field(default_factory=list[ExplanationSegment])
     explanation_line_cards: list[ExplanationLineCard] = Field(

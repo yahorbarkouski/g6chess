@@ -118,6 +118,38 @@ def test_resolver_falls_back_to_black_archive() -> None:
     assert transport.archive_calls == ["oldfr3d", "mantegnac"]
 
 
+def test_resolver_uses_archive_ratings_when_pgn_headers_omit_elos() -> None:
+    transport = FakeChessComTransport(
+        callback=_callback_payload(),
+        white_archive_games=[{**_archive_game(), "pgn": _public_pgn_without_ratings()}],
+    )
+    resolver = ChessComLiveGameResolver(transport=transport, sleep=lambda _: None)
+
+    imported = resolver.resolve(f"https://www.chess.com/game/live/{GAME_ID}")
+
+    assert imported.metadata.white_rating == 1269
+    assert imported.metadata.black_rating == 1232
+
+
+def test_resolver_falls_back_to_callback_player_ratings_by_color() -> None:
+    archive_game = {
+        **_archive_game(),
+        "pgn": _public_pgn_without_ratings(),
+        "white": {"username": "OldFr3d"},
+        "black": {"username": "mantegnac"},
+    }
+    transport = FakeChessComTransport(
+        callback=_callback_payload(include_players=True),
+        white_archive_games=[archive_game],
+    )
+    resolver = ChessComLiveGameResolver(transport=transport, sleep=lambda _: None)
+
+    imported = resolver.resolve(f"https://www.chess.com/game/live/{GAME_ID}")
+
+    assert imported.metadata.white_rating == 1269
+    assert imported.metadata.black_rating == 1232
+
+
 def test_resolver_uses_cache_before_transport() -> None:
     transport = FakeChessComTransport(
         callback=_callback_payload(),
@@ -235,16 +267,28 @@ class FakeChessComTransport:
         return 404, b"{}"
 
 
-def _callback_payload(*, is_finished: bool = True) -> dict[str, object]:
+def _callback_payload(
+    *,
+    include_players: bool = False,
+    is_finished: bool = True,
+) -> dict[str, object]:
+    game: dict[str, object] = {
+        "isFinished": is_finished,
+        "pgnHeaders": {
+            "Date": "2026.05.03",
+            "White": "OldFr3d",
+            "Black": "mantegnac",
+            "TimeControl": "180",
+        },
+    }
+    if include_players:
+        game["players"] = {
+            "top": {"color": "black", "rating": 1232, "username": "mantegnac"},
+            "bottom": {"color": "white", "rating": 1269, "username": "OldFr3d"},
+        }
     return {
         "game": {
-            "isFinished": is_finished,
-            "pgnHeaders": {
-                "Date": "2026.05.03",
-                "White": "OldFr3d",
-                "Black": "mantegnac",
-                "TimeControl": "180",
-            },
+            **game,
         }
     }
 
@@ -258,6 +302,14 @@ def _archive_game() -> dict[str, object]:
         "white": {"username": "OldFr3d", "rating": 1269},
         "black": {"username": "mantegnac", "rating": 1232},
     }
+
+
+def _public_pgn_without_ratings() -> str:
+    return "\n".join(
+        line
+        for line in PUBLIC_PGN.splitlines()
+        if not line.startswith("[WhiteElo ") and not line.startswith("[BlackElo ")
+    )
 
 
 def _json_bytes(value: dict[str, object]) -> bytes:

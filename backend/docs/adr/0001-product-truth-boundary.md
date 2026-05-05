@@ -23,7 +23,10 @@ explanation policy.
 The game-analysis import API may acquire a canonical PGN from a user-submitted
 Chess.com live-game URL or pasted PGN before starting that same orchestration.
 This import layer is source acquisition only; it does not create chess truth or
-new training rights.
+new training rights. Imported player levels are derived from source ratings:
+Chess.com imports require both side ratings from Chess.com data, and pasted PGNs
+use Elo headers unless the caller provides explicit side ratings. The import
+layer must not invent fallback ratings.
 
 ## Rules
 

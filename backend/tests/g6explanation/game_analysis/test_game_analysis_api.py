@@ -28,6 +28,7 @@ from g6explanation.game_analysis import (
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
     InMemoryGameAnalysisStore,
+    game_ply_requests,
 )
 from g6explanation.visualization.http_api import create_app
 
@@ -41,6 +42,19 @@ TINY_PGN = """
 [Result "*"]
 
 1. e4 e5 2. Nf3 *
+""".strip()
+
+TIMED_PGN = """
+[Event "Timed"]
+[Site "Chess.com"]
+[Date "2026.05.03"]
+[Round "?"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+[TimeControl "180+2"]
+
+1. e4 {[%clk 0:03:01]} 1... e5 {[%clk 0:02:59]} 2. Nf3 {[%clk 0:02:58]} *
 """.strip()
 
 
@@ -121,6 +135,40 @@ def test_game_analysis_http_api_uses_configured_cors_origins(
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://app.g6chess.example"
+
+
+def test_game_ply_requests_passes_player_and_opponent_levels_by_side() -> None:
+    request = GameAnalysisStartRequest(
+        pgn=TINY_PGN,
+        white_player_level=PlayerLevel.rating(1600, "chess.com"),
+        black_player_level=PlayerLevel.rating(1400, "chess.com"),
+    )
+
+    ply_requests = game_ply_requests(request)
+
+    assert [item.request.player_color for item in ply_requests] == ["white", "black", "white"]
+    assert [item.request.player_level.value for item in ply_requests] == [1600, 1400, 1600]
+    assert [cast(PlayerLevel, item.request.opponent_level).value for item in ply_requests] == [
+        1400,
+        1600,
+        1400,
+    ]
+
+
+def test_game_ply_requests_parses_chess_com_clock_comments() -> None:
+    request = GameAnalysisStartRequest(
+        pgn=TIMED_PGN,
+        white_player_level=PlayerLevel.rating(1600, "chess.com"),
+        black_player_level=PlayerLevel.rating(1400, "chess.com"),
+        time_control="180+2",
+    )
+
+    ply_requests = game_ply_requests(request)
+
+    assert [item.request.clock_before_seconds for item in ply_requests] == [180.0, 180.0, 181.0]
+    assert [item.request.increment_seconds for item in ply_requests] == [2.0, 2.0, 2.0]
+    assert [item.clock_after_seconds for item in ply_requests] == [181.0, 179.0, 178.0]
+    assert [item.think_time_seconds for item in ply_requests] == [1.0, 3.0, 5.0]
 
 
 def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCaptureFixture) -> None:
