@@ -17,8 +17,10 @@ spawns a Modal worker and returns `analysis_id` immediately.
 
 - `.github/workflows/ci.yml`: required local quality gates on pull requests,
   `main`, and manual dispatch.
-- `.github/workflows/deploy-modal.yml`: manual deploy workflow that repeats the
-  required gates, syncs the Modal runtime secret, and runs `modal deploy`.
+- `.github/workflows/deploy-modal.yml`: automatic `main` deploy workflow that
+  repeats the required gates, syncs the Modal runtime secret, and runs
+  `modal deploy`. Manual dispatch remains available for warm-container and
+  worker-cap overrides.
 - `deploy/modal_app.py`: Modal App with a lightweight FastAPI endpoint and a
   heavier Stockfish/Maia worker function.
 - `src/g6explanation/game_analysis/modal_job_executor.py`: testable executor
@@ -38,8 +40,8 @@ existing `GameAnalysisRunner`.
 
 ## Required GitHub Secrets
 
-Add these repository or environment secrets before running
-`Deploy Modal`:
+Add these repository or environment secrets before merging to `main` or running
+`Deploy Modal` manually:
 
 ```text
 MODAL_TOKEN_ID
@@ -64,7 +66,11 @@ The deploy workflow syncs these values into the Modal secret named
 
 ## Deploy
 
-Run the `Deploy Modal` workflow from GitHub Actions.
+Merging to `main` automatically runs `Deploy Modal`. The deploy happens only
+after formatting, linting, typing, and tests pass in that workflow.
+
+Run the workflow manually when you need to override warm-container or worker-cap
+settings without merging code.
 
 Useful inputs:
 

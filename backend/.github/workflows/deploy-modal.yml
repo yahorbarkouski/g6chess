@@ -1,6 +1,9 @@
 name: Deploy Modal
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       modal_environment:
@@ -18,20 +21,20 @@ on:
       worker_max_containers:
         description: Maximum concurrent worker containers.
         required: true
-        default: "10"
+        default: "5"
 
 permissions:
   contents: read
 
 concurrency:
-  group: modal-deploy-${{ inputs.modal_environment }}
+  group: modal-deploy-${{ inputs.modal_environment || 'main' }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     name: Test And Deploy
     runs-on: ubuntu-latest
-    environment: modal-${{ inputs.modal_environment }}
+    environment: modal-${{ inputs.modal_environment || 'main' }}
     services:
       redis:
         image: redis:7.4-alpine
@@ -45,13 +48,13 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      MODAL_ENVIRONMENT: ${{ inputs.modal_environment }}
+      MODAL_ENVIRONMENT: ${{ inputs.modal_environment || 'main' }}
       MODAL_RUNTIME_REDIS_URL: ${{ secrets.G6EXPLANATION_REDIS_URL }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       G6EXPLANATION_CORS_ORIGINS: ${{ vars.G6EXPLANATION_CORS_ORIGINS }}
-      G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ inputs.api_min_containers }}
-      G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ inputs.worker_min_containers }}
-      G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ inputs.worker_max_containers }}
+      G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ inputs.api_min_containers || '0' }}
+      G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ inputs.worker_min_containers || '0' }}
+      G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ inputs.worker_max_containers || '5' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
