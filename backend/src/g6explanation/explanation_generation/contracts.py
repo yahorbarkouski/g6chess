@@ -10,7 +10,7 @@ from g6explanation.context_engine.contracts import ContextContract
 
 EXPLANATION_SCHEMA_VERSION = "explanation_output.v3"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v13"
+PROMPT_VERSION = "single_move_coach.v14"
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",

@@ -48,7 +48,7 @@ product-ready.
   net material gain or loss, material-recovery recaptures, verified immediate
   material trades from supplied PVs, king safety, development, open files,
   passed pawns, outposts, initiative, forcing move facts, direct attacks on
-  valuable pieces, clear multi-target forks, and fianchetto-square preparation.
+  valuable pieces, clear multi-target forks, and opened bishop diagonal routes.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when
@@ -67,7 +67,7 @@ product-ready.
   text remains a derived joined string for compatibility.
 - The explanation-generation layer must block unsupported moves, PVs, line-card
   ids or move sequences, tactics, material claims, mate claims, strategic concept
-  claims, piece-attack claims, fianchetto claims, and wrong-side attribution
+  claims, piece-attack claims, unsupported opening labels, and wrong-side attribution
   before any model output is product-ready.
 - Line cards may only reference move sequences supplied as verified line
   evidence; models may write visible prose, short highlight anchors, and

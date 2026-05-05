@@ -191,7 +191,7 @@ Create fixtures for:
 - hard move presented as obvious
 - Maia probability treated as quality
 - absent tactic tag used as fact
-- unsupported attack or fianchetto wording used as fact
+- unsupported attack, bishop-route, or opening-label wording used as fact
 
 ## Evaluation Tests
 

@@ -98,7 +98,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v13"
+    assert result.prompt_version == "single_move_coach.v14"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload
@@ -117,7 +117,8 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "Do not lean on 'no sharper alternative needed'" in prompt_payload
     assert "Choose the smallest sufficient teaching point" in prompt_payload
     assert "attacking valuable pieces" in prompt_payload
-    assert "fianchetto square" in prompt_payload
+    assert "opening a diagonal" in prompt_payload
+    assert "Do not name opening systems" in prompt_payload
     assert "For unplayed alternatives" in prompt_payload
     assert "traded or exchanged material" in prompt_payload
     assert "For low-significance best" in prompt_payload

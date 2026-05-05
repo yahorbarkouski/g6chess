@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v13`. Version 2 made
+Current prompt version: `single_move_coach.v14`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -99,8 +99,10 @@ recapture that restores balance into a material-winning claim. Version 12 adds
 counterfactual wording guidance for unplayed alternatives and requires
 trade/exchange material claims to stay trades or exchanges instead of becoming
 material wins. Version 13 tells the model to prefer supplied concrete
-board-feature facts, such as attacked valuable pieces, forks, bishop routes, and
-fianchetto squares, over generic continuation wording.
+board-feature facts over generic continuation wording. Version 14 removes
+named-opening preparation concepts from the prompt contract: without explicit
+opening metadata, the model should explain board geometry such as attacked
+pieces, forks, center control, bishop diagonals, and open routes.
 
 ## Contracts
 
@@ -202,8 +204,9 @@ Minimum checks:
   same tactic
 - attack prose about valuable pieces requires trusted `piece_activity` or
   `tactic` concept evidence naming the attacked material
-- fianchetto prose requires trusted development evidence that explicitly uses
-  fianchetto wording
+- named opening-system prose requires explicit opening metadata; board geometry
+  alone authorizes diagonal, route, center, activity, or pawn-structure wording,
+  not an opening label
 - concept language must be supported by typed `concept_claims`; free-form
   `allowed_claims` alone do not authorize strategic concepts
 - quality-label consistency with `LLMContext.quality`; forced moves,

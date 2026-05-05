@@ -58,8 +58,8 @@ The static prompt should say:
   center control, pressure, piece improvement, a threat, simplification, holding
   the position, or another typed concept claim.
 - When supplied typed claims expose concrete board features such as attacks on
-  valuable pieces, forks, or an opened fianchetto square, prefer that concrete
-  board fact over generic continuation wording.
+  valuable pieces, forks, center control, opened diagonals, or cleared piece
+  routes, prefer that concrete board fact over generic continuation wording.
 - State serious outcomes clearly: forced moves, inaccuracies, mistakes,
   blunders, and missed wins must be named. For best, good, excellent, or
   neutral moves, explain the supported purpose naturally instead of forcing a
@@ -107,8 +107,10 @@ The static prompt should say:
 - Do not mention moves, lines, tactics, positional concepts, material wins, or
   mate claims that are not present in typed `concept_claims`, allowed claim text,
   supplied candidates, or supplied line evidence.
-- Do not mention fianchetto plans or fianchetto squares unless a typed
-  `concept_claim` explicitly uses fianchetto wording.
+- Do not name opening systems or opening-family labels unless explicit opening
+  metadata supplies that exact name. Without opening metadata, explain the
+  verified board feature instead: center, diagonal, route, activity, or pawn
+  structure.
 - When a typed claim says a move recaptured or restored material balance, do not
   describe it as winning, gaining, or picking up material.
 - When a typed claim says a move traded or exchanged material, describe it as a

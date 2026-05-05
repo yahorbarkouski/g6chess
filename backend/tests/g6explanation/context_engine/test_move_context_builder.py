@@ -397,29 +397,41 @@ def test_knight_fork_context_exposes_attacked_rooks_as_board_fact() -> None:
             chess.STARTING_FEN,
             "g2g3",
             "g3",
-            "g3 opened the fianchetto square on g2 for the bishop",
+            "g3 opened a diagonal route for the bishop on f1 through g2 toward h3",
         ),
         (
             chess.STARTING_FEN,
             "b2b3",
             "b3",
-            "b3 opened the fianchetto square on b2 for the bishop",
+            "b3 opened a diagonal route for the bishop on c1 through b2 toward a3",
         ),
         (
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
             "g7g6",
             "g6",
-            "g6 opened the fianchetto square on g7 for the bishop",
+            "g6 opened a diagonal route for the bishop on f8 through g7 toward h6",
         ),
         (
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
             "b7b6",
             "b6",
-            "b6 opened the fianchetto square on b7 for the bishop",
+            "b6 opened a diagonal route for the bishop on c8 through b7 toward a6",
+        ),
+        (
+            chess.STARTING_FEN,
+            "d2d4",
+            "d4",
+            "d4 opened a diagonal route for the bishop on c1 through d2 toward e3 and f4",
+        ),
+        (
+            chess.STARTING_FEN,
+            "e2e4",
+            "e4",
+            "e4 opened a diagonal route for the bishop on f1 through e2 toward d3 and c4",
         ),
     ],
 )
-def test_flank_pawn_move_exposes_fianchetto_development_fact(
+def test_moves_expose_generic_bishop_diagonal_route_facts(
     fen: str,
     played_uci: str,
     expected_san: str,
@@ -443,35 +455,32 @@ def test_flank_pawn_move_exposes_fianchetto_development_fact(
 
     assert result.evidence.played.san == expected_san
     assert expected_claim in {claim.claim for claim in result.evidence.concept_claims}
-    assert result.llm_context.main_point == expected_claim
-    assert result.llm_context.allowed_claims[0] == expected_claim
+    if played_uci in {"g2g3", "b2b3", "g7g6", "b7b6"}:
+        assert result.llm_context.main_point == expected_claim
+        assert result.llm_context.allowed_claims[0] == expected_claim
     assert "development" in _concept_kinds(result)
 
 
 @pytest.mark.parametrize(
-    ("fen", "played_uci", "unexpected_claim"),
+    ("fen", "played_uci"),
     [
         (
             chess.STARTING_FEN,
-            "g2g4",
-            "g4 opened the fianchetto square on g2 for the bishop",
+            "a2a3",
         ),
         (
             chess.STARTING_FEN,
-            "b2b4",
-            "b4 opened the fianchetto square on b2 for the bishop",
+            "h2h3",
         ),
         (
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1",
             "g2g3",
-            "g3 opened the fianchetto square on g2 for the bishop",
         ),
     ],
 )
-def test_fianchetto_fact_requires_normal_one_square_push_and_home_bishop(
+def test_bishop_route_fact_requires_vacating_a_bishop_diagonal_blocker(
     fen: str,
     played_uci: str,
-    unexpected_claim: str,
 ) -> None:
     board = chess.Board(fen)
     engine_analysis = analysis(
@@ -489,8 +498,11 @@ def test_fianchetto_fact_requires_normal_one_square_push_and_home_bishop(
 
     result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
-    assert unexpected_claim not in {claim.claim for claim in result.evidence.concept_claims}
-    assert unexpected_claim not in result.llm_context.allowed_claims
+    assert not [
+        claim
+        for claim in result.evidence.concept_claims
+        if claim.kind == "development" and "diagonal route for the bishop" in claim.claim
+    ]
 
 
 def test_mate_transition_adds_king_safety_concept_claim() -> None:

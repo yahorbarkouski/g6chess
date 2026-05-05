@@ -705,18 +705,30 @@ def test_verifier_rejects_unsupported_attack_claim() -> None:
     assert "unsupported_concept_claim" in _failure_codes(verification)
 
 
-def test_verifier_accepts_supported_fianchetto_claim() -> None:
-    context = _fianchetto_context()
-    output = rich_output("g3 opened the fianchetto square on g2 for the bishop.")
+def test_verifier_accepts_supported_bishop_route_claim() -> None:
+    context = _bishop_route_context()
+    output = rich_output("g3 opened a diagonal route for the bishop on f1 through g2 toward h3.")
 
     verification = ExplanationVerifier().verify(context, output)
 
     assert verification.passed
 
 
-def test_verifier_rejects_unsupported_fianchetto_claim() -> None:
-    context = best_context()
-    output = rich_output("e4 was the best move because it prepared a fianchetto.")
+def test_verifier_rejects_unsupported_bishop_route_claim() -> None:
+    context = _rook_fork_context()
+    output = rich_output("Nb6 was the key move because it opened a bishop route.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
+
+
+def test_verifier_rejects_unsupported_named_opening_label() -> None:
+    context = _bishop_route_context()
+    output = rich_output(
+        "g3 opened a diagonal route for the bishop, starting the Example Opening setup."
+    )
 
     verification = ExplanationVerifier().verify(context, output)
 
@@ -1129,7 +1141,7 @@ def _rook_fork_context() -> ContextResult:
     return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
 
-def _fianchetto_context() -> ContextResult:
+def _bishop_route_context() -> ContextResult:
     board = chess.Board()
     engine_analysis = analysis(
         board,

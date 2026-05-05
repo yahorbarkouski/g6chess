@@ -193,7 +193,8 @@ Current deterministic concept evidence is intentionally conservative:
   win claim
 - direct attacks by the moved piece on valuable enemy pieces, including clear
   multi-target fork evidence such as a knight attacking both rooks
-- flank-pawn moves that open an actual fianchetto square for a home bishop
+- moves that vacate the first blocker on a friendly bishop diagonal, exposing
+  the concrete route squares without naming an opening system
 - minor-piece development from the home rank
 - rook or queen use of a file with no pawns
 - passed-pawn advances

@@ -384,15 +384,15 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         source=CHESS_COM_REQUIRES_AUTHORIZATION_SOURCE,
     ),
     RealExplanationEvalCase(
-        case_id="synthetic-g3-fianchetto-development",
-        description="Opening pawn move that opens the fianchetto square for the bishop",
+        case_id="synthetic-g3-bishop-route-development",
+        description="Opening pawn move that opens a bishop diagonal route",
         fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         played_move="g2g3",
         player_color="white",
         player_level=PlayerLevel.rating(1400, "synthetic-edge"),
         time_control="rapid",
         expected_san="g3",
-        tags=("synthetic", "opening", "fianchetto", "development"),
+        tags=("synthetic", "opening", "bishop-route", "development"),
     ),
     RealExplanationEvalCase(
         case_id="castling-low-time-beginner",

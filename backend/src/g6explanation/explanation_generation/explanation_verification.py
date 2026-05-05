@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v2"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v3"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -94,7 +94,6 @@ TACTIC_TERMS = {
     "intermezzo",
     "back rank",
 }
-FIANCHETTO_RE = re.compile(r"\bfianchetto\w*\b", re.IGNORECASE)
 ATTACK_TARGET_RE = re.compile(
     r"\b(?:attacks|attacked|attacking|threatens?|threatened|threatening)\b"
     r"[^.?!;]{0,100}"
@@ -109,6 +108,10 @@ ATTACK_TERM_ALIASES: dict[str, tuple[str, ...]] = {
     "pawn": ("pawn", "pawns"),
     "piece": ("piece", "pieces"),
 }
+NAMED_OPENING_LABEL_RE = re.compile(
+    r"\b[A-Z][A-Za-z']+(?:\s+[A-Z][A-Za-z']+){0,3}\s+"
+    r"(?:Opening|Defense|Defence|Gambit|System|Variation)\b"
+)
 CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "forced_move": ("forced move", "only legal move", "no legal alternative"),
     "forcing_move": (
@@ -152,7 +155,14 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
         "unsafe king",
     ),
     "center": ("center", "centre", "central"),
-    "development": ("development", "developing", "undeveloped"),
+    "development": (
+        "development",
+        "developing",
+        "undeveloped",
+        "diagonal route",
+        "bishop route",
+        "route for the bishop",
+    ),
     "initiative": ("initiative",),
     "space": ("space advantage", "gained space", "gains space", "more space", "extra space"),
     "pawn_structure": (
@@ -374,10 +384,10 @@ def _move_mentions(explanation: str) -> list[_MoveMention]:
 def _is_square_reference(explanation: str, start: int, end: int, token: str) -> bool:
     if not re.fullmatch(r"[a-h][1-8]", token):
         return False
-    prefix = explanation[max(0, start - 12) : start].lower()
+    prefix = explanation[max(0, start - 16) : start].lower()
     suffix = explanation[end : min(len(explanation), end + 14)].lower()
-    return bool(re.search(r"\b(?:on|from|at|to)\s+$", prefix)) or bool(
-        re.search(r"^\s+(?:fianchetto\s+)?(?:pawn|piece|square)\b", suffix)
+    return bool(re.search(r"\b(?:on|from|at|to|through|toward|towards|via)\s+$", prefix)) or bool(
+        re.search(r"^\s+(?:pawn|piece|square)\b", suffix)
     )
 
 
@@ -505,20 +515,19 @@ def _verify_supported_claim_terms(
             "$.explanation",
             f"Explanation includes unsupported attack claim {unsupported_attack_term!r}.",
         )
-    if FIANCHETTO_RE.search(text):
-        fianchetto_support = _trusted_claim_text(context_result, {"development"})
-        if not _contains_phrase(fianchetto_support, "fianchetto"):
-            issues.fail(
-                "unsupported_concept_claim",
-                "$.explanation",
-                "Explanation includes unsupported fianchetto claim.",
-            )
     concept = _unsupported_concept_claim(text, context_result, support)
     if concept is not None:
         issues.fail(
             "unsupported_concept_claim",
             "$.explanation",
             f"Explanation includes unsupported concept claim {concept!r}.",
+        )
+    opening_label = _unsupported_named_opening_label(explanation, support)
+    if opening_label is not None:
+        issues.fail(
+            "unsupported_concept_claim",
+            "$.explanation",
+            f"Explanation includes unsupported named opening label {opening_label!r}.",
         )
     if RAW_ENGINE_RE.search(explanation):
         issues.fail(
@@ -794,6 +803,16 @@ def _unsupported_concept_claim(
         ):
             continue
         return kind.replace("_", " ")
+    return None
+
+
+def _unsupported_named_opening_label(explanation: str, support: str) -> str | None:
+    support_text = support.lower()
+    for match in NAMED_OPENING_LABEL_RE.finditer(explanation):
+        label = match.group(0)
+        if label.lower() in support_text:
+            continue
+        return label
     return None
 
 

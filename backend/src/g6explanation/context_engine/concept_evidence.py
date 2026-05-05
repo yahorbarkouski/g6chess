@@ -27,9 +27,6 @@ DEVELOPMENT_HOME_SQUARES = {
 }
 CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
-QUEENSIDE_BISHOP_FILE = chess.square_file(chess.C1)
-KINGSIDE_BISHOP_FILE = chess.square_file(chess.F1)
-BISHOP_HOME_FILES = {QUEENSIDE_BISHOP_FILE, KINGSIDE_BISHOP_FILE}
 
 
 def build_move_concept_claims(
@@ -64,7 +61,7 @@ def build_move_concept_claims(
         )
     )
     claims.extend(_attacked_piece_claims(after_board, piece, move, move_san, subject))
-    claims.extend(_fianchetto_claims(board, after_board, piece, move, move_san, subject))
+    claims.extend(_opened_bishop_route_claims(board, after_board, piece, move, move_san, subject))
     if board.gives_check(move):
         claims.append(
             ConceptClaim(
@@ -242,7 +239,7 @@ def _join_phrases(values: list[str]) -> str:
     return f"{', '.join(values[:-1])}, and {values[-1]}"
 
 
-def _fianchetto_claims(
+def _opened_bishop_route_claims(
     board: chess.Board,
     after_board: chess.Board,
     piece: chess.Piece,
@@ -250,79 +247,101 @@ def _fianchetto_claims(
     move_san: str,
     subject: ConceptClaimSubject,
 ) -> list[ConceptClaim]:
-    if piece.piece_type != chess.PAWN:
+    if after_board.piece_at(move.from_square) is not None:
         return []
-    fianchetto_square = _opened_fianchetto_square(piece.color, move)
-    if fianchetto_square is None:
-        return []
-    bishop_home_square = _bishop_home_for_fianchetto_square(piece.color, fianchetto_square)
-    if bishop_home_square is None:
-        return []
-    bishop = board.piece_at(bishop_home_square)
-    if bishop is None or bishop.color != piece.color or bishop.piece_type != chess.BISHOP:
-        return []
-    if after_board.piece_at(fianchetto_square) is not None:
-        return []
-    return [
-        ConceptClaim(
-            kind="development",
-            subject=subject,
-            claim=(
-                f"{move_san} opened the fianchetto square on "
-                f"{chess.square_name(fianchetto_square)} for the bishop"
-            ),
-            source="deterministic_detector",
-            move_san=move_san,
+    claims: list[ConceptClaim] = []
+    for bishop_square, bishop in board.piece_map().items():
+        if bishop_square == move.from_square:
+            continue
+        if bishop.color != piece.color or bishop.piece_type != chess.BISHOP:
+            continue
+        direction = _diagonal_direction(bishop_square, move.from_square)
+        if direction is None:
+            continue
+        if _first_occupied_square_on_ray(board, bishop_square, direction) != move.from_square:
+            continue
+        route = _open_route_on_ray(after_board, bishop_square, direction)
+        if not route or route[0] != move.from_square:
+            continue
+        claims.append(
+            ConceptClaim(
+                kind="development",
+                subject=subject,
+                claim=_opened_bishop_route_claim(move_san, bishop_square, route),
+                source="deterministic_detector",
+                move_san=move_san,
+            )
         )
-    ]
+    return claims
 
 
-def _opened_fianchetto_square(
-    color: chess.Color,
-    move: chess.Move,
+def _diagonal_direction(
+    from_square: chess.Square,
+    to_square: chess.Square,
+) -> tuple[int, int] | None:
+    file_delta = chess.square_file(to_square) - chess.square_file(from_square)
+    rank_delta = chess.square_rank(to_square) - chess.square_rank(from_square)
+    if file_delta == 0 or abs(file_delta) != abs(rank_delta):
+        return None
+    return (_sign(file_delta), _sign(rank_delta))
+
+
+def _first_occupied_square_on_ray(
+    board: chess.Board,
+    from_square: chess.Square,
+    direction: tuple[int, int],
 ) -> chess.Square | None:
-    if not _is_one_square_forward_pawn_push(color, move):
-        return None
-    square_rank = chess.square_rank(move.from_square)
-    if square_rank != _pawn_start_rank(color):
-        return None
-    if _bishop_home_for_fianchetto_square(color, move.from_square) is None:
-        return None
-    return move.from_square
-
-
-def _is_one_square_forward_pawn_push(color: chess.Color, move: chess.Move) -> bool:
-    from_file = chess.square_file(move.from_square)
-    to_file = chess.square_file(move.to_square)
-    if from_file != to_file:
-        return False
-    from_rank = chess.square_rank(move.from_square)
-    to_rank = chess.square_rank(move.to_square)
-    return to_rank - from_rank == _forward_rank_delta(color)
-
-
-def _bishop_home_for_fianchetto_square(
-    color: chess.Color,
-    fianchetto_square: chess.Square,
-) -> chess.Square | None:
-    fianchetto_file = chess.square_file(fianchetto_square)
-    for bishop_file in BISHOP_HOME_FILES:
-        edgeward_delta = -1 if bishop_file < KINGSIDE_BISHOP_FILE else 1
-        if fianchetto_file == bishop_file + edgeward_delta:
-            return chess.square(bishop_file, _back_rank(color))
+    for square in _ray_squares(from_square, direction):
+        if board.piece_at(square) is not None:
+            return square
     return None
 
 
-def _pawn_start_rank(color: chess.Color) -> int:
-    return 1 if color == chess.WHITE else 6
+def _open_route_on_ray(
+    board: chess.Board,
+    from_square: chess.Square,
+    direction: tuple[int, int],
+) -> list[chess.Square]:
+    route: list[chess.Square] = []
+    for square in _ray_squares(from_square, direction):
+        if board.piece_at(square) is not None:
+            break
+        route.append(square)
+    return route
 
 
-def _back_rank(color: chess.Color) -> int:
-    return 0 if color == chess.WHITE else 7
+def _ray_squares(
+    from_square: chess.Square,
+    direction: tuple[int, int],
+) -> list[chess.Square]:
+    file_index = chess.square_file(from_square) + direction[0]
+    rank_index = chess.square_rank(from_square) + direction[1]
+    squares: list[chess.Square] = []
+    while 0 <= file_index <= 7 and 0 <= rank_index <= 7:
+        squares.append(chess.square(file_index, rank_index))
+        file_index += direction[0]
+        rank_index += direction[1]
+    return squares
 
 
-def _forward_rank_delta(color: chess.Color) -> int:
-    return 1 if color == chess.WHITE else -1
+def _opened_bishop_route_claim(
+    move_san: str,
+    bishop_square: chess.Square,
+    route: list[chess.Square],
+) -> str:
+    bishop_location = chess.square_name(bishop_square)
+    through_square = chess.square_name(route[0])
+    if len(route) == 1:
+        return f"{move_san} opened {through_square} for the bishop on {bishop_location}"
+    targets = [chess.square_name(square) for square in route[1:3]]
+    return (
+        f"{move_san} opened a diagonal route for the bishop on {bishop_location} "
+        f"through {through_square} toward {_join_phrases(targets)}"
+    )
+
+
+def _sign(value: int) -> int:
+    return 1 if value > 0 else -1
 
 
 def _material_claims(

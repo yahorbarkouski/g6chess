@@ -121,16 +121,18 @@ def build_coach_prompt(
             (
                 "When concept_claims supplies concrete board-feature facts such as a "
                 "move attacking valuable pieces, forking pieces, opening a bishop route, "
-                "or opening a fianchetto square, prefer that board fact over generic "
-                "continuation wording."
+                "opening a diagonal, or clearing a piece route, prefer that board fact "
+                "over generic continuation wording."
             ),
             (
                 "If a supplied claim says the move attacks or forks pieces, name the "
                 "attacked pieces exactly as supplied before using any line-card continuation."
             ),
             (
-                "Mention fianchetto plans or fianchetto squares only when a supplied "
-                "concept_claim explicitly uses fianchetto wording."
+                "Do not name opening systems or opening-family labels unless supplied "
+                "opening metadata gives that exact name. Without opening metadata, "
+                "explain the board feature: center, diagonal, bishop route, piece "
+                "activity, or pawn structure."
             ),
             (
                 "For unplayed alternatives, use counterfactual review wording such as "
