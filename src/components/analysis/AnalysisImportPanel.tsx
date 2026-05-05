@@ -24,12 +24,22 @@ interface AnalysisImportPanelProps {
   initialUrl?: string | null;
   onImport: (request: GameAnalysisImportRequest) => Promise<void>;
   onClearError?: () => void;
+  turnstileToken?: string | null;
+  turnstileResetKey?: number;
+  onTurnstileToken?: (token: string | null) => void;
+  onTurnstileReset?: () => void;
 }
 
 type Mode = "url" | "pgn";
 
 const DEFAULT_EXPLAIN_SIGNIFICANCE: readonly SignificanceLabel[] = ["critical"];
-const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_G6_TURNSTILE_SITE_KEY ?? "").trim();
+function turnstileSiteKey(): string {
+  return String(import.meta.env.VITE_G6_TURNSTILE_SITE_KEY ?? "").trim();
+}
+
+export function isTurnstileEnabled(): boolean {
+  return turnstileSiteKey().length > 0;
+}
 
 const FIELD_HEIGHT_URL = 46;
 const FIELD_HEIGHT_PGN = 232;
@@ -39,7 +49,7 @@ const BUTTON_INSET = 6;
 const PGN_TAG_PATTERN = /\[\s*\w+\s+"[^"]*"\s*\]/;
 const PGN_MOVE_PATTERN = /\b\d+\s*\.{1,3}\s*[A-Za-z0-9]/;
 
-const GITHUB_URL = "https://github.com/yahorbarkouski/g6explanation";
+const GITHUB_URL = "https://github.com/yahorbarkouski/g6chess";
 const FEEDBACK_URL = "mailto:admin@g6chess.com";
 
 export function AnalysisImportPanel({
@@ -48,22 +58,46 @@ export function AnalysisImportPanel({
   initialUrl = null,
   onImport,
   onClearError,
+  turnstileToken: controlledTurnstileToken,
+  turnstileResetKey: controlledTurnstileResetKey,
+  onTurnstileToken,
+  onTurnstileReset,
 }: AnalysisImportPanelProps) {
   const [mode, setMode] = useState<Mode>("url");
   const [url, setUrl] = useState(() => initialUrl ?? "");
   const [pgn, setPgn] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [localTurnstileToken, setLocalTurnstileToken] = useState<string | null>(null);
+  const [localTurnstileResetKey, setLocalTurnstileResetKey] = useState(0);
 
   const isBusy = status === "submitting" || status === "polling";
-  const needsTurnstile = TURNSTILE_SITE_KEY.length > 0;
+  const siteKey = turnstileSiteKey();
+  const needsTurnstile = siteKey.length > 0;
+  const turnstileToken =
+    controlledTurnstileToken === undefined ? localTurnstileToken : controlledTurnstileToken;
+  const turnstileResetKey = controlledTurnstileResetKey ?? localTurnstileResetKey;
   const shouldShowTurnstile = needsTurnstile && turnstileToken === null;
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
   const canSubmit =
     !isBusy && isValidInput(mode, value) && (!needsTurnstile || turnstileToken !== null);
-  const handleTurnstileExpire = useCallback(() => setTurnstileToken(null), []);
+  const setTurnstileToken = useCallback(
+    (token: string | null) => {
+      if (controlledTurnstileToken === undefined) {
+        setLocalTurnstileToken(token);
+      }
+      onTurnstileToken?.(token);
+    },
+    [controlledTurnstileToken, onTurnstileToken],
+  );
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    if (controlledTurnstileResetKey === undefined) {
+      setLocalTurnstileResetKey((current) => current + 1);
+    }
+    onTurnstileReset?.();
+  }, [controlledTurnstileResetKey, onTurnstileReset, setTurnstileToken]);
+  const handleTurnstileExpire = useCallback(() => setTurnstileToken(null), [setTurnstileToken]);
 
   function clearErrors() {
     setLocalError(null);
@@ -81,8 +115,7 @@ export function AnalysisImportPanel({
     } catch (err) {
       setLocalError(importErrorMessage(err));
       if (needsTurnstile) {
-        setTurnstileToken(null);
-        setTurnstileResetKey((current) => current + 1);
+        resetTurnstile();
       }
     }
   }
@@ -140,7 +173,7 @@ export function AnalysisImportPanel({
             key={turnstileResetKey}
             onExpire={handleTurnstileExpire}
             onToken={setTurnstileToken}
-            siteKey={TURNSTILE_SITE_KEY}
+            siteKey={siteKey}
           />
         </div>
       ) : null}

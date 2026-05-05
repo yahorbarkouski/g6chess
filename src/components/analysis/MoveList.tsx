@@ -1,7 +1,6 @@
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, BookOpen, Star, ThumbsUp } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { analysisTagLabel, primaryClassLabel } from "../../lib/analysis-format";
 import { formatClock } from "../../lib/chess";
 import { cn } from "../../lib/utils";
@@ -22,8 +21,21 @@ interface MovePair {
   black: GameMove | null;
 }
 
+interface MoveRowData extends MovePair {
+  key: string;
+  whiteMarker: AnalysisMoveMarker | undefined;
+  blackMarker: AnalysisMoveMarker | undefined;
+  whiteIsCritical: boolean;
+  blackIsCritical: boolean;
+}
+
 type PieceType = "K" | "Q" | "R" | "B" | "N";
 export type MarkerDisplayMode = "critical" | "all";
+
+const MOVE_ROW_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "29px",
+} as const;
 
 const PIECE_GLYPH: Record<"white" | "black", Record<PieceType, string>> = {
   white: { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘" },
@@ -38,7 +50,6 @@ export function MoveList({
   markerDisplayMode = "critical",
   className,
 }: MoveListProps) {
-  const pairs = useMemo(() => pairMoves(moves), [moves]);
   const displayedMarkers = useMemo(
     () => (markerDisplayMode === "all" ? moveMarkers : moveMarkers.filter(isDefaultVisibleMarker)),
     [markerDisplayMode, moveMarkers],
@@ -50,6 +61,10 @@ export function MoveList({
   const criticalPlys = useMemo(
     () => new Set(moveMarkers.filter(isCriticalMarker).map((marker) => marker.ply)),
     [moveMarkers],
+  );
+  const rows = useMemo(
+    () => buildMoveRows(moves, markerByPly, criticalPlys),
+    [criticalPlys, markerByPly, moves],
   );
 
   return (
@@ -64,17 +79,13 @@ export function MoveList({
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-1.5 py-1">
-        {pairs.map((pair) => (
+        {rows.map((row) => (
           <MoveRow
-            blackIsActive={pair.black?.ply === currentPly}
-            blackIsCritical={Boolean(pair.black && criticalPlys.has(pair.black.ply))}
-            blackMarker={pair.black ? markerByPly.get(pair.black.ply) : undefined}
-            key={`${pair.moveNumber}-${pair.white?.ply ?? "w"}-${pair.black?.ply ?? "b"}`}
+            blackIsActive={row.black?.ply === currentPly}
+            key={row.key}
             onSelectPly={onSelectPly}
-            pair={pair}
-            whiteIsActive={pair.white?.ply === currentPly}
-            whiteIsCritical={Boolean(pair.white && criticalPlys.has(pair.white.ply))}
-            whiteMarker={pair.white ? markerByPly.get(pair.white.ply) : undefined}
+            row={row}
+            whiteIsActive={row.white?.ply === currentPly}
           />
         ))}
       </div>
@@ -82,53 +93,45 @@ export function MoveList({
   );
 }
 
-function MoveRow({
-  pair,
-  whiteMarker,
-  blackMarker,
+const MoveRow = memo(function MoveRow({
+  row,
   whiteIsActive,
   blackIsActive,
-  whiteIsCritical,
-  blackIsCritical,
   onSelectPly,
 }: {
-  pair: MovePair;
-  whiteMarker: AnalysisMoveMarker | undefined;
-  blackMarker: AnalysisMoveMarker | undefined;
+  row: MoveRowData;
   whiteIsActive: boolean;
   blackIsActive: boolean;
-  whiteIsCritical: boolean;
-  blackIsCritical: boolean;
   onSelectPly: (ply: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[10%_1fr_1fr] items-center py-px">
+    <div className="grid grid-cols-[10%_1fr_1fr] items-center py-px" style={MOVE_ROW_STYLE}>
       <span className="text-center text-[10px] text-stone-400 dark:text-stone-500">
-        {pair.moveNumber}.
+        {row.moveNumber}.
       </span>
       <div className="border-stone-200/60 border-r pr-1 dark:border-stone-800/60">
         <MoveCell
           isActive={whiteIsActive}
-          isCritical={whiteIsCritical}
-          marker={whiteMarker}
-          move={pair.white}
+          isCritical={row.whiteIsCritical}
+          marker={row.whiteMarker}
+          move={row.white}
           onClick={onSelectPly}
         />
       </div>
       <div className="pl-1">
         <MoveCell
           isActive={blackIsActive}
-          isCritical={blackIsCritical}
-          marker={blackMarker}
-          move={pair.black}
+          isCritical={row.blackIsCritical}
+          marker={row.blackMarker}
+          move={row.black}
           onClick={onSelectPly}
         />
       </div>
     </div>
   );
-}
+});
 
-function MoveCell({
+const MoveCell = memo(function MoveCell({
   move,
   marker,
   isActive,
@@ -142,7 +145,6 @@ function MoveCell({
   onClick: (ply: number) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (isActive) {
@@ -170,10 +172,11 @@ function MoveCell({
       className={cn(
         "relative flex h-7 w-full min-w-0 items-center rounded px-1 text-left text-xs",
         "transition-colors hover:bg-stone-100 dark:hover:bg-stone-800/60",
-        isActive && prefersReducedMotion && "bg-stone-100 dark:bg-stone-800/80",
+        isActive && "bg-stone-100 dark:bg-stone-800/80",
       )}
       onClick={() => onClick(move.ply)}
       ref={isActive ? ref : undefined}
+      aria-current={isActive ? "step" : undefined}
       title={
         marker?.tags.length
           ? marker.tags.map((tag) => analysisTagLabel(tag)).join(" · ")
@@ -181,17 +184,6 @@ function MoveCell({
       }
       type="button"
     >
-      <AnimatePresence initial={false}>
-        {isActive ? (
-          <motion.div
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute inset-0 rounded bg-stone-100 dark:bg-stone-800/80"
-            exit={{ opacity: 0, scale: 0.95 }}
-            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.95 }}
-            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
-          />
-        ) : null}
-      </AnimatePresence>
       <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 pl-0.5">
         <span className="inline-flex w-5 shrink-0 items-center justify-center">
           {token ? (
@@ -245,7 +237,7 @@ function MoveCell({
       </span>
     </button>
   );
-}
+});
 
 function isCriticalMarker(marker: AnalysisMoveMarker): boolean {
   return (
@@ -271,6 +263,25 @@ function pairMoves(moves: GameMove[]): MovePair[] {
     }
   }
   return pairs;
+}
+
+function buildMoveRows(
+  moves: GameMove[],
+  markerByPly: Map<number, AnalysisMoveMarker>,
+  criticalPlys: Set<number>,
+): MoveRowData[] {
+  return pairMoves(moves).map((pair) => {
+    const whitePly = pair.white?.ply;
+    const blackPly = pair.black?.ply;
+    return {
+      ...pair,
+      key: `${pair.moveNumber}-${whitePly ?? "w"}-${blackPly ?? "b"}`,
+      whiteMarker: whitePly === undefined ? undefined : markerByPly.get(whitePly),
+      blackMarker: blackPly === undefined ? undefined : markerByPly.get(blackPly),
+      whiteIsCritical: whitePly === undefined ? false : criticalPlys.has(whitePly),
+      blackIsCritical: blackPly === undefined ? false : criticalPlys.has(blackPly),
+    };
+  });
 }
 
 function qualityToken(

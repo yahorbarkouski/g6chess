@@ -2,7 +2,7 @@ import { Monitor, Moon, Smile, Sun } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { type Theme, useTheme } from "../../hooks/useTheme";
 
-const GITHUB_URL = "https://github.com/yahorbarkouski/g6explanation";
+const GITHUB_URL = "https://github.com/yahorbarkouski/g6chess";
 const FEEDBACK_URL = "mailto:admin@g6chess.com";
 
 export function WorkspaceFooter() {

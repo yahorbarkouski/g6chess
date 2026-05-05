@@ -54,7 +54,11 @@ import type {
   GameAnalysisSnapshot,
   ImportedGameMetadata,
 } from "../../types/api";
-import { AnalysisImportPanel, type ImportPanelStatus } from "./AnalysisImportPanel";
+import {
+  AnalysisImportPanel,
+  type ImportPanelStatus,
+  isTurnstileEnabled,
+} from "./AnalysisImportPanel";
 import { AnalysisNavigationBar } from "./AnalysisNavigationBar";
 import { AnalysisSettingsPopover } from "./AnalysisSettingsPopover";
 import { BoardSidebar } from "./BoardSidebar";
@@ -107,6 +111,10 @@ interface AnalysisImportHomeProps {
   initialUrl: string | null;
   onImport: (request: GameAnalysisImportRequest) => Promise<void>;
   onClearError: () => void;
+  turnstileToken: string | null;
+  turnstileResetKey: number;
+  onTurnstileToken: (token: string | null) => void;
+  onTurnstileReset: () => void;
 }
 
 interface AnalysisGameWorkspaceProps {
@@ -153,8 +161,16 @@ export function AnalysisWorkspace() {
   );
   const [importSnapshot, setImportSnapshot] = useState<GameAnalysisSnapshot | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [pendingRouteImportId, setPendingRouteImportId] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const currentRouteJobIdRef = useRef(initialJob?.analysis_id ?? null);
   const routeImportStartedRef = useRef<string | null>(null);
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    setTurnstileResetKey((current) => current + 1);
+  }, []);
 
   const updateRouteFromLocation = useCallback(() => {
     setRoute(readAnalysisRoute());
@@ -196,6 +212,7 @@ export function AnalysisWorkspace() {
       setImportSnapshot(null);
       setImportError(null);
       setImportStatus("idle");
+      setPendingRouteImportId(null);
       return;
     }
 
@@ -204,6 +221,7 @@ export function AnalysisWorkspace() {
       const jobChanged = currentRouteJobIdRef.current !== nextJob.analysis_id;
       currentRouteJobIdRef.current = nextJob.analysis_id;
       routeImportStartedRef.current = null;
+      setPendingRouteImportId(null);
       if (jobChanged) {
         setAnalysis(null);
         setImportSnapshot(null);
@@ -219,6 +237,7 @@ export function AnalysisWorkspace() {
     setAnalysis(null);
     setImportSnapshot(null);
     setImportError(null);
+    setPendingRouteImportId(null);
     setImportStatus(route.kind === "chess_com_live" ? "submitting" : "idle");
   }, [route]);
 
@@ -323,6 +342,9 @@ export function AnalysisWorkspace() {
         if (importedAnalysis !== null) {
           setAnalysis(importedAnalysis);
         }
+        if (request.turnstile_token) {
+          setTurnstileToken(null);
+        }
         setImportStatus("polling");
 
         const externalGameId =
@@ -383,6 +405,7 @@ export function AnalysisWorkspace() {
         if (importedAnalysis !== null) {
           setAnalysis(importedAnalysis);
         }
+        setTurnstileToken(null);
         setImportStatus("polling");
         navigateToImportedGamePath(
           nextJob.analysis_id,
@@ -395,11 +418,9 @@ export function AnalysisWorkspace() {
           return;
         }
         if (error instanceof ApiError && error.status === 404) {
-          try {
-            await handleImportedGameAnalysis(buildChessComRouteImportRequest(externalGameId));
-          } catch {
-            // handleImportedGameAnalysis already updates the visible import error.
-          }
+          setPendingRouteImportId(externalGameId);
+          setImportStatus("submitting");
+          setImportError(null);
           return;
         }
         setImportStatus("failed");
@@ -415,12 +436,67 @@ export function AnalysisWorkspace() {
     };
   }, [
     activeJob,
-    handleImportedGameAnalysis,
     navigateToImportedGamePath,
     route.analysisId,
     route.externalGameId,
     route.kind,
     route.ply,
+  ]);
+
+  useEffect(() => {
+    if (pendingRouteImportId === null) {
+      return;
+    }
+    if (
+      route.kind !== "chess_com_live" ||
+      route.externalGameId !== pendingRouteImportId ||
+      route.analysisId !== null ||
+      activeJob !== null
+    ) {
+      return;
+    }
+    const needsTurnstile = isTurnstileEnabled();
+    if (needsTurnstile && turnstileToken === null) {
+      return;
+    }
+
+    const externalGameId = pendingRouteImportId;
+    const token = turnstileToken;
+    let cancelled = false;
+
+    async function startPendingRouteImport() {
+      try {
+        await handleImportedGameAnalysis(buildChessComRouteImportRequest(externalGameId, token));
+        if (!cancelled) {
+          setPendingRouteImportId(null);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        if (needsTurnstile) {
+          resetTurnstile();
+        }
+        if (!(error instanceof ApiError && error.code === "turnstile_failed")) {
+          setPendingRouteImportId(null);
+        }
+      }
+    }
+
+    void startPendingRouteImport();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeJob,
+    handleImportedGameAnalysis,
+    pendingRouteImportId,
+    resetTurnstile,
+    route.analysisId,
+    route.externalGameId,
+    route.kind,
+    turnstileToken,
   ]);
 
   const handleOpenImport = useCallback(() => {
@@ -453,7 +529,11 @@ export function AnalysisWorkspace() {
         initialUrl={importStatus === "idle" ? null : routeImportUrl}
         onClearError={handleClearImportError}
         onImport={handleImportedGameAnalysis}
+        onTurnstileReset={resetTurnstile}
+        onTurnstileToken={setTurnstileToken}
         status={importStatus}
+        turnstileResetKey={turnstileResetKey}
+        turnstileToken={turnstileToken}
       />
     );
   }
@@ -474,7 +554,11 @@ function AnalysisImportHome({
   initialUrl,
   onClearError,
   onImport,
+  onTurnstileReset,
+  onTurnstileToken,
   status,
+  turnstileResetKey,
+  turnstileToken,
 }: AnalysisImportHomeProps) {
   return (
     <div className="min-h-dvh bg-white text-stone-600 dark:bg-stone-950 dark:text-stone-400">
@@ -484,7 +568,11 @@ function AnalysisImportHome({
           initialUrl={initialUrl}
           onClearError={onClearError}
           onImport={onImport}
+          onTurnstileReset={onTurnstileReset}
+          onTurnstileToken={onTurnstileToken}
           status={status}
+          turnstileResetKey={turnstileResetKey}
+          turnstileToken={turnstileToken}
         />
       </main>
       <WorkspaceFooter />
@@ -1633,14 +1721,21 @@ function sourceFromExternalGameId(externalGameId: string): ImportedGameMetadata 
   };
 }
 
-function buildChessComRouteImportRequest(externalGameId: string): GameAnalysisImportRequest {
-  return {
+function buildChessComRouteImportRequest(
+  externalGameId: string,
+  turnstileToken: string | null,
+): GameAnalysisImportRequest {
+  const request: GameAnalysisImportRequest = {
     source: "chess_com_live_url",
     url: chessComLiveGameUrl(externalGameId),
     explain_significance: ["critical"],
     include_context: true,
     use_baseline_fallback: false,
   };
+  if (turnstileToken !== null) {
+    request.turnstile_token = turnstileToken;
+  }
+  return request;
 }
 
 function activateImportedGameResponse(

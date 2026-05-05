@@ -76,6 +76,8 @@ describe("AnalysisWorkspace imports", () => {
     Element.prototype.scrollIntoView = vi.fn();
     Element.prototype.getAnimations = vi.fn().mockReturnValue([]);
     Element.prototype.animate = vi.fn().mockReturnValue({ cancel: vi.fn() });
+    delete window.turnstile;
+    delete window.__g6TurnstileScriptLoading;
     apiMocks.getCachedChessComLiveGameAnalysis.mockReset();
     apiMocks.getCachedChessComLiveGameAnalysis.mockRejectedValue(
       new ApiError(404, "Cached game analysis not found."),
@@ -89,6 +91,9 @@ describe("AnalysisWorkspace imports", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllEnvs();
+    delete window.turnstile;
+    delete window.__g6TurnstileScriptLoading;
   });
 
   it("starts URL import, polls, maps the completed snapshot, and renders the real move", async () => {
@@ -222,6 +227,57 @@ describe("AnalysisWorkspace imports", () => {
         expect.objectContaining({
           source: "chess_com_live_url",
           url: "https://www.chess.com/game/live/168193636078",
+        }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("waits for Turnstile before starting an uncached Chess.com route import", async () => {
+    vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
+    window.history.replaceState(null, "", "/game/live/168193636078");
+    const source = importedSource();
+    let verifyTurnstile: ((token: string) => void) | undefined;
+    window.turnstile = {
+      render: vi.fn((container, options) => {
+        container.dataset.testid = "turnstile-widget";
+        container.textContent = "Turnstile challenge";
+        verifyTurnstile = options.callback;
+        return "widget-id";
+      }),
+      remove: vi.fn(),
+    };
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.getCachedChessComLiveGameAnalysis).toHaveBeenCalledWith(
+        "168193636078",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(await screen.findByTestId("turnstile-widget")).toBeTruthy();
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+
+    act(() => {
+      verifyTurnstile?.("route-turnstile-token");
+    });
+
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "chess_com_live_url",
+          url: "https://www.chess.com/game/live/168193636078",
+          turnstile_token: "route-turnstile-token",
         }),
       ),
     );
