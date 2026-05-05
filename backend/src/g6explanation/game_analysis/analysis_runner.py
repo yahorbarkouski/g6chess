@@ -30,8 +30,10 @@ from g6explanation.explanation_generation.contracts import (
 from g6explanation.explanation_generation.exceptions import ExplanationVerificationError
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.game_analysis.contracts import (
+    GameAnalysisGame,
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
+    GameMainlineMove,
     GameMoveAnalysis,
     OpeningBookMetadata,
 )
@@ -60,6 +62,22 @@ class _PlyRequest:
     ply: int
     request: MoveContextRequest
     opening_book_ply: OpeningBookPly
+    clock_after_seconds: float | None = None
+    think_time_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class _PlyFrame:
+    ply: int
+    move_number: int
+    player_color: ColorName
+    opponent_color: ColorName
+    fen_before: str
+    san: str
+    uci: str
+    fen_after: str
+    clock_before_seconds: float | None = None
+    increment_seconds: float | None = None
     clock_after_seconds: float | None = None
     think_time_seconds: float | None = None
 
@@ -360,21 +378,72 @@ class GameAnalysisRunner:
 def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
     """Build one context-engine request per PGN mainline ply."""
 
-    game = chess.pgn.read_game(io.StringIO(request.pgn))
+    return [
+        _PlyRequest(
+            ply=frame.ply,
+            request=MoveContextRequest(
+                pgn=request.pgn,
+                ply=frame.ply,
+                player_color=frame.player_color,
+                player_level=request.level_for(frame.player_color),
+                opponent_level=request.level_for(frame.opponent_color),
+                time_control=request.time_control,
+                clock_before_seconds=frame.clock_before_seconds,
+                increment_seconds=frame.increment_seconds,
+            ),
+            opening_book_ply=OpeningBookPly(
+                ply=frame.ply,
+                san=frame.san,
+                uci=frame.uci,
+                side=frame.player_color,
+                fen_before=frame.fen_before,
+                fen_after=frame.fen_after,
+            ),
+            clock_after_seconds=frame.clock_after_seconds,
+            think_time_seconds=frame.think_time_seconds,
+        )
+        for frame in _game_ply_frames(request.pgn, request.time_control)
+    ]
+
+
+def game_analysis_game(pgn: str, time_control: str = "unknown") -> GameAnalysisGame:
+    """Build the board-renderable game skeleton without engine or model analysis."""
+
+    moves = [
+        GameMainlineMove(
+            ply=frame.ply,
+            move_number=frame.move_number,
+            player_color=frame.player_color,
+            san=frame.san,
+            uci=frame.uci,
+            fen_before=frame.fen_before,
+            fen_after=frame.fen_after,
+            clock_before_seconds=frame.clock_before_seconds,
+            remaining_clock_seconds=frame.clock_after_seconds,
+            think_time_seconds=frame.think_time_seconds,
+        )
+        for frame in _game_ply_frames(pgn, time_control)
+    ]
+    return GameAnalysisGame(total_plies=len(moves), moves=moves)
+
+
+def _game_ply_frames(pgn: str, time_control: str) -> list[_PlyFrame]:
+    game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
         raise ValueError("PGN could not be parsed.")
     nodes = list(game.mainline())
     board = game.board()
-    base_seconds, increment_seconds = _parse_time_control(request.time_control)
+    base_seconds, increment_seconds = _parse_time_control(time_control)
     remaining_by_side: dict[ColorName, float | None] = {
         "white": base_seconds,
         "black": base_seconds,
     }
-    ply_requests: list[_PlyRequest] = []
+    frames: list[_PlyFrame] = []
     for ply, node in enumerate(nodes, start=1):
         move = node.move
         player_color = color_name(board.turn)
         opponent_color: ColorName = "black" if player_color == "white" else "white"
+        move_number = board.fullmove_number
         fen_before = board.fen()
         san = board.san(move)
         uci = move.uci()
@@ -388,34 +457,25 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
             clock_after_seconds=clock_after_seconds,
             increment_seconds=increment_seconds,
         )
-        ply_requests.append(
-            _PlyRequest(
+        frames.append(
+            _PlyFrame(
                 ply=ply,
-                request=MoveContextRequest(
-                    pgn=request.pgn,
-                    ply=ply,
-                    player_color=player_color,
-                    player_level=request.level_for(player_color),
-                    opponent_level=request.level_for(opponent_color),
-                    time_control=request.time_control,
-                    clock_before_seconds=clock_before_seconds,
-                    increment_seconds=increment_seconds,
-                ),
-                opening_book_ply=OpeningBookPly(
-                    ply=ply,
-                    san=san,
-                    uci=uci,
-                    side=player_color,
-                    fen_before=fen_before,
-                    fen_after=fen_after,
-                ),
+                move_number=move_number,
+                player_color=player_color,
+                opponent_color=opponent_color,
+                fen_before=fen_before,
+                san=san,
+                uci=uci,
+                fen_after=fen_after,
+                clock_before_seconds=clock_before_seconds,
+                increment_seconds=increment_seconds,
                 clock_after_seconds=clock_after_seconds,
                 think_time_seconds=think_time_seconds,
             )
         )
         remaining_by_side[player_color] = clock_after_seconds
         board.push(move)
-    return ply_requests
+    return frames
 
 
 def count_game_plies(pgn: str) -> int:

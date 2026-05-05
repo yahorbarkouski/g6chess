@@ -80,12 +80,22 @@ def test_import_api_starts_analysis_from_chess_com_url() -> None:
     assert payload["source"]["source"] == "chess_com_live_url"
     assert payload["source"]["external_game_id"] == GAME_ID
     assert payload["source"]["allows_global_training"] is False
+    assert payload["game"]["total_plies"] == 3
+    assert [move["san"] for move in payload["game"]["moves"]] == ["e4", "e5", "Nf3"]
+    assert [move["move_number"] for move in payload["game"]["moves"]] == [1, 1, 2]
+    assert payload["game"]["moves"][0]["fen_before"].startswith("rnbqkbnr/pppppppp")
+    assert [move["remaining_clock_seconds"] for move in payload["game"]["moves"]] == [
+        181.0,
+        179.0,
+        178.0,
+    ]
 
     snapshot_response = client.get(payload["status_url"])
     assert snapshot_response.status_code == 200
     snapshot = snapshot_response.json()
     assert snapshot["status"] == "succeeded"
     assert snapshot["total_plies"] == 3
+    assert [move["san"] for move in snapshot["game"]["moves"]] == ["e4", "e5", "Nf3"]
     assert [move["san"] for move in snapshot["moves"]] == ["e4", "e5", "Nf3"]
     assert all(move["context"] is not None for move in snapshot["moves"])
     requests = [move["context"]["evidence"]["request"] for move in snapshot["moves"]]
@@ -202,6 +212,7 @@ def test_import_api_starts_analysis_from_pasted_pgn() -> None:
     assert payload["source"]["white_rating"] == 1600
     assert payload["source"]["black_rating"] == 1500
     assert payload["source"]["allows_global_training"] is False
+    assert [move["san"] for move in payload["game"]["moves"]] == ["e4", "e5", "Nf3"]
     snapshot = client.get(payload["status_url"]).json()
     assert snapshot["status"] == "succeeded"
 

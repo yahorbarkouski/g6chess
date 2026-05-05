@@ -157,6 +157,7 @@ class GameImportService:
             status=start_response.status,
             status_url=start_response.status_url,
             source=imported_game.metadata,
+            game=start_response.game,
         )
         self._write_response_for_request(request, response)
         return response
@@ -202,6 +203,7 @@ class GameImportService:
             status=snapshot.status,
             status_url=cached.status_url,
             source=cached.source,
+            game=snapshot.game or cached.game,
         )
 
     def _write_response_for_request(

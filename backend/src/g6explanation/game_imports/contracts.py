@@ -11,6 +11,7 @@ from g6explanation.context_engine.contracts import (
     PlayerLevel,
     SignificanceLabel,
 )
+from g6explanation.game_analysis.contracts import GameAnalysisGame
 
 GameImportSource: TypeAlias = Literal["chess_com_live_url", "pgn"]
 
@@ -83,6 +84,7 @@ class GameAnalysisImportResponse(ContextContract):
     status: Literal["pending", "running", "succeeded", "failed"]
     status_url: str
     source: ImportedGameMetadata
+    game: GameAnalysisGame
 
 
 def metadata_title(

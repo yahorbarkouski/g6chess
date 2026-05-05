@@ -11,8 +11,8 @@ from typing import Protocol
 
 from g6explanation.game_analysis.analysis_runner import (
     GameAnalysisRunner,
-    count_game_plies,
     game_analysis_context_workers_from_env,
+    game_analysis_game,
     game_analysis_openrouter_concurrency_from_env,
 )
 from g6explanation.game_analysis.contracts import (
@@ -61,15 +61,15 @@ class GameAnalysisService:
         )
 
     def start(self, request: GameAnalysisStartRequest) -> GameAnalysisStartResponse:
-        total_plies = count_game_plies(request.pgn)
-        if total_plies == 0:
+        game = game_analysis_game(request.pgn, request.time_control)
+        if game.total_plies == 0:
             raise ValueError("PGN contains no mainline moves.")
         analysis_id = uuid.uuid4().hex
         created_at = _utc_now()
         snapshot = GameAnalysisSnapshot(
             analysis_id=analysis_id,
             status="pending",
-            total_plies=total_plies,
+            total_plies=game.total_plies,
             context_completed=0,
             explanation_required=0,
             explanation_completed=0,
@@ -77,6 +77,7 @@ class GameAnalysisService:
             explain_significance=request.explain_significance,
             created_at=created_at,
             updated_at=created_at,
+            game=game,
         )
         self._store.save(snapshot)
         self._executor.submit(
@@ -89,6 +90,7 @@ class GameAnalysisService:
             analysis_id=analysis_id,
             status=snapshot.status,
             status_url=f"/api/game-analysis/{analysis_id}",
+            game=game,
         )
 
     def get(self, analysis_id: str) -> GameAnalysisSnapshot | None:

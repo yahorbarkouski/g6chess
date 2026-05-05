@@ -99,6 +99,28 @@ class OpeningBookMetadata(ContextContract):
     eco: str | None = None
 
 
+class GameMainlineMove(ContextContract):
+    """PGN-derived move data that is safe to expose before analysis completes."""
+
+    ply: int = Field(ge=1)
+    move_number: int = Field(ge=1)
+    player_color: ColorName
+    san: str
+    uci: str
+    fen_before: str
+    fen_after: str
+    clock_before_seconds: float | None = None
+    remaining_clock_seconds: float | None = None
+    think_time_seconds: float | None = None
+
+
+class GameAnalysisGame(ContextContract):
+    """Board-renderable game skeleton for an analysis job."""
+
+    total_plies: int = Field(ge=0)
+    moves: list[GameMainlineMove] = Field(default_factory=list[GameMainlineMove])
+
+
 class GameMoveAnalysis(ContextContract):
     """Current analysis state for one ply."""
 
@@ -145,6 +167,7 @@ class GameAnalysisSnapshot(ContextContract):
     started_at: str | None = None
     completed_at: str | None = None
     error: str | None = None
+    game: GameAnalysisGame | None = None
     moves: list[GameMoveAnalysis] = Field(default_factory=list[GameMoveAnalysis])
 
 
@@ -154,3 +177,4 @@ class GameAnalysisStartResponse(ContextContract):
     analysis_id: str
     status: GameAnalysisStatus
     status_url: str
+    game: GameAnalysisGame

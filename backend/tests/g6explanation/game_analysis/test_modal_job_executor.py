@@ -49,6 +49,10 @@ def test_modal_spawn_executor_serializes_request_without_running_local_runner() 
     snapshot = service.get(response.analysis_id)
     assert snapshot is not None
     assert snapshot.status == "pending"
+    assert snapshot.game is not None
+    assert snapshot.game.total_plies == 1
+    assert snapshot.game.moves[0].san == "e4"
+    assert snapshot.game.moves[0].fen_before.startswith("rnbqkbnr/pppppppp")
 
 
 def test_modal_spawn_executor_requires_keyword_job_payload() -> None:

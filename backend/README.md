@@ -156,8 +156,10 @@ curl http://127.0.0.1:8001/api/game-analysis/<analysis_id>
 ```
 
 The polling response is a partial `GameAnalysisSnapshot` while the job is
-running. Completed moves already include SAN, UCI, quality, significance,
-beauty, and explanations when they are ready.
+running. The start/import response and snapshot include a `game` skeleton with
+PGN-derived SAN, UCI, and FEN data, so clients can render the board immediately
+before context generation finishes. Completed moves additionally include
+quality, significance, beauty, and explanations when they are ready.
 
 ## Deploy On Modal
 

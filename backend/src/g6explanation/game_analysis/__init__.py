@@ -4,15 +4,18 @@ from g6explanation.game_analysis.analysis_runner import (
     GameAnalysisRunner,
     count_game_plies,
     game_analysis_context_workers_from_env,
+    game_analysis_game,
     game_analysis_openrouter_concurrency_from_env,
     game_ply_requests,
 )
 from g6explanation.game_analysis.contracts import (
     BookLine,
     BookLineMove,
+    GameAnalysisGame,
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
     GameAnalysisStartResponse,
+    GameMainlineMove,
     GameMoveAnalysis,
     OpeningBookMetadata,
 )
@@ -41,6 +44,7 @@ from g6explanation.game_analysis.state_store import (
 __all__ = [
     "BookLine",
     "BookLineMove",
+    "GameAnalysisGame",
     "GameAnalysisRunner",
     "GameAnalysisService",
     "GameAnalysisSetupError",
@@ -49,6 +53,7 @@ __all__ = [
     "GameAnalysisStartResponse",
     "GameAnalysisStore",
     "GameAnalysisStoreError",
+    "GameMainlineMove",
     "GameMoveAnalysis",
     "InMemoryGameAnalysisStore",
     "ModalSpawnGameAnalysisExecutor",
@@ -58,6 +63,7 @@ __all__ = [
     "count_game_plies",
     "default_opening_book",
     "game_analysis_context_workers_from_env",
+    "game_analysis_game",
     "game_analysis_openrouter_concurrency_from_env",
     "game_analysis_service_from_env",
     "game_ply_requests",
