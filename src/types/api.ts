@@ -251,6 +251,25 @@ export interface GameAnalysisImportResponse {
   status: GameAnalysisStatus;
   status_url: string;
   source: ImportedGameMetadata;
+  game?: GameAnalysisGame | null;
+}
+
+export interface GameMainlineMove {
+  ply: number;
+  move_number: number;
+  player_color: ColorName;
+  san: string;
+  uci: string;
+  fen_before: string;
+  fen_after: string;
+  clock_before_seconds?: number | null;
+  remaining_clock_seconds?: number | null;
+  think_time_seconds?: number | null;
+}
+
+export interface GameAnalysisGame {
+  total_plies: number;
+  moves: GameMainlineMove[];
 }
 
 export interface ExplanationSegment {
@@ -326,5 +345,6 @@ export interface GameAnalysisSnapshot {
   started_at: string | null;
   completed_at: string | null;
   error: string | null;
+  game?: GameAnalysisGame | null;
   moves: GameMoveAnalysis[];
 }

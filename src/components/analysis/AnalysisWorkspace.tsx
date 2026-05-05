@@ -36,6 +36,7 @@ import {
 import { buildDocumentTitle } from "../../lib/document-title";
 import {
   isTerminalGameAnalysisStatus,
+  mapGameAnalysisImportResponse,
   mapGameAnalysisSnapshot,
 } from "../../lib/game-analysis-mapping";
 import { cn } from "../../lib/utils";
@@ -48,6 +49,7 @@ import type {
   GameMove,
 } from "../../types/analysis";
 import type {
+  GameAnalysisGame,
   GameAnalysisImportRequest,
   GameAnalysisSnapshot,
   ImportedGameMetadata,
@@ -96,6 +98,7 @@ interface StoredGameAnalysisJob {
   analysis_id: string;
   status_url: string;
   source: ImportedGameMetadata | null;
+  game: GameAnalysisGame | null;
 }
 
 interface AnalysisImportHomeProps {
@@ -238,8 +241,9 @@ export function AnalysisWorkspace() {
         }
         setImportSnapshot(snapshot);
         setImportError(snapshot.status === "failed" ? snapshot.error : null);
-        if (snapshot.moves.some((move) => move.context !== null)) {
-          setAnalysis(mapGameAnalysisSnapshot(snapshot, job.source));
+        const nextAnalysis = analysisFromSnapshot(snapshot, job.source, job.game);
+        if (nextAnalysis !== null) {
+          setAnalysis(nextAnalysis);
         }
         setImportStatus(
           isTerminalGameAnalysisStatus(snapshot.status)
@@ -314,6 +318,11 @@ export function AnalysisWorkspace() {
           setActiveJob,
           writeStorage: true,
         });
+        currentRouteJobIdRef.current = nextJob.analysis_id;
+        const importedAnalysis = mapGameAnalysisImportResponse(response);
+        if (importedAnalysis !== null) {
+          setAnalysis(importedAnalysis);
+        }
         setImportStatus("polling");
 
         const externalGameId =
@@ -369,6 +378,11 @@ export function AnalysisWorkspace() {
           setActiveJob,
           writeStorage: true,
         });
+        currentRouteJobIdRef.current = nextJob.analysis_id;
+        const importedAnalysis = mapGameAnalysisImportResponse(response);
+        if (importedAnalysis !== null) {
+          setAnalysis(importedAnalysis);
+        }
         setImportStatus("polling");
         navigateToImportedGamePath(
           nextJob.analysis_id,
@@ -556,7 +570,7 @@ function AnalysisGameWorkspace({
     discoveryActive: Boolean(board.discovery),
     previewActive: previewNeedsBrowserAnalysis,
     serverEngineLines,
-    suppressMissingServerLines: bookLinesVisible,
+    suppressMissingServerLines: bookLinesVisible || moveLoadingIndicator.show,
   });
   const shouldAnalyzeBrowserLines = browserAnalysisReason !== null;
   const handleBookPreview = useCallback(
@@ -1578,6 +1592,7 @@ function selectInitialJob(
           ? storedJob.status_url
           : analysisStatusUrl(route.analysisId),
       source: sourceForRoute(route, storedJob),
+      game: storedJob?.analysis_id === route.analysisId ? storedJob.game : null,
     };
   }
 
@@ -1633,6 +1648,7 @@ function activateImportedGameResponse(
     analysis_id: string;
     status_url: string;
     source: ImportedGameMetadata;
+    game?: GameAnalysisGame | null;
   },
   {
     setActiveJob,
@@ -1646,6 +1662,7 @@ function activateImportedGameResponse(
     analysis_id: response.analysis_id,
     status_url: response.status_url,
     source: response.source,
+    game: response.game ?? null,
   };
   if (writeStorage) {
     writeStoredGameAnalysisJob(nextJob);
@@ -1662,7 +1679,8 @@ function areStoredJobsEqual(
     current !== null &&
     current.analysis_id === next.analysis_id &&
     current.status_url === next.status_url &&
-    current.source?.external_game_id === next.source?.external_game_id
+    current.source?.external_game_id === next.source?.external_game_id &&
+    current.game?.total_plies === next.game?.total_plies
   );
 }
 
@@ -1700,10 +1718,23 @@ function readStoredGameAnalysisJob(): StoredGameAnalysisJob | null {
       analysis_id: parsed.analysis_id,
       status_url: parsed.status_url,
       source: parsed.source ?? null,
+      game: parsed.game ?? null,
     };
   } catch {
     return null;
   }
+}
+
+function analysisFromSnapshot(
+  snapshot: GameAnalysisSnapshot,
+  source: ImportedGameMetadata | null,
+  fallbackGame: GameAnalysisGame | null,
+): AnalysisResponse | null {
+  const game = snapshot.game ?? fallbackGame;
+  if (game?.moves.length || snapshot.moves.some((move) => move.context !== null)) {
+    return mapGameAnalysisSnapshot(snapshot, source, game ?? null);
+  }
+  return null;
 }
 
 function writeStoredGameAnalysisJob(job: StoredGameAnalysisJob): void {

@@ -106,38 +106,40 @@ export function AnalysisSettingsPopover({
               prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-3">
-              <label className={ROW_LABEL_CLASS} htmlFor={`${popoverId}-arrows`}>
-                Best line arrows
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-stone-200 accent-stone-900 dark:bg-stone-700 dark:accent-stone-100"
-                  id={`${popoverId}-arrows`}
-                  max={3}
-                  min={0}
-                  onChange={(event) => onArrowCountChange(Number(event.target.value))}
-                  step={1}
-                  type="range"
-                  value={arrowCount}
-                />
-                <span className="w-2 text-right font-mono text-[11px] text-stone-500 tabular-nums dark:text-stone-400">
-                  {arrowCount}
-                </span>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className={ROW_LABEL_CLASS} htmlFor={`${popoverId}-arrows`}>
+                  Best line arrows
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-stone-200 accent-stone-900 dark:bg-stone-700 dark:accent-stone-100"
+                    id={`${popoverId}-arrows`}
+                    max={3}
+                    min={0}
+                    onChange={(event) => onArrowCountChange(Number(event.target.value))}
+                    step={1}
+                    type="range"
+                    value={arrowCount}
+                  />
+                  <span className="w-2 text-right font-mono text-[11px] text-stone-500 tabular-nums dark:text-stone-400">
+                    {arrowCount}
+                  </span>
+                </div>
               </div>
 
-              <span className={ROW_LABEL_CLASS}>
-                <a
-                  className="underline decoration-pink-400 decoration-1 underline-offset-[3px] hover:text-stone-950 dark:hover:text-stone-50"
-                  href="https://www.maiachess.com/"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Maia
-                </a>{" "}
-                human move
-              </span>
-              <div className="flex justify-end">
+              <div className="flex flex-col gap-1.5">
+                <span className={ROW_LABEL_CLASS}>
+                  <a
+                    className="underline decoration-pink-400 decoration-1 underline-offset-[3px] hover:text-stone-950 dark:hover:text-stone-50"
+                    href="https://www.maiachess.com/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Maia
+                  </a>{" "}
+                  human move
+                </span>
                 <Switch
                   checked={showMaiaArrow}
                   label="Show Maia arrow"
@@ -146,27 +148,29 @@ export function AnalysisSettingsPopover({
                 />
               </div>
 
-              <span className={ROW_LABEL_CLASS}>Move markers</span>
-              <div className="flex items-center justify-end gap-1">
-                {MARKER_MODES.map(({ value, label }) => {
-                  const active = markerDisplayMode === value;
-                  return (
-                    <button
-                      aria-pressed={active}
-                      className={cn(
-                        "h-6 cursor-pointer rounded px-2 text-[11px] font-medium transition-colors",
-                        active
-                          ? "bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900"
-                          : "text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300",
-                      )}
-                      key={value}
-                      onClick={() => onMarkerDisplayModeChange(value)}
-                      type="button"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-1.5">
+                <span className={ROW_LABEL_CLASS}>Move markers</span>
+                <div className="flex items-center gap-1">
+                  {MARKER_MODES.map(({ value, label }) => {
+                    const active = markerDisplayMode === value;
+                    return (
+                      <button
+                        aria-pressed={active}
+                        className={cn(
+                          "h-6 cursor-pointer rounded px-2 text-[11px] font-medium transition-colors",
+                          active
+                            ? "bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900"
+                            : "text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300",
+                        )}
+                        key={value}
+                        onClick={() => onMarkerDisplayModeChange(value)}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </motion.div>

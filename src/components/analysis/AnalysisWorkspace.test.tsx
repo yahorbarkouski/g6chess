@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/api";
 import type {
   EngineLine,
+  GameAnalysisGame,
   GameAnalysisSnapshot,
   GameMoveAnalysis,
   ImportedGameMetadata,
@@ -136,6 +137,40 @@ describe("AnalysisWorkspace imports", () => {
     );
     expect(window.location.pathname).toBe("/game/live/168193636078");
     expect(window.location.search).toBe("?analysis=analysis-1");
+    await waitForNoBrowserEngineTick();
+    expect(stockfishMocks.analyze).not.toHaveBeenCalled();
+    expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
+  });
+
+  it("renders the imported game board before the first analysis snapshot resolves", async () => {
+    const user = userEvent.setup();
+    const source = importedSource();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+      game: gameSkeleton(2),
+    });
+    apiMocks.pollGameAnalysis.mockReturnValue(new Promise(() => {}));
+
+    render(<AnalysisWorkspace />);
+
+    await user.type(
+      screen.getByLabelText("Chess.com URL"),
+      "https://www.chess.com/game/168193636078",
+    );
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(screen.queryByLabelText("Chess.com URL")).toBeNull();
+    expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
+    await waitFor(() =>
+      expect(apiMocks.pollGameAnalysis).toHaveBeenCalledWith(
+        "/api/game-analysis/analysis-1",
+        expect.any(AbortSignal),
+      ),
+    );
     await waitForNoBrowserEngineTick();
     expect(stockfishMocks.analyze).not.toHaveBeenCalled();
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
@@ -436,6 +471,31 @@ function importedSource(): ImportedGameMetadata {
 
 function snapshotWithMove(): GameAnalysisSnapshot {
   return snapshotWithMoves(1);
+}
+
+function gameSkeleton(count: 1 | 2 = 1): GameAnalysisGame {
+  const moves = count === 1 ? [mainlineMove(1)] : [mainlineMove(1), mainlineMove(2)];
+  return {
+    total_plies: count,
+    moves,
+  };
+}
+
+function mainlineMove(ply: 1 | 2): GameAnalysisGame["moves"][number] {
+  const isBlackMove = ply === 2;
+  return {
+    ply,
+    move_number: 1,
+    player_color: isBlackMove ? "black" : "white",
+    san: isBlackMove ? "a5" : "a4",
+    uci: isBlackMove ? "a7a5" : "a2a4",
+    fen_before: isBlackMove
+      ? "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1"
+      : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1",
+    fen_after: isBlackMove
+      ? "rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 2"
+      : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
+  };
 }
 
 function snapshotWithBookMove(): GameAnalysisSnapshot {

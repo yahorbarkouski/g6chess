@@ -17,7 +17,10 @@ import type {
   ColorName,
   ContextResult,
   EngineLine,
+  GameAnalysisGame,
+  GameAnalysisImportResponse,
   GameAnalysisSnapshot,
+  GameMainlineMove,
   GameMoveAnalysis,
   ImportedGameMetadata,
   OpeningBookMetadata,
@@ -30,11 +33,15 @@ const MATE_SCORE_BASE = 100_000;
 export function mapGameAnalysisSnapshot(
   snapshot: GameAnalysisSnapshot,
   source: ImportedGameMetadata | null = null,
+  fallbackGame: GameAnalysisGame | null = null,
 ): AnalysisResponse {
   const movesWithContext = snapshot.moves
     .filter((move): move is GameMoveAnalysis & { context: ContextResult } => move.context !== null)
     .sort((a, b) => a.ply - b.ply);
-  const moves = movesWithContext.map(mapGameMove);
+  const game = snapshot.game ?? fallbackGame;
+  const moves = game?.moves.length
+    ? game.moves.map(mapMainlineMove)
+    : movesWithContext.map(mapGameMove);
   const timeline = movesWithContext.map(mapTimelinePoint);
   const moveMarkers = movesWithContext.map((move, index) => mapMoveMarker(move, index));
   const firstContext = movesWithContext[0]?.context ?? null;
@@ -52,6 +59,36 @@ export function mapGameAnalysisSnapshot(
         firstContext?.evidence.engine.engine_version ?? "g6explanation game-analysis API",
       context_version: firstContext?.evidence.context_version ?? snapshot.snapshot_version,
       verifier_version: firstContext?.verification.verifier_version ?? "pending",
+    },
+  };
+}
+
+export function mapGameAnalysisImportResponse(
+  response: GameAnalysisImportResponse,
+): AnalysisResponse | null {
+  if (!response.game?.moves.length) {
+    return null;
+  }
+  return mapGameAnalysisGame(response.analysis_id, response.game, response.source);
+}
+
+export function mapGameAnalysisGame(
+  analysisId: string,
+  game: GameAnalysisGame,
+  source: ImportedGameMetadata | null = null,
+): AnalysisResponse {
+  return {
+    id: analysisId,
+    title: source?.title ?? `Game analysis ${analysisId.slice(0, 8)}`,
+    player_side: "white",
+    headers: sourceHeaders(source),
+    moves: game.moves.map(mapMainlineMove),
+    timeline: [],
+    move_markers: [],
+    summary: {
+      engine_version: "pending",
+      context_version: "pending",
+      verifier_version: "pending",
     },
   };
 }
@@ -74,6 +111,22 @@ function mapGameMove(move: GameMoveAnalysis & { context: ContextResult }): GameM
     uci: move.context.evidence.played.uci || move.uci,
     fen_before: position.fen_before,
     fen_after: position.fen_after,
+    ...(move.remaining_clock_seconds == null
+      ? {}
+      : { remaining_clock_seconds: move.remaining_clock_seconds }),
+    ...(move.think_time_seconds == null ? {} : { think_time_seconds: move.think_time_seconds }),
+  };
+}
+
+function mapMainlineMove(move: GameMainlineMove): GameMove {
+  return {
+    ply: move.ply,
+    move_number: move.move_number,
+    side: move.player_color,
+    san: move.san,
+    uci: move.uci,
+    fen_before: move.fen_before,
+    fen_after: move.fen_after,
     ...(move.remaining_clock_seconds == null
       ? {}
       : { remaining_clock_seconds: move.remaining_clock_seconds }),

@@ -96,6 +96,9 @@ Expected API shape today:
 - `POST /api/game-analysis/import`
 - `GET /api/game-analysis/import/chess-com/live/{externalGameId}`
 - polling through the returned `status_url`
+- Import responses and game-analysis snapshots include a `game` skeleton with
+  PGN-derived SAN/UCI/FEN move data. The client can render the board from that
+  skeleton while deeper context and explanations are still pending.
 
 ## Checks
 
