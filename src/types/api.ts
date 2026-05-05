@@ -1,0 +1,348 @@
+export type ColorName = "white" | "black";
+
+export type MoveQualityLabel =
+  | "forced"
+  | "best"
+  | "excellent"
+  | "good"
+  | "neutral"
+  | "inaccuracy"
+  | "mistake"
+  | "blunder"
+  | "missed_win";
+
+export type FindabilityLabel =
+  | "obvious"
+  | "findable"
+  | "hard"
+  | "very_hard"
+  | "engine_like"
+  | "unknown";
+
+export type RecommendationPolicy =
+  | "recommend_directly"
+  | "mention_with_caveat"
+  | "use_as_practical_alternative"
+  | "explain_as_hidden_resource"
+  | "do_not_recommend";
+
+export type PracticalityCategory =
+  | "clear_recommendation"
+  | "practical_try"
+  | "hard_but_important"
+  | "engine_benchmark"
+  | "only_move"
+  | "unknown_practicality";
+
+export type SignificanceLabel = "low" | "moderate" | "high" | "critical";
+
+export type GameImportSource = "chess_com_live_url" | "pgn";
+
+export type GameAnalysisStatus = "pending" | "running" | "succeeded" | "failed";
+
+export type GameMoveAnalysisState = "context_ready" | "explained" | "explanation_failed";
+
+export interface VisualizationExampleCollection {
+  examples: VisualizationExampleSummary[];
+}
+
+export interface VisualizationExampleSummary {
+  id: string;
+  title: string;
+  source: string;
+  initial_fen: string;
+  orientation: ColorName;
+  move_count: number;
+  context_plies: number[];
+  tags: string[];
+}
+
+export interface VisualizationExample {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  initial_fen: string;
+  orientation: ColorName;
+  player_level: string;
+  tags: string[];
+  moves: VisualizationMove[];
+  contexts: VisualizationMoveContext[];
+}
+
+export interface VisualizationMove {
+  ply: number;
+  uci: string;
+  san: string;
+  fen_before: string;
+  fen_after: string;
+  player_color: ColorName;
+  has_context: boolean;
+}
+
+export interface VisualizationMoveContext {
+  ply: number;
+  result: ContextResult;
+}
+
+export interface ContextResult {
+  evidence: EvidencePacket;
+  llm_context: LLMContext;
+  verification: VerificationResult;
+}
+
+export interface EvidencePacket {
+  context_version: string;
+  request: MoveContextRequest;
+  position: PositionContext;
+  played: PlayedMoveFacts;
+  engine: EngineAnalysis;
+  quality: MoveQuality;
+  significance: MoveSignal;
+  beauty: MoveSignal;
+  candidates: CandidateMove[];
+  main_point: MainPoint;
+  allowed_claims: string[];
+}
+
+export interface MoveContextRequest {
+  player_color: ColorName;
+  player_level: PlayerLevel;
+  played_move: string | null;
+  fen_before: string | null;
+  pgn: string | null;
+  ply: number | null;
+  time_control: string | null;
+  clock_before_seconds: number | null;
+  increment_seconds: number | null;
+  opponent_level: PlayerLevel | null;
+}
+
+export interface PlayerLevel {
+  kind: "rating" | "label";
+  value: number | string;
+  system: string | null;
+}
+
+export interface PositionContext {
+  fen_before: string;
+  fen_after: string;
+  side_to_move: ColorName;
+  move_number: number;
+  ply: number;
+  phase: string;
+  legal_moves_uci: string[];
+}
+
+export interface PlayedMoveFacts {
+  uci: string;
+  san: string;
+  legal: boolean;
+  is_check: boolean;
+  is_capture: boolean;
+  promotion: string | null;
+}
+
+export interface EngineAnalysis {
+  engine_version: string;
+  analysis_budget: EngineAnalysisBudget;
+  engine_options: Record<string, number | string | boolean | null>;
+  top_lines: EngineLine[];
+  played_line: EngineLine;
+  after_line: EngineLine | null;
+}
+
+export interface EngineAnalysisBudget {
+  kind: "depth" | "nodes" | "static";
+  value: number | string | null;
+  multipv: number | null;
+}
+
+export interface EngineLine {
+  move_uci: string;
+  move_san: string;
+  score: Score;
+  rank: number | null;
+  wdl: Wdl | null;
+  pv_uci: string[];
+  pv_san: string[];
+  depth: number | null;
+  seldepth: number | null;
+  nodes: number | null;
+  nps: number | null;
+  tbhits: number | null;
+}
+
+export interface Score {
+  kind: "cp" | "mate";
+  value: number | null;
+  mate_in: number | null;
+  mate_for: "player" | "opponent" | null;
+}
+
+export interface Wdl {
+  win: number;
+  draw: number;
+  loss: number;
+}
+
+export interface MoveQuality {
+  label: MoveQualityLabel;
+  score_delta_cp_player_pov: number | null;
+  score_loss_vs_best_cp: number | null;
+  wdl_delta_player_pov: Wdl | null;
+  wdl_expected_score_loss: number | null;
+  severity_text: string;
+}
+
+export interface MoveSignal {
+  label: string;
+  score: number;
+}
+
+export interface CandidateMove {
+  san: string;
+  uci: string;
+  roles: string[];
+  engine_rank: number | null;
+  human_rank: number | null;
+  score: Score;
+  score_loss_vs_best_cp: number | null;
+  wdl: Wdl | null;
+  pv_short_san: string[];
+  player_level_probability: number | null;
+  plus_400_probability: number | null;
+  time_adjusted_findability: FindabilityLabel;
+  findability_source: string;
+  findability_confidence: string;
+  teachable_skill_gap: boolean;
+  practicality: PracticalityCategory;
+  recommendation_policy: RecommendationPolicy;
+}
+
+export interface MainPoint {
+  concept: string;
+  claim: string;
+}
+
+export interface LLMContext {
+  played: string;
+  quality: MoveQualityLabel;
+  significance: MoveSignal;
+  beauty: MoveSignal;
+  player_level: string;
+  time_situation: string;
+  severity: string;
+  main_point: string;
+  best_or_key_move: KeyMoveContext | null;
+  human_note: string | null;
+  allowed_claims: string[];
+}
+
+export interface KeyMoveContext {
+  move: string;
+  practicality: PracticalityCategory;
+  findability: FindabilityLabel;
+  reason: string;
+  recommendation_policy: RecommendationPolicy;
+}
+
+export interface VerificationResult {
+  verifier_version: string;
+  passed: boolean;
+  failures: VerificationIssue[];
+  warnings: VerificationIssue[];
+}
+
+export interface VerificationIssue {
+  code: string;
+  message: string;
+  path: string;
+}
+
+export interface ImportedGameMetadata {
+  source: GameImportSource;
+  source_url: string | null;
+  external_game_id: string | null;
+  title: string;
+  white_username: string | null;
+  black_username: string | null;
+  white_rating: number | null;
+  black_rating: number | null;
+  time_control: string | null;
+  result: string | null;
+  allows_global_training: boolean;
+  rights_basis: string;
+}
+
+export interface GameAnalysisImportRequest {
+  source: GameImportSource;
+  url?: string | null;
+  pgn?: string | null;
+  player_level?: PlayerLevel | null;
+  white_player_level?: PlayerLevel | null;
+  black_player_level?: PlayerLevel | null;
+  time_control?: string | null;
+  explain_significance?: SignificanceLabel[];
+  include_context?: boolean;
+  use_baseline_fallback?: boolean;
+}
+
+export interface GameAnalysisImportResponse {
+  analysis_id: string;
+  status: GameAnalysisStatus;
+  status_url: string;
+  source: ImportedGameMetadata;
+}
+
+export interface ExplanationSegment {
+  text: string;
+  line_card_id: string | null;
+  line_card_anchor?: string | null;
+}
+
+export interface ExplanationLineCard {
+  id: string;
+  moves: string[];
+  title: string;
+  why: string;
+}
+
+export interface GameMoveAnalysis {
+  ply: number;
+  san: string;
+  uci: string;
+  player_color: ColorName;
+  state: GameMoveAnalysisState;
+  requires_explanation: boolean;
+  quality: MoveQualityLabel;
+  significance: MoveSignal;
+  beauty: MoveSignal;
+  context_latency_seconds: number;
+  explanation: string | null;
+  explanation_segments?: ExplanationSegment[];
+  explanation_line_cards?: ExplanationLineCard[];
+  explanation_latency_seconds: number | null;
+  explanation_attempts: number;
+  explanation_model: string | null;
+  explanation_error: string | null;
+  context: ContextResult | null;
+}
+
+export interface GameAnalysisSnapshot {
+  snapshot_version: string;
+  analysis_id: string;
+  status: GameAnalysisStatus;
+  total_plies: number;
+  context_completed: number;
+  explanation_required: number;
+  explanation_completed: number;
+  explanation_failed: number;
+  explain_significance: SignificanceLabel[];
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  moves: GameMoveAnalysis[];
+}

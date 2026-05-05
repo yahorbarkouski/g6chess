@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "ABC Diatype";
+  src: url("/fonts/ABCDiatypeVariable-Trial.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 900;
+}
+
+@font-face {
+  font-family: "ABC Otto";
+  src: url("/fonts/ABCOtto-Medium-Trial.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 500;
+}
+
+:root {
+  color-scheme: light;
+  --radius: 1rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.25 0.005 67.8);
+  --border: oklch(0.52 0.01 67.8 / 0.14);
+  --ring: oklch(0.72 0.012 67.8);
+  --focus-ring: oklch(0.72 0.012 67.8 / 0.35);
+  --surface-shadow: 0 24px 60px oklch(0.38 0.01 67.8 / 0.08);
+  --surface-border: oklch(0.52 0.01 67.8 / 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b0a09;
+  --foreground: oklch(0.92 0.004 67.8);
+  --border: oklch(1 0 0 / 0.1);
+  --ring: oklch(0.76 0.01 67.8);
+  --focus-ring: oklch(0.76 0.01 67.8 / 0.28);
+  --surface-shadow: 0 24px 60px oklch(0 0 0 / 0.28);
+  --surface-border: oklch(1 0 0 / 0.08);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+
+  html {
+    background-color: var(--background);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family:
+      "ABC Diatype", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  button,
+  select {
+    font: inherit;
+  }
+
+  a,
+  button {
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  ::selection {
+    background: oklch(0.88 0.01 67.8 / 0.55);
+  }
+}
+
+@layer utilities {
+  .font-sans {
+    font-family:
+      "ABC Diatype", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .font-serif {
+    font-family: "ABC Otto", "Iowan Old Style", "Book Antiqua", Georgia, serif;
+  }
+
+  .font-mono {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .surface-elevated {
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--surface-shadow);
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chess-board-wrap {
+    position: relative;
+    touch-action: none;
+  }
+
+  .chess-board-wrap [id$="-board"] {
+    gap: 0;
+    padding: 0;
+  }
+
+  .chess-board-wrap [id$="-board"] > div {
+    margin: 0;
+    padding: 0;
+    border: none;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .chess-board-wrap [id^="chessboard-square-"] {
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  .chess-board-wrap [data-piece] {
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+  }
+}

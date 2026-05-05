@@ -1,0 +1,10 @@
+dist
+node_modules
+*.local
+.DS_Store
+.env
+.env.*.local
+*.tsbuildinfo
+
+public/stockfish/stockfish-18-single.js
+public/stockfish/stockfish-18-single.wasm
