@@ -243,6 +243,7 @@ export interface GameAnalysisImportRequest {
   explain_significance?: SignificanceLabel[];
   include_context?: boolean;
   use_baseline_fallback?: boolean;
+  turnstile_token?: string | null;
 }
 
 export interface GameAnalysisImportResponse {
