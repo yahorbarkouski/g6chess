@@ -1,6 +1,7 @@
 import { useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, X } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import { TextShimmer } from "@/components/loading-ui/text-shimmer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
 import { cn } from "../../lib/utils";
@@ -22,6 +23,8 @@ interface PositionInfoProps {
   rootFen?: string | null;
   boardOrientation?: BoardSide | null;
   emptyMessage?: string | null;
+  emptyMessageClassName?: string;
+  emptyMessageVariant?: "plain" | "shimmer";
   openingName?: string | null;
   onMoveClick?: (rootFen: string, moves: string[], step: number) => void;
   className?: string;
@@ -37,6 +40,8 @@ export function PositionInfo({
   rootFen = null,
   boardOrientation = null,
   emptyMessage = null,
+  emptyMessageClassName,
+  emptyMessageVariant = "plain",
   openingName = null,
   onMoveClick,
   className,
@@ -82,9 +87,26 @@ export function PositionInfo({
           {explanationContent}
         </div>
       ) : emptyMessage ? (
-        <p className="mt-2 text-sm leading-relaxed text-stone-500 text-pretty dark:text-stone-400">
-          {emptyMessage}
-        </p>
+        emptyMessageVariant === "shimmer" ? (
+          <TextShimmer
+            as="p"
+            className={cn(
+              "mt-2 text-sm leading-relaxed text-stone-500 text-pretty dark:text-stone-400",
+              emptyMessageClassName,
+            )}
+          >
+            {emptyMessage}
+          </TextShimmer>
+        ) : (
+          <p
+            className={cn(
+              "mt-2 text-sm leading-relaxed text-stone-500 text-pretty dark:text-stone-400",
+              emptyMessageClassName,
+            )}
+          >
+            {emptyMessage}
+          </p>
+        )
       ) : null}
 
       {SHOW_ENGINE_DETAIL_PANEL ? <AnalysisMarkerStack marker={selectedMarker} /> : null}

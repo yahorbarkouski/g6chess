@@ -87,11 +87,33 @@ describe("browserAnalysisReasonForPosition", () => {
     ).toBe("missing-server-lines");
   });
 
+  it("runs browser Stockfish for the current position while backend analysis is loading", () => {
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "loading fen",
+        discoveryActive: false,
+        loadingActive: true,
+        previewActive: false,
+        serverEngineLines: null,
+      }),
+    ).toBe("loading");
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "server-backed loading fen",
+        discoveryActive: false,
+        loadingActive: true,
+        previewActive: false,
+        serverEngineLines,
+      }),
+    ).toBeNull();
+  });
+
   it("can suppress missing-server fallback for backend book-line panels", () => {
     expect(
       browserAnalysisReasonForPosition({
         analysisFen: "book fen",
         discoveryActive: false,
+        loadingActive: true,
         previewActive: false,
         serverEngineLines: null,
         suppressMissingServerLines: true,
@@ -101,6 +123,7 @@ describe("browserAnalysisReasonForPosition", () => {
       browserAnalysisReasonForPosition({
         analysisFen: "book discovery fen",
         discoveryActive: true,
+        loadingActive: true,
         previewActive: false,
         serverEngineLines: null,
         suppressMissingServerLines: true,

@@ -177,7 +177,7 @@ describe("AnalysisWorkspace imports", () => {
       ),
     );
     await waitForNoBrowserEngineTick();
-    expect(stockfishMocks.analyze).not.toHaveBeenCalled();
+    expect(stockfishMocks.analyze).toHaveBeenCalledWith(mainlineMove(1).fen_after);
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
   });
 

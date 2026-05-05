@@ -86,6 +86,7 @@ const MAX_PRE_ANALYZE_FENS = 12;
 const PRE_ANALYZE_NEIGHBOR_PLIES = 4;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
+const ANALYSIS_LOADING_EMPTY_MESSAGE = "Crunching the analysis. The board is yours to explore";
 type MobileTab = "board" | "moves" | "analysis";
 
 const MOBILE_TAB_ITEMS: Array<{
@@ -135,7 +136,7 @@ interface BookLineSet {
   lines: BookLine[];
 }
 
-type BrowserAnalysisReason = "discovery" | "preview" | "missing-server-lines";
+type BrowserAnalysisReason = "discovery" | "preview" | "loading" | "missing-server-lines";
 
 interface MoveLoadingIndicatorState {
   show: boolean;
@@ -656,9 +657,10 @@ function AnalysisGameWorkspace({
   const browserAnalysisReason = browserAnalysisReasonForPosition({
     analysisFen,
     discoveryActive: Boolean(board.discovery),
+    loadingActive: moveLoadingIndicator.show,
     previewActive: previewNeedsBrowserAnalysis,
     serverEngineLines,
-    suppressMissingServerLines: bookLinesVisible || moveLoadingIndicator.show,
+    suppressMissingServerLines: bookLinesVisible,
   });
   const shouldAnalyzeBrowserLines = browserAnalysisReason !== null;
   const handleBookPreview = useCallback(
@@ -1025,7 +1027,8 @@ function DesktopLayout({
           <PositionInfo
             boardOrientation={boardOrientation}
             currentMove={currentMove}
-            emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
+            emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
+            emptyMessageVariant="shimmer"
             onMoveClick={onPreview}
             openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? currentFen}
@@ -1195,7 +1198,8 @@ function MobileLayout({
           <PositionInfo
             boardOrientation={boardOrientation}
             currentMove={currentMove}
-            emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
+            emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
+            emptyMessageVariant="shimmer"
             onMoveClick={onPreview}
             openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? null}
@@ -1946,12 +1950,14 @@ export function buildAnalysisIndexes(analysis: AnalysisResponse) {
 export function browserAnalysisReasonForPosition({
   analysisFen,
   discoveryActive,
+  loadingActive = false,
   previewActive,
   serverEngineLines,
   suppressMissingServerLines = false,
 }: {
   analysisFen: string;
   discoveryActive: boolean;
+  loadingActive?: boolean;
   previewActive: boolean;
   serverEngineLines: EngineLineSet | null;
   suppressMissingServerLines?: boolean;
@@ -1968,7 +1974,10 @@ export function browserAnalysisReasonForPosition({
   if (suppressMissingServerLines) {
     return null;
   }
-  return serverEngineLines === null ? "missing-server-lines" : null;
+  if (serverEngineLines !== null) {
+    return null;
+  }
+  return loadingActive ? "loading" : "missing-server-lines";
 }
 
 export function buildPreAnalysisFens(

@@ -1,12 +1,28 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { ElementType, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisMoveMarker, BestLine, GameMove } from "../../types/analysis";
 import { PositionInfo } from "./PositionInfo";
 
 vi.mock("../ui/morph-text", () => ({
   MorphText: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("@/components/loading-ui/text-shimmer", () => ({
+  TextShimmer: ({
+    as: Component = "p",
+    children,
+    className,
+  }: {
+    as?: ElementType;
+    children: string;
+    className?: string;
+  }) => (
+    <Component className={className} data-testid="text-shimmer">
+      {children}
+    </Component>
+  ),
 }));
 
 vi.mock("./UltraAnalysisBoard", () => ({
