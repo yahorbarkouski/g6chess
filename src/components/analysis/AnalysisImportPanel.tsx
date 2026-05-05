@@ -58,6 +58,7 @@ export function AnalysisImportPanel({
 
   const isBusy = status === "submitting" || status === "polling";
   const needsTurnstile = TURNSTILE_SITE_KEY.length > 0;
+  const shouldShowTurnstile = needsTurnstile && turnstileToken === null;
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
   const canSubmit =
@@ -122,17 +123,6 @@ export function AnalysisImportPanel({
         />
       </form>
 
-      {needsTurnstile ? (
-        <div className="mt-3 flex justify-center">
-          <TurnstileWidget
-            key={turnstileResetKey}
-            onExpire={handleTurnstileExpire}
-            onToken={setTurnstileToken}
-            siteKey={TURNSTILE_SITE_KEY}
-          />
-        </div>
-      ) : null}
-
       <div className="mt-2 flex items-center justify-between gap-3 px-1">
         <ModeToggle
           alert={mode === "url" && Boolean(localError)}
@@ -143,6 +133,17 @@ export function AnalysisImportPanel({
       </div>
 
       <SuggestionCards />
+
+      {shouldShowTurnstile ? (
+        <div className="mt-8 flex justify-center">
+          <TurnstileWidget
+            key={turnstileResetKey}
+            onExpire={handleTurnstileExpire}
+            onToken={setTurnstileToken}
+            siteKey={TURNSTILE_SITE_KEY}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
