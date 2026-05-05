@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnalysisImportPanel } from "./AnalysisImportPanel";
@@ -6,6 +6,11 @@ import { AnalysisImportPanel } from "./AnalysisImportPanel";
 describe("AnalysisImportPanel", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    vi.resetModules();
+    delete window.turnstile;
+    delete window.__g6TurnstileScriptLoading;
   });
 
   it("surfaces the URL import error inline and highlights the PGN toggle", async () => {
@@ -67,5 +72,37 @@ describe("AnalysisImportPanel", () => {
       use_baseline_fallback: false,
       explain_significance: ["critical"],
     });
+  });
+
+  it("renders Turnstile below the cards and hides it after verification", async () => {
+    vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
+    vi.resetModules();
+
+    let verifyTurnstile: ((token: string) => void) | undefined;
+    const removeTurnstile = vi.fn();
+    window.turnstile = {
+      render: vi.fn((container, options) => {
+        container.dataset.testid = "turnstile-widget";
+        container.textContent = "Turnstile challenge";
+        verifyTurnstile = options.callback;
+        return "widget-id";
+      }),
+      remove: removeTurnstile,
+    };
+
+    const { AnalysisImportPanel: PanelWithTurnstile } = await import("./AnalysisImportPanel");
+
+    render(<PanelWithTurnstile error={null} onImport={vi.fn()} status="idle" />);
+
+    const turnstile = await screen.findByTestId("turnstile-widget");
+    const feedbackCard = screen.getByRole("link", { name: /Leave feedback/i });
+    expect(feedbackCard.compareDocumentPosition(turnstile)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    act(() => {
+      verifyTurnstile?.("verified-token");
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("turnstile-widget")).toBeNull());
+    expect(removeTurnstile).toHaveBeenCalledWith("widget-id");
   });
 });
