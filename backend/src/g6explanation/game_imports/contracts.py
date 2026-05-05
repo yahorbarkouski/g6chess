@@ -50,8 +50,8 @@ class GameAnalysisImportRequest(ContextContract):
     """Request for resolving/importing a game and starting analysis."""
 
     source: GameImportSource
-    url: str | None = None
-    pgn: str | None = None
+    url: str | None = Field(default=None, max_length=8192)
+    pgn: str | None = Field(default=None, max_length=131072)
     player_level: PlayerLevel | None = None
     white_player_level: PlayerLevel | None = None
     black_player_level: PlayerLevel | None = None
@@ -61,6 +61,7 @@ class GameAnalysisImportRequest(ContextContract):
     )
     include_context: bool = False
     use_baseline_fallback: bool = False
+    turnstile_token: str | None = Field(default=None, max_length=4096)
 
     @model_validator(mode="after")
     def _validate_source_payload(self) -> GameAnalysisImportRequest:

@@ -48,6 +48,8 @@ jobs:
     env:
       MODAL_ENVIRONMENT: ${{ github.event.inputs.modal_environment || 'main' }}
       G6EXPLANATION_CORS_ORIGINS: ${{ vars.G6EXPLANATION_CORS_ORIGINS }}
+      G6EXPLANATION_MODAL_CUSTOM_DOMAINS: ${{ vars.G6EXPLANATION_MODAL_CUSTOM_DOMAINS }}
+      G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH: ${{ vars.G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH }}
       G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ github.event.inputs.api_min_containers || '0' }}
       G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ github.event.inputs.worker_min_containers || '0' }}
       G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ github.event.inputs.worker_max_containers || '5' }}
@@ -105,15 +107,25 @@ jobs:
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
           MODAL_RUNTIME_REDIS_URL: ${{ secrets.G6EXPLANATION_REDIS_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          G6EXPLANATION_TURNSTILE_SECRET_KEY: ${{ secrets.G6EXPLANATION_TURNSTILE_SECRET_KEY }}
         run: |
+          args=(
+            OPENROUTER_API_KEY="$OPENROUTER_API_KEY"
+            G6EXPLANATION_REDIS_URL="$MODAL_RUNTIME_REDIS_URL"
+            G6EXPLANATION_CORS_ORIGINS="$G6EXPLANATION_CORS_ORIGINS"
+          )
+          if [ -n "${G6EXPLANATION_TURNSTILE_SECRET_KEY:-}" ]; then
+            args+=(G6EXPLANATION_TURNSTILE_SECRET_KEY="$G6EXPLANATION_TURNSTILE_SECRET_KEY")
+            args+=(G6EXPLANATION_REQUIRE_TURNSTILE="true")
+          fi
           uv run modal secret create g6explanation-runtime \
-            OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
-            G6EXPLANATION_REDIS_URL="$MODAL_RUNTIME_REDIS_URL" \
-            G6EXPLANATION_CORS_ORIGINS="$G6EXPLANATION_CORS_ORIGINS" \
+            "${args[@]}" \
             --force
 
       - name: Deploy Modal app
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          G6EXPLANATION_MODAL_CUSTOM_DOMAINS: ${{ vars.G6EXPLANATION_MODAL_CUSTOM_DOMAINS }}
+          G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH: ${{ vars.G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH }}
         run: uv run modal deploy deploy/modal_app.py

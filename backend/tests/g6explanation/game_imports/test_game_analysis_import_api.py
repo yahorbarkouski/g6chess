@@ -8,6 +8,7 @@ from concurrent.futures import Future
 from typing import Any, cast
 
 import chess
+import pytest
 from fastapi.testclient import TestClient
 
 from g6explanation.context_engine import MoveContextBuilder
@@ -28,6 +29,13 @@ from g6explanation.game_imports import (
     ChessComLiveGameResolver,
     GameImportService,
     InMemoryGameAnalysisImportIndex,
+)
+from g6explanation.security import (
+    ApiProtection,
+    ClientIdentity,
+    DisabledTurnstileVerifier,
+    InMemoryFixedWindowRateLimiter,
+    TurnstileVerificationError,
 )
 from g6explanation.visualization.http_api import create_app
 
@@ -244,10 +252,112 @@ def test_import_api_accepts_explicit_side_ratings_for_unrated_pgn() -> None:
     assert [request["player_level"]["value"] for request in requests] == [1400, 1300]
 
 
+def test_import_api_denies_public_context_before_chess_com_resolution() -> None:
+    transport = CountingChessComTransport()
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=transport,
+            sleep=lambda _: None,
+        ),
+        api_protection=ApiProtection(
+            limiter=InMemoryFixedWindowRateLimiter(),
+            turnstile_verifier=DisabledTurnstileVerifier(),
+            require_turnstile=False,
+            allow_public_include_context=False,
+        ),
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "include_context": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "include_context_forbidden"
+    assert transport.request_count == 0
+
+
+def test_import_api_rate_limits_before_chess_com_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("G6EXPLANATION_LIMIT_ANALYSIS_START_10M", "1")
+    transport = CountingChessComTransport()
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=transport,
+            sleep=lambda _: None,
+        ),
+        api_protection=ApiProtection(
+            limiter=InMemoryFixedWindowRateLimiter(),
+            turnstile_verifier=DisabledTurnstileVerifier(),
+            require_turnstile=False,
+            allow_public_include_context=True,
+        ),
+    )
+
+    first_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "include_context": True,
+        },
+    )
+    second_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "include_context": True,
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert second_response.headers["retry-after"]
+    assert second_response.json()["detail"]["code"] == "import_start_rate_limited"
+    assert transport.request_count == 2
+
+
+def test_import_api_requires_turnstile_before_chess_com_resolution() -> None:
+    transport = CountingChessComTransport()
+    verifier = RequiredTurnstileVerifier()
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=transport,
+            sleep=lambda _: None,
+        ),
+        api_protection=ApiProtection(
+            limiter=InMemoryFixedWindowRateLimiter(),
+            turnstile_verifier=verifier,
+            require_turnstile=True,
+            allow_public_include_context=True,
+        ),
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "chess_com_live_url",
+            "url": f"https://www.chess.com/game/live/{GAME_ID}",
+            "include_context": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "turnstile_failed"
+    assert transport.request_count == 0
+
+
 def _client(
     resolver: ChessComLiveGameResolver,
     *,
     analysis_index: InMemoryGameAnalysisImportIndex | None = None,
+    api_protection: ApiProtection | None = None,
 ) -> TestClient:
     store = InMemoryGameAnalysisStore()
     analysis_service = GameAnalysisService(
@@ -269,6 +379,7 @@ def _client(
         create_app(
             game_analysis_service=analysis_service,
             game_import_service=import_service,
+            api_protection=api_protection,
         )
     )
 
@@ -323,6 +434,19 @@ class CountingChessComTransport(FakeChessComTransport):
     ) -> tuple[int, bytes]:
         self.request_count += 1
         return super().__call__(url, headers, timeout_seconds)
+
+
+class RequiredTurnstileVerifier:
+    def verify(
+        self,
+        *,
+        token: str | None,
+        identity: ClientIdentity,
+        idempotency_key: str | None = None,
+    ) -> None:
+        del identity, idempotency_key
+        if token != "valid-turnstile-token":
+            raise TurnstileVerificationError("Turnstile token is required.")
 
 
 class InlineExecutor:

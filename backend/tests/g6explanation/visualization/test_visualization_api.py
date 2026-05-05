@@ -8,7 +8,7 @@ from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
 from g6explanation.visualization.contracts import VisualizationMoveContext
 from g6explanation.visualization.example_catalog import visualization_examples
-from g6explanation.visualization.http_api import app
+from g6explanation.visualization.http_api import app, create_app
 from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 
 
@@ -90,3 +90,14 @@ def test_visualization_http_api_builds_context_on_context_endpoint(
     payload = response.json()
     assert payload["ply"] == 1
     assert payload["result"]["verification"]["passed"] is True
+
+
+def test_visualization_context_endpoint_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("G6EXPLANATION_ENABLE_VISUALIZATION_CONTEXTS", "false")
+    client = TestClient(create_app())
+
+    response = client.get("/api/visualization/examples/morphy-opera-1858/contexts/1")
+
+    assert response.status_code == 404

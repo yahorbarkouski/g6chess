@@ -38,7 +38,7 @@ def _default_critical_significance() -> list[SignificanceLabel]:
 class GameAnalysisStartRequest(ContextContract):
     """Public request for starting a full-game analysis job."""
 
-    pgn: str = Field(min_length=1)
+    pgn: str = Field(min_length=1, max_length=131072)
     player_level: PlayerLevel | None = None
     white_player_level: PlayerLevel | None = None
     black_player_level: PlayerLevel | None = None
@@ -48,6 +48,7 @@ class GameAnalysisStartRequest(ContextContract):
     )
     include_context: bool = False
     use_baseline_fallback: bool = False
+    turnstile_token: str | None = Field(default=None, max_length=4096)
 
     @model_validator(mode="after")
     def _validate_player_levels(self) -> GameAnalysisStartRequest:

@@ -34,8 +34,17 @@ def _image(*, include_maia: bool) -> modal.Image:
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_MULTIPV": "5",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_THREADS": "1",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_HASH_MB": "128",
-                "G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS": "8",
-                "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": "30",
+                "G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS": "4",
+                "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": "8",
+            }
+        )
+    else:
+        image = image.env(
+            {
+                "G6EXPLANATION_API_PROTECTION_ENABLED": "true",
+                "G6EXPLANATION_ALLOW_PUBLIC_INCLUDE_CONTEXT": "true",
+                "G6EXPLANATION_ENABLE_OPENAPI_DOCS": "false",
+                "G6EXPLANATION_ENABLE_VISUALIZATION_CONTEXTS": "false",
             }
         )
     image = image.env({"PYTHONPATH": SOURCE_ROOT}).add_local_dir(
@@ -67,6 +76,21 @@ def _float_env(name: str, default: float) -> float:
     return default if value is None else float(value)
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _list_env(name: str) -> list[str] | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    return items or None
+
+
 @app.function(
     image=worker_image,
     secrets=[runtime_secret],
@@ -76,7 +100,7 @@ def _float_env(name: str, default: float) -> float:
     timeout=_int_env("G6EXPLANATION_MODAL_WORKER_TIMEOUT_SECONDS", 1800),
     startup_timeout=_int_env("G6EXPLANATION_MODAL_WORKER_STARTUP_TIMEOUT_SECONDS", 900),
     min_containers=_int_env("G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS", 0),
-    max_containers=_int_env("G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS", 10),
+    max_containers=_int_env("G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS", 5),
     scaledown_window=_int_env("G6EXPLANATION_MODAL_WORKER_SCALEDOWN_SECONDS", 300),
 )
 def run_game_analysis_job(analysis_id: str, request_json: str) -> None:
@@ -108,10 +132,13 @@ def run_game_analysis_job(analysis_id: str, request_json: str) -> None:
     timeout=_int_env("G6EXPLANATION_MODAL_API_TIMEOUT_SECONDS", 120),
     startup_timeout=_int_env("G6EXPLANATION_MODAL_API_STARTUP_TIMEOUT_SECONDS", 300),
     min_containers=_int_env("G6EXPLANATION_MODAL_API_MIN_CONTAINERS", 0),
-    max_containers=_int_env("G6EXPLANATION_MODAL_API_MAX_CONTAINERS", 20),
+    max_containers=_int_env("G6EXPLANATION_MODAL_API_MAX_CONTAINERS", 10),
     scaledown_window=_int_env("G6EXPLANATION_MODAL_API_SCALEDOWN_SECONDS", 300),
 )
-@modal.asgi_app()
+@modal.asgi_app(
+    custom_domains=_list_env("G6EXPLANATION_MODAL_CUSTOM_DOMAINS"),
+    requires_proxy_auth=_bool_env("G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH", False),
+)
 def fastapi_app() -> object:
     from g6explanation.game_analysis import (
         GameAnalysisRunner,

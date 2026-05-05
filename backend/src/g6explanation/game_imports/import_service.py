@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import os
 from collections.abc import Callable
 from typing import Any, Protocol, cast
@@ -156,7 +158,7 @@ class GameImportService:
             status_url=start_response.status_url,
             source=imported_game.metadata,
         )
-        self._write_response_for_imported_game(imported_game, response)
+        self._write_response_for_request(request, response)
         return response
 
     def cached_chess_com_live_game_analysis(
@@ -181,10 +183,10 @@ class GameImportService:
         self,
         request: GameAnalysisImportRequest,
     ) -> GameAnalysisImportResponse | None:
-        if request.source != "chess_com_live_url" or request.url is None:
+        key = _analysis_key_for_request(request)
+        if key is None:
             return None
-        external_game_id = extract_chess_com_live_game_id(request.url)
-        return self.cached_chess_com_live_game_analysis(external_game_id)
+        return self._cached_index_response(key)
 
     def _cached_index_response(self, key: str) -> GameAnalysisImportResponse | None:
         if self._analysis_index is None:
@@ -202,17 +204,18 @@ class GameImportService:
             source=cached.source,
         )
 
-    def _write_response_for_imported_game(
+    def _write_response_for_request(
         self,
-        imported_game: ImportedGame,
+        request: GameAnalysisImportRequest,
         response: GameAnalysisImportResponse,
     ) -> None:
-        if self._analysis_index is None or imported_game.metadata.external_game_id is None:
+        if self._analysis_index is None:
             return
-        if imported_game.metadata.source != "chess_com_live_url":
+        key = _analysis_key_for_request(request)
+        if key is None:
             return
         self._analysis_index.set(
-            _chess_com_live_analysis_key(imported_game.metadata.external_game_id),
+            key,
             response,
             self._analysis_index_ttl_seconds,
         )
@@ -363,6 +366,37 @@ def _blank_to_none(value: str | None) -> str | None:
 
 def _chess_com_live_analysis_key(external_game_id: str) -> str:
     return f"chess_com_live:{external_game_id}"
+
+
+def _analysis_key_for_request(request: GameAnalysisImportRequest) -> str | None:
+    if request.source == "chess_com_live_url":
+        if request.url is None:
+            return None
+        return _chess_com_live_analysis_key(extract_chess_com_live_game_id(request.url))
+    if request.pgn is None:
+        return None
+    payload = {
+        "pgn": _normalized_pgn(request.pgn),
+        "player_level": _contract_key(request.player_level),
+        "white_player_level": _contract_key(request.white_player_level),
+        "black_player_level": _contract_key(request.black_player_level),
+        "time_control": _blank_to_none(request.time_control),
+        "explain_significance": request.explain_significance,
+        "include_context": request.include_context,
+        "use_baseline_fallback": request.use_baseline_fallback,
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    return f"pgn:{digest}"
+
+
+def _contract_key(value: PlayerLevel | None) -> dict[str, object] | None:
+    if value is None:
+        return None
+    return value.model_dump(mode="json")
+
+
+def _normalized_pgn(pgn: str) -> str:
+    return "\n".join(line.rstrip() for line in pgn.strip().splitlines())
 
 
 def _int_env(name: str, default: int) -> int:

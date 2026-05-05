@@ -61,12 +61,56 @@ Optional GitHub environment variable:
 
 ```text
 G6EXPLANATION_CORS_ORIGINS=https://your-frontend.example
+G6EXPLANATION_MODAL_CUSTOM_DOMAINS=api.your-frontend.example
+G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true
 ```
 
 Use a comma-separated list for multiple frontend origins.
 
+Optional GitHub secret:
+
+```text
+G6EXPLANATION_TURNSTILE_SECRET_KEY
+```
+
+When this secret is present, the deploy workflow syncs it into the Modal runtime
+secret and requires Turnstile validation for expensive anonymous starts.
+
 The deploy workflow syncs these values into the Modal secret named
 `g6explanation-runtime`.
+
+## Cloudflare Gateway
+
+For public traffic, put the API hostname behind Cloudflare and enable Modal
+proxy auth:
+
+```text
+G6EXPLANATION_MODAL_CUSTOM_DOMAINS=api.your-frontend.example
+G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true
+```
+
+The generated `.modal.run` URL remains reachable unless proxy auth is enabled.
+With proxy auth on, Cloudflare must add `Modal-Key` and `Modal-Secret` as origin
+request headers. A Worker template is provided at
+`deploy/cloudflare/modal-proxy-worker.js`.
+
+Worker secrets:
+
+```text
+MODAL_ORIGIN_HOST=<workspace>--g6explanation-fastapi-app.modal.run
+MODAL_KEY=<Modal proxy auth key>
+MODAL_SECRET=<Modal proxy auth secret>
+```
+
+After deployment, verify:
+
+```text
+curl https://<workspace>--g6explanation-fastapi-app.modal.run/api/visualization/health
+# expected: rejected by Modal proxy auth
+
+curl https://api.your-frontend.example/api/visualization/health
+# expected: 200 through Cloudflare
+```
 
 ## Deploy
 
@@ -103,11 +147,13 @@ Keep product requests at:
 
 ```text
 explain_significance=["critical"]
-include_context=false
+include_context=true
 use_baseline_fallback=false
 ```
 
-Expose `include_context=true` only to internal inspection clients.
+The current frontend still needs `include_context=true` to hydrate board state.
+Move this to `false` after the polling snapshot includes the minimal board
+fields without full context packets.
 
 ## Runtime Knobs
 
@@ -129,13 +175,26 @@ G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY=/usr/games/stockfish
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_DEPTH=16
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_THREADS=1
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_HASH_MB=128
-G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS=8
-G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY=30
+G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS=4
+G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY=8
 MAIA2_MODEL_ROOT=/models/maia2
 ```
 
 Override these only after measuring latency, memory, provider failures, and
 cost.
+
+Public API protection defaults on Modal:
+
+```text
+G6EXPLANATION_API_PROTECTION_ENABLED=true
+G6EXPLANATION_ENABLE_OPENAPI_DOCS=false
+G6EXPLANATION_ENABLE_VISUALIZATION_CONTEXTS=false
+G6EXPLANATION_ALLOW_PUBLIC_INCLUDE_CONTEXT=true
+```
+
+`include_context=true` remains allowed because the current frontend still needs
+full context packets to hydrate the board. Turn it off only after the snapshot
+contract exposes the minimal board fields the UI needs without full context.
 
 ## Verification
 
