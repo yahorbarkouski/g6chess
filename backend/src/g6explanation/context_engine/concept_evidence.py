@@ -27,12 +27,9 @@ DEVELOPMENT_HOME_SQUARES = {
 }
 CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
-FIANCHETTO_PREPARATION_ROUTES = {
-    (chess.WHITE, chess.B2, chess.B3): (chess.C1, chess.B2),
-    (chess.WHITE, chess.G2, chess.G3): (chess.F1, chess.G2),
-    (chess.BLACK, chess.B7, chess.B6): (chess.C8, chess.B7),
-    (chess.BLACK, chess.G7, chess.G6): (chess.F8, chess.G7),
-}
+QUEENSIDE_BISHOP_FILE = chess.square_file(chess.C1)
+KINGSIDE_BISHOP_FILE = chess.square_file(chess.F1)
+BISHOP_HOME_FILES = {QUEENSIDE_BISHOP_FILE, KINGSIDE_BISHOP_FILE}
 
 
 def build_move_concept_claims(
@@ -255,10 +252,12 @@ def _fianchetto_claims(
 ) -> list[ConceptClaim]:
     if piece.piece_type != chess.PAWN:
         return []
-    route = FIANCHETTO_PREPARATION_ROUTES.get((piece.color, move.from_square, move.to_square))
-    if route is None:
+    fianchetto_square = _opened_fianchetto_square(piece.color, move)
+    if fianchetto_square is None:
         return []
-    bishop_home_square, fianchetto_square = route
+    bishop_home_square = _bishop_home_for_fianchetto_square(piece.color, fianchetto_square)
+    if bishop_home_square is None:
+        return []
     bishop = board.piece_at(bishop_home_square)
     if bishop is None or bishop.color != piece.color or bishop.piece_type != chess.BISHOP:
         return []
@@ -276,6 +275,54 @@ def _fianchetto_claims(
             move_san=move_san,
         )
     ]
+
+
+def _opened_fianchetto_square(
+    color: chess.Color,
+    move: chess.Move,
+) -> chess.Square | None:
+    if not _is_one_square_forward_pawn_push(color, move):
+        return None
+    square_rank = chess.square_rank(move.from_square)
+    if square_rank != _pawn_start_rank(color):
+        return None
+    if _bishop_home_for_fianchetto_square(color, move.from_square) is None:
+        return None
+    return move.from_square
+
+
+def _is_one_square_forward_pawn_push(color: chess.Color, move: chess.Move) -> bool:
+    from_file = chess.square_file(move.from_square)
+    to_file = chess.square_file(move.to_square)
+    if from_file != to_file:
+        return False
+    from_rank = chess.square_rank(move.from_square)
+    to_rank = chess.square_rank(move.to_square)
+    return to_rank - from_rank == _forward_rank_delta(color)
+
+
+def _bishop_home_for_fianchetto_square(
+    color: chess.Color,
+    fianchetto_square: chess.Square,
+) -> chess.Square | None:
+    fianchetto_file = chess.square_file(fianchetto_square)
+    for bishop_file in BISHOP_HOME_FILES:
+        edgeward_delta = -1 if bishop_file < KINGSIDE_BISHOP_FILE else 1
+        if fianchetto_file == bishop_file + edgeward_delta:
+            return chess.square(bishop_file, _back_rank(color))
+    return None
+
+
+def _pawn_start_rank(color: chess.Color) -> int:
+    return 1 if color == chess.WHITE else 6
+
+
+def _back_rank(color: chess.Color) -> int:
+    return 0 if color == chess.WHITE else 7
+
+
+def _forward_rank_delta(color: chess.Color) -> int:
+    return 1 if color == chess.WHITE else -1
 
 
 def _material_claims(

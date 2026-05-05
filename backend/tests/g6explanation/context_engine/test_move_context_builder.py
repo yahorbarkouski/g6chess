@@ -411,6 +411,12 @@ def test_knight_fork_context_exposes_attacked_rooks_as_board_fact() -> None:
             "g6",
             "g6 opened the fianchetto square on g7 for the bishop",
         ),
+        (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+            "b7b6",
+            "b6",
+            "b6 opened the fianchetto square on b7 for the bishop",
+        ),
     ],
 )
 def test_flank_pawn_move_exposes_fianchetto_development_fact(
@@ -440,6 +446,51 @@ def test_flank_pawn_move_exposes_fianchetto_development_fact(
     assert result.llm_context.main_point == expected_claim
     assert result.llm_context.allowed_claims[0] == expected_claim
     assert "development" in _concept_kinds(result)
+
+
+@pytest.mark.parametrize(
+    ("fen", "played_uci", "unexpected_claim"),
+    [
+        (
+            chess.STARTING_FEN,
+            "g2g4",
+            "g4 opened the fianchetto square on g2 for the bishop",
+        ),
+        (
+            chess.STARTING_FEN,
+            "b2b4",
+            "b4 opened the fianchetto square on b2 for the bishop",
+        ),
+        (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1",
+            "g2g3",
+            "g3 opened the fianchetto square on g2 for the bishop",
+        ),
+    ],
+)
+def test_fianchetto_fact_requires_normal_one_square_push_and_home_bishop(
+    fen: str,
+    played_uci: str,
+    unexpected_claim: str,
+) -> None:
+    board = chess.Board(fen)
+    engine_analysis = analysis(
+        board,
+        played_uci=played_uci,
+        top_scores=[(played_uci, 40), ("g1f3", 25)],
+        played_score=40,
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move=played_uci,
+        player_color="white",
+        player_level=PlayerLevel.rating(1400),
+    )
+
+    result = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+    assert unexpected_claim not in {claim.claim for claim in result.evidence.concept_claims}
+    assert unexpected_claim not in result.llm_context.allowed_claims
 
 
 def test_mate_transition_adds_king_safety_concept_claim() -> None:
