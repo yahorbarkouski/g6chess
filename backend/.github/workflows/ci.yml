@@ -30,16 +30,9 @@ jobs:
           --health-retries 10
     env:
       G6EXPLANATION_REDIS_URL: redis://localhost:6379/0
-      G6EXPLANATION_STOCKFISH_BINARY: /usr/games/stockfish
-      G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY: /usr/games/stockfish
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Install Stockfish
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y stockfish
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
