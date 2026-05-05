@@ -1484,7 +1484,7 @@ function selectInitialJob(
     return storedJob?.source?.external_game_id === route.externalGameId ? storedJob : null;
   }
 
-  return storedJob;
+  return null;
 }
 
 function sourceForRoute(

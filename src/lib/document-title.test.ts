@@ -47,7 +47,7 @@ describe("buildDocumentTitle", () => {
         source: source({ white_username: "Magnus", black_username: "Hikaru" }),
         importStatus: "succeeded",
       }),
-    ).toBe("Magnus vs Hikaru · g6 Chess Analysis");
+    ).toBe(`Magnus vs Hikaru · ${GAME_TITLE_SUFFIX}`);
   });
 
   it("falls back to Anonymous for missing slots", () => {
@@ -56,13 +56,13 @@ describe("buildDocumentTitle", () => {
         source: source({ white_username: null, black_username: "Hikaru" }),
         importStatus: "succeeded",
       }),
-    ).toBe("Anonymous vs Hikaru · g6 Chess Analysis");
+    ).toBe(`Anonymous vs Hikaru · ${GAME_TITLE_SUFFIX}`);
     expect(
       buildDocumentTitle({
         source: source({ white_username: "Magnus", black_username: "" }),
         importStatus: "succeeded",
       }),
-    ).toBe("Magnus vs Anonymous · g6 Chess Analysis");
+    ).toBe(`Magnus vs Anonymous · ${GAME_TITLE_SUFFIX}`);
   });
 
   it("trims whitespace from nicknames", () => {
@@ -71,6 +71,6 @@ describe("buildDocumentTitle", () => {
         source: source({ white_username: "  Magnus  ", black_username: " Hikaru " }),
         importStatus: "succeeded",
       }),
-    ).toBe("Magnus vs Hikaru · g6 Chess Analysis");
+    ).toBe(`Magnus vs Hikaru · ${GAME_TITLE_SUFFIX}`);
   });
 });

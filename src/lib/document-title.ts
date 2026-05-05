@@ -1,8 +1,8 @@
 import type { ImportPanelStatus } from "../components/analysis/AnalysisImportPanel";
 import type { ImportedGameMetadata } from "../types/api";
 
-export const HOME_DOCUMENT_TITLE = "Chess: g6 Analysis";
-export const GAME_TITLE_SUFFIX = "Chess: g6 Analysis";
+export const HOME_DOCUMENT_TITLE = "g6: Free Chess Analysis";
+export const GAME_TITLE_SUFFIX = "g6: Free Chess Analysis";
 export const ANONYMOUS_PLAYER_LABEL = "Anonymous";
 
 const TITLE_SEPARATOR = " · ";

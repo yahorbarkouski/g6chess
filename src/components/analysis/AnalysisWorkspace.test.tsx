@@ -141,6 +141,25 @@ describe("AnalysisWorkspace imports", () => {
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
   });
 
+  it("does not restore a previous analysis from the homepage", async () => {
+    window.localStorage.setItem(
+      "g6explanation.currentGameAnalysis",
+      JSON.stringify({
+        analysis_id: "analysis-1",
+        status_url: "/api/game-analysis/analysis-1",
+        source: importedSource(),
+      }),
+    );
+
+    render(<AnalysisWorkspace />);
+
+    expect(screen.getByLabelText("Chess.com URL")).toBeTruthy();
+    expect(screen.queryByTestId("analysis-board")).toBeNull();
+    expect(apiMocks.pollGameAnalysis).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+  });
+
   it("starts a Chess.com route import from a production-domain game path", async () => {
     window.history.replaceState(null, "", "/game/live/168193636078");
     const source = importedSource();

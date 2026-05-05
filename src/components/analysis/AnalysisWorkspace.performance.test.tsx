@@ -285,14 +285,7 @@ describe("AnalysisWorkspace performance baseline", () => {
 });
 
 function renderWorkspaceWithCompletedAnalysis() {
-  window.localStorage.setItem(
-    "g6explanation.currentGameAnalysis",
-    JSON.stringify({
-      analysis_id: "analysis-performance-baseline",
-      status_url: "/api/game-analysis/performance-baseline",
-      source: null,
-    }),
-  );
+  window.history.replaceState(null, "", "/analysis/analysis-performance-baseline");
   apiMocks.pollGameAnalysis.mockResolvedValue(completedSnapshot());
   return render(<AnalysisWorkspace />);
 }
