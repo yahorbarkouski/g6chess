@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping
-from contextlib import suppress
+from contextlib import AbstractContextManager, nullcontext, suppress
 from dataclasses import dataclass, field
 from importlib import import_module, metadata
+from pathlib import Path
 from typing import Literal, cast
 
 import chess
@@ -26,6 +28,19 @@ InferenceEach = Callable[
 MAIA2_BUCKET_START = 1100
 MAIA2_BUCKET_END = 2000
 MAIA2_BUCKET_INTERVAL = 100
+_MaiaCacheKey = tuple[LoadedMaiaModelType, Literal["cpu", "gpu"], str]
+
+
+@dataclass(frozen=True)
+class _LoadedMaiaModel:
+    model: object
+    prepared: object
+    inference_each: InferenceEach
+    inference_lock: threading.Lock = field(default_factory=threading.Lock)
+
+
+_MAIA_MODEL_CACHE: dict[_MaiaCacheKey, _LoadedMaiaModel] = {}
+_MAIA_MODEL_CACHE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -37,6 +52,7 @@ class Maia2MoveLikelihoodProvider:
     _model: object | None = field(default=None, init=False, repr=False)
     _prepared: object | None = field(default=None, init=False, repr=False)
     _inference_each: InferenceEach | None = field(default=None, init=False, repr=False)
+    _loaded_model: _LoadedMaiaModel | None = field(default=None, init=False, repr=False)
     _loaded_model_type: LoadedMaiaModelType | None = field(default=None, init=False, repr=False)
 
     def likelihoods(
@@ -47,7 +63,7 @@ class Maia2MoveLikelihoodProvider:
     ) -> dict[str, HumanMoveLikelihood]:
         model_type = self._select_model_type(request)
         self._load(model_type)
-        if self._model is None or self._prepared is None or self._inference_each is None:
+        if self._loaded_model is None:
             raise AnalysisError("Maia-2 provider was not loaded correctly.")
 
         elo_self = _rating_or_default(request.player_level)
@@ -58,13 +74,11 @@ class Maia2MoveLikelihoodProvider:
         player_bucket = maia2_rating_bucket(elo_self)
         plus_400_bucket = maia2_rating_bucket(plus_400)
 
-        move_probs, _ = self._inference_each(
-            self._model, self._prepared, board.fen(), elo_self, elo_opponent
-        )
+        move_probs, _ = _run_inference(self._loaded_model, board.fen(), elo_self, elo_opponent)
         plus_400_probs: Mapping[str, float] = {}
         if plus_400_bucket != player_bucket:
-            plus_400_probs, _ = self._inference_each(
-                self._model, self._prepared, board.fen(), plus_400, elo_opponent
+            plus_400_probs, _ = _run_inference(
+                self._loaded_model, board.fen(), plus_400, elo_opponent
             )
         legal_uci = {move.uci() for move in board.legal_moves}
         ranked_uci = [uci for uci in move_probs if uci in legal_uci][: self.top_move_limit]
@@ -104,6 +118,24 @@ class Maia2MoveLikelihoodProvider:
     def _load(self, model_type: LoadedMaiaModelType) -> None:
         if self._model is not None and self._loaded_model_type == model_type:
             return
+        loaded = _load_cached_maia_model(model_type, self.device, self.save_root)
+        self._model = loaded.model
+        self._prepared = loaded.prepared
+        self._inference_each = loaded.inference_each
+        self._loaded_model = loaded
+        self._loaded_model_type = model_type
+
+
+def _load_cached_maia_model(
+    model_type: LoadedMaiaModelType,
+    device: Literal["cpu", "gpu"],
+    save_root: str,
+) -> _LoadedMaiaModel:
+    cache_key = (model_type, device, _normalized_save_root(save_root))
+    with _MAIA_MODEL_CACHE_LOCK:
+        loaded = _MAIA_MODEL_CACHE.get(cache_key)
+        if loaded is not None:
+            return loaded
         try:
             inference_module = import_module("maia2.inference")
             model_module = import_module("maia2.model")
@@ -117,14 +149,50 @@ class Maia2MoveLikelihoodProvider:
         prepare = cast(Callable[[], object], inference_module.prepare)
         inference_each = cast(InferenceEach, inference_module.inference_each)
 
-        self._model = from_pretrained(
+        model = from_pretrained(
             type=model_type,
-            device=self.device,
-            save_root=self.save_root,
+            device=device,
+            save_root=save_root,
         )
-        self._prepared = prepare()
-        self._inference_each = inference_each
-        self._loaded_model_type = model_type
+        loaded = _LoadedMaiaModel(
+            model=model,
+            prepared=prepare(),
+            inference_each=inference_each,
+        )
+        _MAIA_MODEL_CACHE[cache_key] = loaded
+        return loaded
+
+
+def _run_inference(
+    loaded: _LoadedMaiaModel,
+    fen: str,
+    elo_self: int,
+    elo_opponent: int,
+) -> tuple[Mapping[str, float], object]:
+    torch_module = import_module("torch")
+    inference_mode = getattr(torch_module, "inference_mode", None)
+    context: AbstractContextManager[object] = (
+        cast(AbstractContextManager[object], inference_mode())
+        if callable(inference_mode)
+        else nullcontext()
+    )
+    with loaded.inference_lock, context:
+        return loaded.inference_each(
+            loaded.model,
+            loaded.prepared,
+            fen,
+            elo_self,
+            elo_opponent,
+        )
+
+
+def _normalized_save_root(save_root: str) -> str:
+    return str(Path(save_root).expanduser().resolve(strict=False))
+
+
+def clear_maia2_model_cache() -> None:
+    with _MAIA_MODEL_CACHE_LOCK:
+        _MAIA_MODEL_CACHE.clear()
 
 
 def _rating_or_default(level: PlayerLevel | None) -> int:
