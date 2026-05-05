@@ -5,6 +5,17 @@ import {
   type PreviewState,
   useAnalysisBoard,
 } from "../../hooks/useAnalysisBoard";
+import {
+  type AnalysisRouteState,
+  analysisStatusUrl,
+  canonicalPathForRoute,
+  chessComLiveGameUrl,
+  extractChessComLiveGameId,
+  readAnalysisRoute,
+  replaceAnalysisUrl,
+  replaceWithPath,
+  type SharedAnalysisTarget,
+} from "../../lib/analysis-routing";
 import { ApiError, pollGameAnalysis, startImportedGameAnalysis } from "../../lib/api";
 import {
   computeCapturedMaterial,
@@ -48,12 +59,14 @@ import {
   type BoardTransitionMove,
   UltraAnalysisBoard,
 } from "./UltraAnalysisBoard";
+import { WorkspaceFooter } from "./WorkspaceFooter";
 
 const EMPTY_BOARD_ARROWS: BoardArrow[] = [];
 const DESKTOP_MEDIA_QUERY = "(min-width: 1280px)";
 const MIN_BROWSER_EVAL_BAR_DEPTH = 13;
 const MAX_PRE_ANALYZE_FENS = 12;
 const PRE_ANALYZE_NEIGHBOR_PLIES = 4;
+const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
 
 interface StoredGameAnalysisJob {
@@ -64,16 +77,17 @@ interface StoredGameAnalysisJob {
 
 interface AnalysisImportHomeProps {
   status: ImportPanelStatus;
-  snapshot: GameAnalysisSnapshot | null;
-  source: ImportedGameMetadata | null;
   error: string | null;
   onImport: (request: GameAnalysisImportRequest) => Promise<void>;
+  onClearError: () => void;
 }
 
 interface AnalysisGameWorkspaceProps {
   analysis: AnalysisResponse;
+  initialPly: number | null;
   moveLoadingIndicator: MoveLoadingIndicatorState;
   onOpenImport: () => void;
+  shareTarget: SharedAnalysisTarget | null;
 }
 
 interface EngineLineSet {
@@ -81,23 +95,34 @@ interface EngineLineSet {
   lines: BestLine[];
 }
 
+type BrowserAnalysisReason = "discovery" | "preview" | "missing-server-lines";
+
 interface MoveLoadingIndicatorState {
   show: boolean;
   progress: number | null;
 }
 
 export function AnalysisWorkspace() {
+  const initialRoute = useMemo(() => readAnalysisRoute(), []);
   const storedJob = useMemo(() => readStoredGameAnalysisJob(), []);
+  const initialJob = useMemo(
+    () => selectInitialJob(initialRoute, storedJob),
+    [initialRoute, storedJob],
+  );
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(storedJob);
+  const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
   const [importStatus, setImportStatus] = useState<ImportPanelStatus>(
-    storedJob ? "polling" : "idle",
+    initialJob ? "polling" : initialRoute.kind === "chess_com_live" ? "submitting" : "idle",
   );
   const [importSnapshot, setImportSnapshot] = useState<GameAnalysisSnapshot | null>(null);
-  const [importSource, setImportSource] = useState<ImportedGameMetadata | null>(
-    storedJob?.source ?? null,
-  );
   const [importError, setImportError] = useState<string | null>(null);
+  const routeImportStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (initialRoute.canonicalPath !== null) {
+      replaceWithPath(initialRoute.canonicalPath);
+    }
+  }, [initialRoute.canonicalPath]);
 
   useEffect(() => {
     if (activeJob === null) {
@@ -116,7 +141,6 @@ export function AnalysisWorkspace() {
           return;
         }
         setImportSnapshot(snapshot);
-        setImportSource(job.source);
         setImportError(snapshot.status === "failed" ? snapshot.error : null);
         if (snapshot.moves.some((move) => move.context !== null)) {
           setAnalysis(mapGameAnalysisSnapshot(snapshot, job.source));
@@ -155,47 +179,94 @@ export function AnalysisWorkspace() {
     };
   }, [activeJob]);
 
-  const handleImportedGameAnalysis = useCallback(async (request: GameAnalysisImportRequest) => {
-    setImportStatus("submitting");
-    setImportError(null);
-    setImportSnapshot(null);
-    setActiveJob(null);
-    setAnalysis(null);
-    try {
-      const response = await startImportedGameAnalysis(request);
-      const nextJob: StoredGameAnalysisJob = {
-        analysis_id: response.analysis_id,
-        status_url: response.status_url,
-        source: response.source,
-      };
-      writeStoredGameAnalysisJob(nextJob);
-      setImportSource(response.source);
-      setActiveJob(nextJob);
-      setImportStatus("polling");
-    } catch (error) {
-      setImportStatus("failed");
-      setImportError(importErrorMessage(error));
-      throw error;
+  const handleImportedGameAnalysis = useCallback(
+    async (request: GameAnalysisImportRequest) => {
+      setImportStatus("submitting");
+      setImportError(null);
+      setImportSnapshot(null);
+      setActiveJob(null);
+      setAnalysis(null);
+      try {
+        const response = await startImportedGameAnalysis(request);
+        const nextJob: StoredGameAnalysisJob = {
+          analysis_id: response.analysis_id,
+          status_url: response.status_url,
+          source: response.source,
+        };
+        writeStoredGameAnalysisJob(nextJob);
+        setActiveJob(nextJob);
+        setImportStatus("polling");
+
+        const externalGameId =
+          response.source.external_game_id ??
+          (request.url === undefined || request.url === null
+            ? null
+            : extractChessComLiveGameId(request.url));
+        const nextPath = canonicalPathForRoute({
+          analysisId: response.analysis_id,
+          externalGameId,
+          ply: initialRoute.ply,
+        });
+        if (nextPath !== null) {
+          replaceWithPath(nextPath);
+        }
+      } catch (error) {
+        setImportStatus("failed");
+        setImportError(importErrorMessage(error));
+        throw error;
+      }
+    },
+    [initialRoute.ply],
+  );
+
+  useEffect(() => {
+    if (
+      initialRoute.kind !== "chess_com_live" ||
+      initialRoute.analysisId !== null ||
+      activeJob !== null ||
+      routeImportStartedRef.current
+    ) {
+      return;
     }
-  }, []);
+    if (initialRoute.externalGameId === null) {
+      return;
+    }
+
+    routeImportStartedRef.current = true;
+    void handleImportedGameAnalysis(buildChessComRouteImportRequest(initialRoute.externalGameId));
+  }, [
+    activeJob,
+    handleImportedGameAnalysis,
+    initialRoute.analysisId,
+    initialRoute.externalGameId,
+    initialRoute.kind,
+  ]);
 
   const handleOpenImport = useCallback(() => {
     clearStoredGameAnalysisJob();
     setActiveJob(null);
     setAnalysis(null);
     setImportSnapshot(null);
-    setImportSource(null);
     setImportError(null);
     setImportStatus("idle");
+    replaceWithPath("/");
   }, []);
+
+  const handleClearImportError = useCallback(() => {
+    setImportError(null);
+    setImportStatus((current) => (current === "failed" ? "idle" : current));
+  }, []);
+  const shareTarget = useMemo(
+    () => buildShareTarget(activeJob, initialRoute),
+    [activeJob, initialRoute],
+  );
 
   if (analysis === null) {
     return (
       <AnalysisImportHome
         error={importError}
+        onClearError={handleClearImportError}
         onImport={handleImportedGameAnalysis}
-        snapshot={importSnapshot}
-        source={importSource}
         status={importStatus}
       />
     );
@@ -204,41 +275,41 @@ export function AnalysisWorkspace() {
   return (
     <AnalysisGameWorkspace
       analysis={analysis}
+      initialPly={initialRoute.ply}
       moveLoadingIndicator={buildMoveLoadingIndicator(importStatus, importSnapshot)}
       onOpenImport={handleOpenImport}
+      shareTarget={shareTarget}
     />
   );
 }
 
-function AnalysisImportHome({
-  error,
-  onImport,
-  snapshot,
-  source,
-  status,
-}: AnalysisImportHomeProps) {
+function AnalysisImportHome({ error, onClearError, onImport, status }: AnalysisImportHomeProps) {
   return (
     <div className="min-h-dvh bg-white text-stone-600 dark:bg-stone-950 dark:text-stone-400">
-      <main className="mx-auto flex min-h-dvh w-full max-w-[720px] items-center justify-center px-4 py-10 sm:px-6">
+      <main className="mx-auto flex min-h-dvh w-full max-w-[640px] flex-col justify-center px-4 pb-[10dvh] sm:px-6">
         <AnalysisImportPanel
           error={error}
+          onClearError={onClearError}
           onImport={onImport}
-          snapshot={snapshot}
-          source={source}
           status={status}
-          variant="hero"
         />
       </main>
+      <WorkspaceFooter />
     </div>
   );
 }
 
 function AnalysisGameWorkspace({
   analysis,
+  initialPly,
   moveLoadingIndicator,
   onOpenImport,
+  shareTarget,
 }: AnalysisGameWorkspaceProps) {
-  const [currentPly, setCurrentPly] = useState(1);
+  const desiredInitialPlyRef = useRef(initialPly);
+  const [currentPly, setCurrentPly] = useState(() =>
+    clampPly(initialPly ?? 1, analysis.moves.length),
+  );
   const [flippedBoard, setFlippedBoard] = useState(false);
   const [arrowCount, setArrowCount] = useState(1);
   const [showMaiaArrow, setShowMaiaArrow] = useState(true);
@@ -261,12 +332,14 @@ function AnalysisGameWorkspace({
     baseSoundKey: currentMove ? `ply:${currentMove.ply}` : null,
     baseSan: currentMove?.san ?? null,
     baseMovedByPlayer: currentMove?.side === analysis.player_side,
-    onExitDiscovery: setCurrentPly,
+    onExitDiscovery: (ply) => {
+      desiredInitialPlyRef.current = null;
+      setCurrentPly(ply);
+    },
   });
 
   const displayFen = board.displayFen ?? currentFen;
   const analysisFen = board.discovery || board.preview ? displayFen : currentFen;
-  const shouldAnalyzeBrowserLines = Boolean(analysisFen);
   const serverEngineLines = useMemo<EngineLineSet | null>(() => {
     if (currentMarker?.best_lines.length) {
       return { fen: currentMove?.fen_before ?? currentFen, lines: currentMarker.best_lines };
@@ -276,6 +349,13 @@ function AnalysisGameWorkspace({
     }
     return null;
   }, [currentFen, currentMarker, currentMove?.fen_before, currentTimelinePoint]);
+  const browserAnalysisReason = browserAnalysisReasonForPosition({
+    analysisFen,
+    discoveryActive: Boolean(board.discovery),
+    previewActive: Boolean(board.preview),
+    serverEngineLines,
+  });
+  const shouldAnalyzeBrowserLines = browserAnalysisReason !== null;
   const material = useMemo(() => computeCapturedMaterial(currentFen), [currentFen]);
   const boardOrientation = flippedBoard ? oppositeSide(analysis.player_side) : analysis.player_side;
   const boardTransitionMove = useMemo<BoardTransitionMove | null>(() => {
@@ -300,20 +380,40 @@ function AnalysisGameWorkspace({
   const fallbackEvalCp = currentTimelinePoint?.eval_cp ?? currentMarker?.eval_after_cp ?? null;
 
   const preAnalyzeFens = useMemo(
-    () => buildPreAnalysisFens(analysis, indexes, currentPly, currentFen),
-    [analysis, currentFen, currentPly, indexes],
+    () =>
+      browserAnalysisReason === "missing-server-lines"
+        ? buildPreAnalysisFens(analysis, indexes, currentPly, currentFen)
+        : EMPTY_PRE_ANALYZE_FENS,
+    [analysis, browserAnalysisReason, currentFen, currentPly, indexes],
   );
 
   useEffect(() => {
-    setCurrentPly((ply) => Math.max(1, Math.min(Math.max(analysis.moves.length, 1), ply)));
+    const desiredPly = desiredInitialPlyRef.current;
+    if (desiredPly !== null) {
+      const nextPly = clampPly(desiredPly, analysis.moves.length);
+      setCurrentPly(nextPly);
+      if (desiredPly <= analysis.moves.length) {
+        desiredInitialPlyRef.current = null;
+      }
+      return;
+    }
+    setCurrentPly((ply) => clampPly(ply, analysis.moves.length));
   }, [analysis.moves.length]);
 
   useEffect(() => {
     previousPlyRef.current = currentPly;
   }, [currentPly]);
 
+  useEffect(() => {
+    if (shareTarget === null) {
+      return;
+    }
+    replaceAnalysisUrl(shareTarget, desiredInitialPlyRef.current ?? currentPly);
+  }, [currentPly, shareTarget]);
+
   const handleSelectPly = useCallback(
     (ply: number) => {
+      desiredInitialPlyRef.current = null;
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(ply);
@@ -327,6 +427,7 @@ function AnalysisGameWorkspace({
       if (board.stepInDiscovery(delta)) {
         return;
       }
+      desiredInitialPlyRef.current = null;
       board.clearPreview();
       setCurrentPly((ply) => Math.max(1, Math.min(analysis.moves.length, ply + delta)));
     },
@@ -335,6 +436,7 @@ function AnalysisGameWorkspace({
 
   const goToBoundary = useCallback(
     (direction: "start" | "end") => {
+      desiredInitialPlyRef.current = null;
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(direction === "start" ? 1 : analysis.moves.length);
@@ -358,6 +460,7 @@ function AnalysisGameWorkspace({
     <>
       <StockfishAnalysisRuntime
         analysisFen={analysisFen}
+        enabled={shouldAnalyzeBrowserLines || preAnalyzeFens.length > 0}
         multiPv={3}
         preAnalyzeFens={preAnalyzeFens}
         shouldAnalyze={shouldAnalyzeBrowserLines}
@@ -367,7 +470,7 @@ function AnalysisGameWorkspace({
         {moveLoadingIndicator.show ? (
           <WorkspaceMoveLoadingIndicator progress={moveLoadingIndicator.progress} />
         ) : null}
-        <main className="mx-auto max-w-[1320px] px-4 pt-16 pb-5 sm:px-6 xl:py-5">
+        <main className="mx-auto max-w-[1320px] px-4 pt-16 pb-7 sm:px-6 xl:pt-5 xl:pb-7">
           {isDesktopLayout ? (
             <DesktopLayout
               analysis={analysis}
@@ -448,6 +551,7 @@ function AnalysisGameWorkspace({
             />
           )}
         </main>
+        <WorkspaceFooter />
       </div>
     </>
   );
@@ -600,6 +704,7 @@ function DesktopLayout({
       <div className="flex max-h-[85vh] min-w-0 flex-col pl-5">
         <aside className="shrink-0 space-y-4 pr-1">
           <PositionInfo
+            boardOrientation={boardOrientation}
             currentMove={currentMove}
             emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
             onMoveClick={onPreview}
@@ -759,6 +864,7 @@ function MobileLayout({
       {mobileTab === "analysis" ? (
         <div className="grid gap-4">
           <PositionInfo
+            boardOrientation={boardOrientation}
             currentMove={currentMove}
             emptyMessage="Select a marked move to see the verified explanation packet rendered as coach wording."
             onMoveClick={onPreview}
@@ -1094,6 +1200,85 @@ interface PlayerMetaSide {
   clock: number | undefined;
 }
 
+function selectInitialJob(
+  route: AnalysisRouteState,
+  storedJob: StoredGameAnalysisJob | null,
+): StoredGameAnalysisJob | null {
+  if (route.analysisId !== null) {
+    return {
+      analysis_id: route.analysisId,
+      status_url:
+        storedJob?.analysis_id === route.analysisId
+          ? storedJob.status_url
+          : analysisStatusUrl(route.analysisId),
+      source: sourceForRoute(route, storedJob),
+    };
+  }
+
+  if (route.kind === "chess_com_live") {
+    return storedJob?.source?.external_game_id === route.externalGameId ? storedJob : null;
+  }
+
+  return storedJob;
+}
+
+function sourceForRoute(
+  route: AnalysisRouteState,
+  storedJob: StoredGameAnalysisJob | null,
+): ImportedGameMetadata | null {
+  if (route.externalGameId === null) {
+    return storedJob?.analysis_id === route.analysisId ? storedJob.source : null;
+  }
+  if (storedJob?.source?.external_game_id === route.externalGameId) {
+    return storedJob.source;
+  }
+  return sourceFromExternalGameId(route.externalGameId);
+}
+
+function sourceFromExternalGameId(externalGameId: string): ImportedGameMetadata {
+  return {
+    source: "chess_com_live_url",
+    source_url: chessComLiveGameUrl(externalGameId),
+    external_game_id: externalGameId,
+    title: `Chess.com game ${externalGameId}`,
+    white_username: null,
+    black_username: null,
+    white_rating: null,
+    black_rating: null,
+    time_control: null,
+    result: null,
+    allows_global_training: false,
+    rights_basis: "Public Chess.com game link.",
+  };
+}
+
+function buildChessComRouteImportRequest(externalGameId: string): GameAnalysisImportRequest {
+  return {
+    source: "chess_com_live_url",
+    url: chessComLiveGameUrl(externalGameId),
+    explain_significance: ["critical"],
+    include_context: true,
+    use_baseline_fallback: false,
+  };
+}
+
+function buildShareTarget(
+  job: StoredGameAnalysisJob | null,
+  route: AnalysisRouteState,
+): SharedAnalysisTarget | null {
+  if (job === null) {
+    return null;
+  }
+  return {
+    analysisId: job.analysis_id,
+    externalGameId: job.source?.external_game_id ?? route.externalGameId,
+  };
+}
+
+function clampPly(ply: number, moveCount: number): number {
+  return Math.max(1, Math.min(Math.max(moveCount, 1), ply));
+}
+
 function readStoredGameAnalysisJob(): StoredGameAnalysisJob | null {
   if (typeof window === "undefined") {
     return null;
@@ -1121,14 +1306,22 @@ function writeStoredGameAnalysisJob(job: StoredGameAnalysisJob): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(GAME_ANALYSIS_STORAGE_KEY, JSON.stringify(job));
+  try {
+    window.localStorage.setItem(GAME_ANALYSIS_STORAGE_KEY, JSON.stringify(job));
+  } catch {
+    // Browser storage can be unavailable in private or locked-down sessions.
+  }
 }
 
 function clearStoredGameAnalysisJob(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(GAME_ANALYSIS_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(GAME_ANALYSIS_STORAGE_KEY);
+  } catch {
+    // Browser storage can be unavailable in private or locked-down sessions.
+  }
 }
 
 function importErrorMessage(error: unknown): string {
@@ -1192,6 +1385,29 @@ export function buildAnalysisIndexes(analysis: AnalysisResponse) {
     markerByPly: new Map(analysis.move_markers.map((marker) => [marker.ply, marker])),
     timelineByPly: new Map(analysis.timeline.map((point) => [point.ply, point])),
   };
+}
+
+export function browserAnalysisReasonForPosition({
+  analysisFen,
+  discoveryActive,
+  previewActive,
+  serverEngineLines,
+}: {
+  analysisFen: string;
+  discoveryActive: boolean;
+  previewActive: boolean;
+  serverEngineLines: EngineLineSet | null;
+}): BrowserAnalysisReason | null {
+  if (!analysisFen) {
+    return null;
+  }
+  if (discoveryActive) {
+    return "discovery";
+  }
+  if (previewActive) {
+    return "preview";
+  }
+  return serverEngineLines === null ? "missing-server-lines" : null;
 }
 
 export function buildPreAnalysisFens(

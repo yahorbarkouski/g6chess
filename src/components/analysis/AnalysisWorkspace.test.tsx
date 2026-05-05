@@ -57,6 +57,7 @@ vi.mock("../ui/morph-text", () => ({
 
 describe("AnalysisWorkspace imports", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     window.localStorage.clear();
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: query === "(min-width: 1280px)",
@@ -106,7 +107,7 @@ describe("AnalysisWorkspace imports", () => {
       expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
           source: "chess_com_live_url",
-          url: "https://www.chess.com/game/168193636078",
+          url: "https://www.chess.com/game/live/168193636078",
           include_context: true,
         }),
       ),
@@ -125,6 +126,70 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.localStorage.getItem("g6explanation.currentGameAnalysis")).toContain(
       "analysis-1",
     );
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+    await waitForNoBrowserEngineTick();
+    expect(stockfishMocks.analyze).not.toHaveBeenCalled();
+    expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
+  });
+
+  it("starts a Chess.com route import from a production-domain game path", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078");
+    const source = importedSource();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "chess_com_live_url",
+          url: "https://www.chess.com/game/live/168193636078",
+        }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("polls a shared Chess.com analysis link without starting a new import", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.pollGameAnalysis).toHaveBeenCalledWith(
+        "/api/game-analysis/analysis-1",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168193636078");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("restores and updates the selected ply in the share URL", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(2));
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() => expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 2"));
+    expect(window.location.search).toBe("?analysis=analysis-1&ply=2");
+
+    await user.click(screen.getByRole("button", { name: "Previous move" }));
+
+    await waitFor(() => expect(window.location.search).toBe("?analysis=analysis-1"));
   });
 
   it("returns from an imported game to the centered import flow", async () => {
@@ -153,8 +218,14 @@ describe("AnalysisWorkspace imports", () => {
     expect(screen.queryByTestId("analysis-board")).toBeNull();
     expect(screen.getByLabelText("Chess.com URL")).toBeTruthy();
     expect(window.localStorage.getItem("g6explanation.currentGameAnalysis")).toBeNull();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
   });
 });
+
+async function waitForNoBrowserEngineTick(): Promise<void> {
+  await new Promise((resolve) => window.setTimeout(resolve, 120));
+}
 
 function importedSource(): ImportedGameMetadata {
   return {
@@ -174,14 +245,18 @@ function importedSource(): ImportedGameMetadata {
 }
 
 function snapshotWithMove(): GameAnalysisSnapshot {
+  return snapshotWithMoves(1);
+}
+
+function snapshotWithMoves(count: 1 | 2): GameAnalysisSnapshot {
   return {
     snapshot_version: "game_analysis_snapshot.v1",
     analysis_id: "analysis-1",
     status: "succeeded",
-    total_plies: 1,
-    context_completed: 1,
-    explanation_required: 1,
-    explanation_completed: 1,
+    total_plies: count,
+    context_completed: count,
+    explanation_required: count,
+    explanation_completed: count,
     explanation_failed: 0,
     explain_significance: ["critical"],
     created_at: "2026-05-04T10:00:00Z",
@@ -189,16 +264,25 @@ function snapshotWithMove(): GameAnalysisSnapshot {
     started_at: "2026-05-04T10:00:00Z",
     completed_at: "2026-05-04T10:00:01Z",
     error: null,
-    moves: [moveAnalysis()],
+    moves: count === 1 ? [moveAnalysis()] : [moveAnalysis(), moveAnalysis({ ply: 2 })],
   };
 }
 
-function moveAnalysis(): GameMoveAnalysis {
+function moveAnalysis({ ply = 1 }: { ply?: 1 | 2 } = {}): GameMoveAnalysis {
+  const isBlackMove = ply === 2;
+  const san = isBlackMove ? "a5" : "a4";
+  const uci = isBlackMove ? "a7a5" : "a2a4";
+  const fenBefore = isBlackMove
+    ? "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1"
+    : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1";
+  const fenAfter = isBlackMove
+    ? "rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 2"
+    : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1";
   return {
-    ply: 1,
-    san: "a4",
-    uci: "a2a4",
-    player_color: "white",
+    ply,
+    san,
+    uci,
+    player_color: isBlackMove ? "black" : "white",
     state: "explained",
     requires_explanation: true,
     quality: "excellent",
@@ -214,29 +298,29 @@ function moveAnalysis(): GameMoveAnalysis {
       evidence: {
         context_version: "context.v1",
         request: {
-          player_color: "white",
+          player_color: isBlackMove ? "black" : "white",
           player_level: { kind: "rating", value: 1500, system: "test" },
-          played_move: "a2a4",
-          fen_before: "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1",
+          played_move: uci,
+          fen_before: fenBefore,
           pgn: null,
-          ply: 1,
+          ply,
           time_control: "rapid",
           clock_before_seconds: null,
           increment_seconds: null,
           opponent_level: null,
         },
         position: {
-          fen_before: "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1",
-          fen_after: "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
-          side_to_move: "white",
+          fen_before: fenBefore,
+          fen_after: fenAfter,
+          side_to_move: isBlackMove ? "black" : "white",
           move_number: 1,
-          ply: 1,
+          ply,
           phase: "opening",
-          legal_moves_uci: ["a2a4"],
+          legal_moves_uci: [uci],
         },
         played: {
-          uci: "a2a4",
-          san: "a4",
+          uci,
+          san,
           legal: true,
           is_check: false,
           is_capture: false,
@@ -246,8 +330,8 @@ function moveAnalysis(): GameMoveAnalysis {
           engine_version: "test-stockfish",
           analysis_budget: { kind: "static", value: 1, multipv: 1 },
           engine_options: {},
-          top_lines: [engineLine()],
-          played_line: engineLine(),
+          top_lines: [engineLine(uci, san)],
+          played_line: engineLine(uci, san),
           after_line: null,
         },
         quality: {
@@ -268,7 +352,7 @@ function moveAnalysis(): GameMoveAnalysis {
         allowed_claims: ["space"],
       },
       llm_context: {
-        played: "a4",
+        played: san,
         quality: "excellent",
         significance: { label: "critical", score: 1 },
         beauty: { label: "ordinary", score: 0 },
@@ -290,15 +374,15 @@ function moveAnalysis(): GameMoveAnalysis {
   };
 }
 
-function engineLine(): EngineLine {
+function engineLine(uci = "a2a4", san = "a4"): EngineLine {
   return {
-    move_uci: "a2a4",
-    move_san: "a4",
+    move_uci: uci,
+    move_san: san,
     score: { kind: "cp", value: 35, mate_in: null, mate_for: null },
     rank: 1,
     wdl: null,
-    pv_uci: ["a2a4"],
-    pv_san: ["a4"],
+    pv_uci: [uci],
+    pv_san: [san],
     depth: 18,
     seldepth: 24,
     nodes: 10,

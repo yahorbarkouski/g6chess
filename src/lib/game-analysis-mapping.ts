@@ -72,6 +72,10 @@ function mapGameMove(move: GameMoveAnalysis & { context: ContextResult }): GameM
     uci: move.context.evidence.played.uci || move.uci,
     fen_before: position.fen_before,
     fen_after: position.fen_after,
+    ...(move.remaining_clock_seconds == null
+      ? {}
+      : { remaining_clock_seconds: move.remaining_clock_seconds }),
+    ...(move.think_time_seconds == null ? {} : { think_time_seconds: move.think_time_seconds }),
   };
 }
 

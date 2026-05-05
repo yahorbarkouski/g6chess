@@ -20,18 +20,21 @@ interface PositionInfoProps {
   currentMove: GameMove | null;
   selectedMarker: AnalysisMoveMarker | null;
   rootFen?: string | null;
+  boardOrientation?: BoardSide | null;
   emptyMessage?: string | null;
   onMoveClick?: (rootFen: string, moves: string[], step: number) => void;
   className?: string;
 }
 
 const SAN_PATTERN = /\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b/g;
+const SHOW_ENGINE_DETAIL_PANEL: boolean = false;
 type LineCardTone = "good" | "bad";
 
 export function PositionInfo({
   currentMove,
   selectedMarker,
   rootFen = null,
+  boardOrientation = null,
   emptyMessage = null,
   onMoveClick,
   className,
@@ -40,8 +43,8 @@ export function PositionInfo({
     if (!selectedMarker || !rootFen) {
       return null;
     }
-    return renderExplanationContent(selectedMarker, rootFen, onMoveClick);
-  }, [onMoveClick, rootFen, selectedMarker]);
+    return renderExplanationContent(selectedMarker, rootFen, boardOrientation, onMoveClick);
+  }, [boardOrientation, onMoveClick, rootFen, selectedMarker]);
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -80,7 +83,7 @@ export function PositionInfo({
         </p>
       ) : null}
 
-      <AnalysisMarkerStack marker={selectedMarker} />
+      {SHOW_ENGINE_DETAIL_PANEL ? <AnalysisMarkerStack marker={selectedMarker} /> : null}
     </div>
   );
 }
@@ -271,6 +274,7 @@ function formatSeconds(value: number | null): string | null {
 function renderExplanationContent(
   marker: AnalysisMoveMarker,
   rootFen: string,
+  boardOrientation: BoardSide | null,
   onMoveClick?: (rootFen: string, moves: string[], step: number) => void,
 ): ReactNode {
   const cardsById = new Map(marker.explanation_line_cards.map((card) => [card.id, card]));
@@ -291,6 +295,7 @@ function renderExplanationContent(
         {needsLeadingSpace ? " " : null}
         {card
           ? renderLineCardSegment({
+              boardOrientation,
               card,
               marker,
               onMoveClick,
@@ -304,12 +309,14 @@ function renderExplanationContent(
 }
 
 function renderLineCardSegment({
+  boardOrientation,
   card,
   marker,
   onMoveClick,
   rootFen,
   segment,
 }: {
+  boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
   marker: AnalysisMoveMarker;
   onMoveClick: ((rootFen: string, moves: string[], step: number) => void) | undefined;
@@ -321,6 +328,7 @@ function renderLineCardSegment({
   if (!anchor || !segment.text.includes(anchor)) {
     return (
       <LineCardAnchor
+        boardOrientation={boardOrientation}
         card={card}
         onMoveClick={onMoveClick}
         rootFen={rootFen}
@@ -338,6 +346,7 @@ function renderLineCardSegment({
     <>
       {parseExplanationWithMoves(before, marker, rootFen, onMoveClick)}
       <LineCardAnchor
+        boardOrientation={boardOrientation}
         card={card}
         onMoveClick={onMoveClick}
         rootFen={rootFen}
@@ -350,12 +359,14 @@ function renderLineCardSegment({
 }
 
 function LineCardAnchor({
+  boardOrientation,
   card,
   onMoveClick,
   rootFen,
   tone,
   triggerText,
 }: {
+  boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
   onMoveClick: ((rootFen: string, moves: string[], step: number) => void) | undefined;
   rootFen: string;
@@ -396,7 +407,9 @@ function LineCardAnchor({
       >
         {triggerText}
       </button>
-      {showHoverCard ? <LineCardPreviewShell card={card} rootFen={rootFen} /> : null}
+      {showHoverCard ? (
+        <LineCardPreviewShell boardOrientation={boardOrientation} card={card} rootFen={rootFen} />
+      ) : null}
       {dialogOpen ? (
         <div
           aria-label={card.title}
@@ -415,7 +428,12 @@ function LineCardAnchor({
                 <X className="size-4" />
               </button>
             </div>
-            <LineCardPreview card={card} rootFen={rootFen} active />
+            <LineCardPreview
+              active
+              boardOrientation={boardOrientation}
+              card={card}
+              rootFen={rootFen}
+            />
           </div>
         </div>
       ) : null}
@@ -423,20 +441,30 @@ function LineCardAnchor({
   );
 }
 
-function LineCardPreviewShell({ card, rootFen }: { card: ExplanationLineCard; rootFen: string }) {
+function LineCardPreviewShell({
+  boardOrientation,
+  card,
+  rootFen,
+}: {
+  boardOrientation: BoardSide | null;
+  card: ExplanationLineCard;
+  rootFen: string;
+}) {
   return (
     <div className="absolute top-full left-1/2 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 whitespace-normal rounded-lg border border-stone-200 bg-white p-2.5 text-left shadow-[0_18px_45px_rgba(28,25,23,0.18),0_1px_0_rgba(255,255,255,0.8)_inset] sm:w-80 dark:border-stone-700 dark:bg-stone-900 dark:shadow-[0_18px_45px_rgba(0,0,0,0.4)]">
-      <LineCardPreview card={card} rootFen={rootFen} active />
+      <LineCardPreview active boardOrientation={boardOrientation} card={card} rootFen={rootFen} />
     </div>
   );
 }
 
 function LineCardPreview({
   active,
+  boardOrientation,
   card,
   rootFen,
 }: {
   active: boolean;
+  boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
   rootFen: string;
 }) {
@@ -445,7 +473,8 @@ function LineCardPreview({
   const displayStep = prefersReducedMotion ? card.moves.length : step;
   const currentFen = fenAfterMoves(rootFen, card.moves, displayStep) ?? rootFen;
   const highlightedMove = lineStepSquares(rootFen, card.moves, displayStep);
-  const orientation = sideToMoveFromFen(rootFen);
+  const firstMoveSide = sideToMoveFromFen(rootFen);
+  const orientation = boardOrientation ?? firstMoveSide;
 
   useEffect(() => {
     if (!active) {
@@ -486,7 +515,7 @@ function LineCardPreview({
         {card.moves.map((move, index) => {
           const moveStep = index + 1;
           const activeMove = displayStep === moveStep;
-          const moveSide = index % 2 === 0 ? orientation : otherBoardSide(orientation);
+          const moveSide = index % 2 === 0 ? firstMoveSide : otherBoardSide(firstMoveSide);
           return (
             <span
               className={cn(

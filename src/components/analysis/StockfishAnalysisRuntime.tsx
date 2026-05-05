@@ -23,6 +23,7 @@ interface StockfishAnalysisRuntimeProps {
   analysisFen: string;
   preAnalyzeFens: string[];
   shouldAnalyze: boolean;
+  enabled?: boolean;
   multiPv?: number;
   targetDepth?: number;
 }
@@ -40,14 +41,19 @@ const stockfishAnalysisStore = createStockfishAnalysisStore(EMPTY_SNAPSHOT);
 
 export function StockfishAnalysisRuntime({
   analysisFen,
+  enabled = true,
   preAnalyzeFens,
   shouldAnalyze,
   multiPv = 3,
   targetDepth = 24,
 }: StockfishAnalysisRuntimeProps) {
-  const stockfish = useStockfish({ multiPv, targetDepth });
+  const stockfish = useStockfish({ enabled, multiPv, targetDepth });
 
   useEffect(() => {
+    if (!enabled) {
+      stockfishAnalysisStore.setSnapshot(EMPTY_SNAPSHOT);
+      return;
+    }
     stockfishAnalysisStore.setSnapshot({
       fen: stockfish.fen,
       lines: stockfish.lines,
@@ -60,22 +66,26 @@ export function StockfishAnalysisRuntime({
     stockfish.depth,
     stockfish.evalCp,
     stockfish.fen,
+    enabled,
     stockfish.isAnalyzing,
     stockfish.isReady,
     stockfish.lines,
   ]);
 
   useEffect(() => {
+    if (!enabled || preAnalyzeFens.length === 0) {
+      return;
+    }
     stockfish.preAnalyze(preAnalyzeFens);
-  }, [preAnalyzeFens, stockfish.preAnalyze]);
+  }, [enabled, preAnalyzeFens, stockfish.preAnalyze]);
 
   useEffect(() => {
-    if (!shouldAnalyze || !analysisFen) {
+    if (!enabled || !shouldAnalyze || !analysisFen) {
       return;
     }
     const timer = window.setTimeout(() => stockfish.analyze(analysisFen), 80);
     return () => window.clearTimeout(timer);
-  }, [analysisFen, shouldAnalyze, stockfish.analyze]);
+  }, [analysisFen, enabled, shouldAnalyze, stockfish.analyze]);
 
   useEffect(() => {
     return () => stockfishAnalysisStore.setSnapshot(EMPTY_SNAPSHOT);

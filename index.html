@@ -7,6 +7,18 @@
     <title>G6 Explanation</title>
   </head>
   <body>
+    <script>
+      (() => {
+        try {
+          const stored = window.localStorage.getItem("g6explanation.theme");
+          const theme =
+            stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+          const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const isDark = theme === "dark" || (theme === "system" && systemDark);
+          if (isDark) document.documentElement.classList.add("dark");
+        } catch {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

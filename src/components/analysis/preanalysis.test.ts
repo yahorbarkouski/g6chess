@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_ANALYSIS } from "../../data/mock-analysis";
-import { buildAnalysisIndexes, buildPreAnalysisFens } from "./AnalysisWorkspace";
+import {
+  browserAnalysisReasonForPosition,
+  buildAnalysisIndexes,
+  buildPreAnalysisFens,
+} from "./AnalysisWorkspace";
 
 describe("buildPreAnalysisFens", () => {
   it("keeps pre-analysis capped, unique, and centered on the current position", () => {
@@ -27,5 +31,58 @@ describe("buildPreAnalysisFens", () => {
 
     expect(markedPlyBeforeFen).toBeDefined();
     expect(fens).toContain(markedPlyBeforeFen);
+  });
+});
+
+describe("browserAnalysisReasonForPosition", () => {
+  const serverEngineLines = {
+    fen: "server fen",
+    lines: [
+      {
+        san: "e4",
+        uci: "e2e4",
+        eval_cp: 30,
+        pv_san: ["e4"],
+        pv_uci: ["e2e4"],
+      },
+    ],
+  };
+
+  it("does not run browser Stockfish for backend-covered mainline positions", () => {
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "mainline fen",
+        discoveryActive: false,
+        previewActive: false,
+        serverEngineLines,
+      }),
+    ).toBeNull();
+  });
+
+  it("runs browser Stockfish for local discovery, preview, and missing server data", () => {
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "discovery fen",
+        discoveryActive: true,
+        previewActive: false,
+        serverEngineLines,
+      }),
+    ).toBe("discovery");
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "preview fen",
+        discoveryActive: false,
+        previewActive: true,
+        serverEngineLines,
+      }),
+    ).toBe("preview");
+    expect(
+      browserAnalysisReasonForPosition({
+        analysisFen: "mainline fen",
+        discoveryActive: false,
+        previewActive: false,
+        serverEngineLines: null,
+      }),
+    ).toBe("missing-server-lines");
   });
 });

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BestLine, BoardSide } from "../../types/analysis";
@@ -182,6 +182,7 @@ vi.mock("../ui/morph-text", () => ({
 
 describe("AnalysisWorkspace performance baseline", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     window.localStorage.clear();
     Element.prototype.scrollIntoView = vi.fn();
     Element.prototype.getAnimations = vi.fn().mockReturnValue([]);
@@ -217,7 +218,7 @@ describe("AnalysisWorkspace performance baseline", () => {
     expect(boardMetrics.unmountCount).toBe(0);
   });
 
-  it("keeps the board wrapper out of published engine-only snapshots", async () => {
+  it("ignores browser engine snapshots for backend-covered mainline positions", async () => {
     installMatchMedia(true);
     renderWorkspaceWithCompletedAnalysis();
     await screen.findByTestId("analysis-board");
@@ -238,7 +239,7 @@ describe("AnalysisWorkspace performance baseline", () => {
     publishStockfish({ evalCp: 631, depth: 19 });
     publishStockfish({ evalCp: 632, depth: 20 });
 
-    await waitFor(() => expect(lastEvalBarSample().evalCp).toBe(632));
+    await waitForNoBrowserEngineTick();
 
     const engineOnlyRenderCount = boardMetrics.renderCount - initialRenderCount;
     const engineOnlySamples = boardMetrics.samples.slice(initialRenderCount);
@@ -257,7 +258,8 @@ describe("AnalysisWorkspace performance baseline", () => {
 
     expect(boardMetrics.mountCount).toBe(1);
     expect(boardMetrics.unmountCount).toBe(0);
-    expect(evalBarMetrics.renderCount).toBeGreaterThan(initialEvalRenderCount);
+    expect(lastEvalBarSample().evalCp).toBe(24);
+    expect(evalBarMetrics.renderCount).toBe(initialEvalRenderCount);
     expect(engineOnlyRenderCount).toBe(0);
     expect(engineOnlySamples.every((sample) => sample.fen === initialSample.fen)).toBe(true);
     expect(boardPropChangesFromInitial).toBe(0);
@@ -269,18 +271,16 @@ describe("AnalysisWorkspace performance baseline", () => {
     ).toBe(true);
   });
 
-  it("keeps pre-analysis requests capped at the workspace boundary", async () => {
+  it("does not pre-analyze backend-covered mainline positions", async () => {
     installMatchMedia(true);
     renderWorkspaceWithCompletedAnalysis();
 
     await screen.findByTestId("analysis-board");
-    await waitFor(() => expect(stockfishStore.preAnalyze).toHaveBeenCalledTimes(1));
-    const [fens] = stockfishStore.preAnalyze.mock.calls[0] ?? [];
+    await waitForNoBrowserEngineTick();
 
-    expect(Array.isArray(fens)).toBe(true);
-    expect(fens.length).toBeLessThanOrEqual(12);
-    expect(new Set(fens).size).toBe(fens.length);
-    recordBaselineMetric("pre-analysis queued fens", fens.length);
+    expect(stockfishStore.analyze).not.toHaveBeenCalled();
+    expect(stockfishStore.preAnalyze).not.toHaveBeenCalled();
+    recordBaselineMetric("pre-analysis queued fens", 0);
   });
 });
 
@@ -372,4 +372,8 @@ function recordBaselineMetric(name: string, value: unknown): void {
   if (import.meta.env.VITE_PRINT_PERF_BASELINE === "1") {
     console.info(`[perf-baseline] ${name}: ${JSON.stringify(value)}`);
   }
+}
+
+async function waitForNoBrowserEngineTick(): Promise<void> {
+  await new Promise((resolve) => window.setTimeout(resolve, 120));
 }

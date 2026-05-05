@@ -54,6 +54,8 @@ describe("mapGameAnalysisSnapshot", () => {
           quality: "excellent",
           topScore: cp(50),
           playedScore: cp(40),
+          remainingClockSeconds: 181,
+          thinkTimeSeconds: 1,
           explanation: "e4 was strong.",
           explanationSegments: [
             {
@@ -103,6 +105,8 @@ describe("mapGameAnalysisSnapshot", () => {
       uci: "e2e4",
       fen_before: "startpos w",
       fen_after: "after e4 b",
+      remaining_clock_seconds: 181,
+      think_time_seconds: 1,
     });
     expect(mapped.timeline[0]?.eval_cp).toBe(40);
     expect(mapped.timeline[1]?.eval_cp).toBe(120);
@@ -159,6 +163,8 @@ function moveAnalysis({
   quality,
   topScore,
   playedScore,
+  remainingClockSeconds,
+  thinkTimeSeconds,
   explanation,
   explanationSegments,
   explanationLineCards,
@@ -173,6 +179,8 @@ function moveAnalysis({
   quality: MoveQualityLabel;
   topScore: Score;
   playedScore: Score;
+  remainingClockSeconds?: number;
+  thinkTimeSeconds?: number;
   explanation: string;
   explanationSegments?: NonNullable<GameMoveAnalysis["explanation_segments"]>;
   explanationLineCards?: NonNullable<GameMoveAnalysis["explanation_line_cards"]>;
@@ -188,6 +196,12 @@ function moveAnalysis({
     significance: { label: "critical", score: 1 },
     beauty: { label: "ordinary", score: 0 },
     context_latency_seconds: 0.01,
+    clock_before_seconds:
+      remainingClockSeconds === undefined || thinkTimeSeconds === undefined
+        ? null
+        : remainingClockSeconds + thinkTimeSeconds,
+    remaining_clock_seconds: remainingClockSeconds ?? null,
+    think_time_seconds: thinkTimeSeconds ?? null,
     explanation,
     ...(explanationSegments === undefined ? {} : { explanation_segments: explanationSegments }),
     ...(explanationLineCards === undefined ? {} : { explanation_line_cards: explanationLineCards }),

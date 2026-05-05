@@ -197,7 +197,7 @@ function MoveCell({
           {token ? (
             <span
               className={cn(
-                "inline-flex size-3.5 items-center justify-center rounded-full text-[9px] font-bold",
+                "inline-flex size-3.5 items-center justify-center rounded-full text-[9px] font-semibold",
                 token.className,
               )}
             >
@@ -235,7 +235,7 @@ function MoveCell({
       </span>
       <span className="relative z-10 flex w-8 shrink-0 items-center justify-end gap-0.5">
         {isCritical ? (
-          <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400">!</span>
+          <span className="text-[9px] font-semibold text-amber-500 dark:text-amber-400">!</span>
         ) : null}
         {timeLabel ? (
           <span className="text-right text-[10px] text-stone-400 tabular-nums dark:text-stone-500">

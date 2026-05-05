@@ -319,6 +319,9 @@ export interface GameMoveAnalysis {
   significance: MoveSignal;
   beauty: MoveSignal;
   context_latency_seconds: number;
+  clock_before_seconds?: number | null;
+  remaining_clock_seconds?: number | null;
+  think_time_seconds?: number | null;
   explanation: string | null;
   explanation_segments?: ExplanationSegment[];
   explanation_line_cards?: ExplanationLineCard[];
