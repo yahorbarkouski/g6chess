@@ -37,8 +37,9 @@ def build_coach_prompt(
             (
                 "segments are visible UI text chunks. Each segment needs text and "
                 "line_card_id. It also needs line_card_anchor when line_card_id "
-                "is not null. Use null for line_card_id and line_card_anchor when "
-                "no hover card belongs to that text."
+                "and highlight_color when line_card_id is not null. Use null for "
+                "line_card_id, line_card_anchor, and highlight_color when no hover "
+                "card belongs to that text."
             ),
             (
                 "Segments should remain natural sentence-sized prose. Do not split "
@@ -50,6 +51,13 @@ def build_coach_prompt(
                 "no more than 60 characters, no more than 8 words, and not the "
                 "whole sentence. Prefer plain idea phrases such as 'the follow-up', "
                 "'the longer line', or 'the mating pattern' over notation-heavy anchors."
+            ),
+            (
+                "highlight_color controls only the rich UI highlight color for that "
+                "anchor. Use red for blunders or direct punished mistakes, orange for "
+                "why an apparent idea or capture cannot work, green for best moves or "
+                "better alternatives, and blue for brilliant, great, beautiful, or very "
+                "strong played ideas. Choose from exactly red, orange, green, or blue."
             ),
             (
                 "line_cards are optional hover cards for supplied line_evidence only. "
@@ -285,7 +293,7 @@ def build_coach_prompt(
                     "already decided by deterministic evidence. Your job is only to "
                     "phrase that evidence as concise, useful UI copy. Return strict "
                     "JSON with visible segments, optional short line-card anchors, "
-                    "and optional verified line cards."
+                    "highlight colors, and optional verified line cards."
                 ),
             },
             {

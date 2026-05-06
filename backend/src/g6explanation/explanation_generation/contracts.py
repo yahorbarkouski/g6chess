@@ -8,9 +8,9 @@ from pydantic import Field, field_validator, model_validator
 
 from g6explanation.context_engine.contracts import ContextContract
 
-EXPLANATION_SCHEMA_VERSION = "explanation_output.v4"
+EXPLANATION_SCHEMA_VERSION = "explanation_output.v5"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v22"
+PROMPT_VERSION = "single_move_coach.v23"
 MAX_LINE_CARD_PLIES = 16
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
@@ -38,6 +38,7 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
 ]
 GenerationFinishReason: TypeAlias = Literal["model", "fallback", "controlled_failure"]
 LineEvidenceRole: TypeAlias = Literal["played_line", "better_line", "objection_line"]
+ExplanationHighlightColor: TypeAlias = Literal["red", "orange", "green", "blue"]
 
 
 class ExplanationSegment(ContextContract):
@@ -46,6 +47,7 @@ class ExplanationSegment(ContextContract):
     text: str = Field(min_length=1, max_length=320)
     line_card_id: str | None
     line_card_anchor: str | None = Field(default=None, max_length=60)
+    highlight_color: ExplanationHighlightColor | None = None
 
     @field_validator("text", "line_card_anchor")
     @classmethod
@@ -62,6 +64,8 @@ class ExplanationSegment(ContextContract):
         if self.line_card_id is None:
             if self.line_card_anchor is not None:
                 raise ValueError("line_card_anchor requires line_card_id.")
+            if self.highlight_color is not None:
+                raise ValueError("highlight_color requires line_card_id.")
             return self
 
         if self.line_card_anchor is None:

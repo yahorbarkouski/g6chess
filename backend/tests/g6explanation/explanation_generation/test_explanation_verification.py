@@ -197,6 +197,7 @@ def test_verifier_accepts_verified_line_card_segments() -> None:
                 text="g4 was a mistake because e5 is the reply that lets Black improve.",
                 line_card_id="played-line",
                 line_card_anchor="e5",
+                highlight_color="red",
             )
         ],
         line_cards=[line_card_from_evidence(line)],
@@ -219,6 +220,7 @@ def test_verifier_accepts_tactical_objection_line_card_and_not_free_wording() ->
                 ),
                 line_card_id="objection-line",
                 line_card_anchor="Nxa4 is met by Nxe4",
+                highlight_color="orange",
             )
         ],
         line_cards=[line_card_from_evidence(line)],
@@ -285,6 +287,7 @@ def test_verifier_accepts_copied_practical_alternative_line_card_text() -> None:
                 text="g4 was a mistake, and Nf3 was a practical alternative.",
                 line_card_id="better-line",
                 line_card_anchor="practical alternative",
+                highlight_color="green",
             )
         ],
         line_cards=[line_card_from_evidence(line)],
@@ -304,6 +307,7 @@ def test_verifier_rejects_line_card_with_changed_moves() -> None:
                 text="g4 was a mistake because e5 is the reply that lets Black improve.",
                 line_card_id="played-line",
                 line_card_anchor="e5",
+                highlight_color="red",
             )
         ],
         line_cards=[
@@ -331,6 +335,7 @@ def test_verifier_rejects_line_card_with_changed_text() -> None:
                 text="g4 was a mistake because e5 is the reply that lets Black improve.",
                 line_card_id="played-line",
                 line_card_anchor="e5",
+                highlight_color="red",
             )
         ],
         line_cards=[
@@ -945,6 +950,7 @@ def test_verifier_accepts_verified_queen_sacrifice_line_card() -> None:
                 ),
                 line_card_id="played-line",
                 line_card_anchor="the follow-up",
+                highlight_color="blue",
             )
         ],
         line_cards=[line_card_from_evidence(line)],

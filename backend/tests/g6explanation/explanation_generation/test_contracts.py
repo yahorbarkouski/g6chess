@@ -18,6 +18,7 @@ def test_explanation_output_accepts_segments_and_line_cards() -> None:
                 text="e4 claimed the center.",
                 line_card_id="main",
                 line_card_anchor="e4",
+                highlight_color="green",
             ),
         ],
         line_cards=[
@@ -67,6 +68,66 @@ def test_explanation_output_rejects_anchor_without_card() -> None:
         )
 
 
+def test_explanation_output_rejects_color_without_card() -> None:
+    with pytest.raises(ValidationError):
+        ExplanationOutput(
+            segments=[
+                ExplanationSegment(
+                    text="e4 claimed the center.",
+                    line_card_id=None,
+                    highlight_color="green",
+                )
+            ],
+            line_cards=[],
+        )
+
+
+def test_explanation_output_accepts_legacy_card_segment_without_color() -> None:
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="e4 claimed the center.",
+                line_card_id="main",
+                line_card_anchor="e4",
+            ),
+        ],
+        line_cards=[
+            ExplanationLineCard(
+                id="main",
+                moves=["e4", "e5"],
+                title="Central line",
+                why="The line shows the central reply.",
+            )
+        ],
+    )
+
+    assert output.segments[0].highlight_color is None
+
+
+def test_explanation_output_rejects_unknown_highlight_color() -> None:
+    with pytest.raises(ValidationError):
+        ExplanationOutput.model_validate(
+            {
+                "segments": [
+                    {
+                        "text": "e4 claimed the center.",
+                        "line_card_id": "main",
+                        "line_card_anchor": "e4",
+                        "highlight_color": "purple",
+                    }
+                ],
+                "line_cards": [
+                    {
+                        "id": "main",
+                        "moves": ["e4", "e5"],
+                        "title": "Central line",
+                        "why": "The line shows the central reply.",
+                    }
+                ],
+            }
+        )
+
+
 def test_explanation_output_rejects_anchor_not_in_segment_text() -> None:
     with pytest.raises(ValidationError):
         ExplanationOutput(
@@ -75,6 +136,7 @@ def test_explanation_output_rejects_anchor_not_in_segment_text() -> None:
                     text="e4 claimed the center.",
                     line_card_id="main",
                     line_card_anchor="Nf3",
+                    highlight_color="green",
                 )
             ],
             line_cards=[
@@ -99,6 +161,7 @@ def test_explanation_output_rejects_long_anchor() -> None:
                     ),
                     line_card_id="main",
                     line_card_anchor="the exact central pawn break claimed space with tempo",
+                    highlight_color="green",
                 )
             ],
             line_cards=[
@@ -121,6 +184,7 @@ def test_explanation_output_rejects_whole_long_segment_anchor() -> None:
                     text=text,
                     line_card_id="main",
                     line_card_anchor=text,
+                    highlight_color="green",
                 )
             ],
             line_cards=[
@@ -175,6 +239,7 @@ def test_explanation_line_card_accepts_full_sixteen_ply_line() -> None:
                 text="e4 works because the full line carries the idea.",
                 line_card_id="main",
                 line_card_anchor="full line",
+                highlight_color="green",
             )
         ],
         line_cards=[

@@ -16,7 +16,8 @@ Use a strict internal response schema:
     {
       "text": "visible explanation text",
       "line_card_id": null,
-      "line_card_anchor": null
+      "line_card_anchor": null,
+      "highlight_color": null
     }
   ],
   "line_cards": []
@@ -41,6 +42,11 @@ The static prompt should say:
   short phrase inside `text` that the UI should highlight. Prefer plain idea
   phrases such as "the follow-up", "the longer line", or "the mating pattern"
   over notation-heavy anchors.
+- If a segment references a line card, include `highlight_color` for the anchor:
+  `red` for blunders or direct punished mistakes, `orange` for why an apparent
+  idea or capture cannot work, `green` for best moves or better alternatives,
+  and `blue` for brilliant, great, beautiful, or very strong played ideas. Use
+  `null` when there is no line card.
 - Keep the visible text compact but useful, usually two to five segments and
   roughly 35 to 90 words.
 - Use a line card only when supplied `line_evidence` makes a hidden variation

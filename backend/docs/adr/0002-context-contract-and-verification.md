@@ -86,9 +86,10 @@ product-ready.
   claims, and wrong-side attribution before any model output is product-ready.
 - Line cards may only reference move sequences supplied as verified line
   evidence; models may write visible prose, short highlight anchors, and
-  hover-card wording, but they may not invent card ids, alter supplied moves, or
-  shorten the supplied line. Verified line cards are bounded at 16 SAN plies and
-  should add follow-through beyond the visible segment instead of duplicating it.
+  hover-card wording, plus constrained highlight color metadata for that anchor,
+  but they may not invent card ids, alter supplied moves, or shorten the
+  supplied line. Verified line cards are bounded at 16 SAN plies and should add
+  follow-through beyond the visible segment instead of duplicating it.
   Objection line cards are allowed when verified reply evidence proves why an
   apparent capture fails.
   Full move arrays are for board visualization; explanation prose should avoid

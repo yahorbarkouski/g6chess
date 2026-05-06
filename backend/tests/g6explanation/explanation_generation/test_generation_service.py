@@ -98,10 +98,13 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v22"
+    assert result.prompt_version == "single_move_coach.v23"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
+    assert "highlight_color" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload
+    assert "red for blunders" in prompt_payload
+    assert "blue for brilliant" in prompt_payload
     assert "Do not split sentences into tiny text fragments" in prompt_payload
     assert "line_evidence" in prompt_payload
     assert "do not repeat the visible segment" in prompt_payload
@@ -167,7 +170,9 @@ def test_prompt_response_schema_requires_nullable_anchor_for_strict_providers() 
     schema = provider.prompts[0].response_format["json_schema"]["schema"]
     segment_schema = schema["$defs"]["ExplanationSegment"]
     assert "line_card_anchor" in segment_schema["required"]
+    assert "highlight_color" in segment_schema["required"]
     assert "default" not in segment_schema["properties"]["line_card_anchor"]
+    assert "default" not in segment_schema["properties"]["highlight_color"]
 
 
 def test_service_retries_with_verifier_failures() -> None:
@@ -384,7 +389,14 @@ class FailingCoachProvider:
 def _response(text: str) -> str:
     return json.dumps(
         {
-            "segments": [{"text": text, "line_card_id": None, "line_card_anchor": None}],
+            "segments": [
+                {
+                    "text": text,
+                    "line_card_id": None,
+                    "line_card_anchor": None,
+                    "highlight_color": None,
+                }
+            ],
             "line_cards": [],
         }
     )

@@ -63,8 +63,10 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v22`. Current explanation schema
-version: `explanation_output.v4`. Version 2 made
+Current prompt version: `single_move_coach.v23`. Current explanation schema
+version: `explanation_output.v5`.
+
+Prompt Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -136,6 +138,18 @@ hard-to-find wording, or generic follow-up.
 Version 22 tightens that ordering: sacrifice explanations should start from the
 sacrifice itself, while attack, quiet-move, hidden-resource, hard-to-find, or
 follow-up details are supporting details only.
+Version 23 adds `highlight_color` to line-card segments so rich clients can
+color the exact anchor phrase: red for blunders or directly punished mistakes,
+orange for why an apparent idea or capture cannot work, green for best moves or
+better alternatives, and blue for brilliant, great, beautiful, or very strong
+played ideas. The color is presentation metadata for the verified anchor, not a
+new chess-truth signal.
+
+Schema Version 5 adds
+the nullable `highlight_color` field to segments. New provider output should
+include one of the four allowed colors whenever a segment references a line card,
+while stored legacy snapshots without the field remain valid and may be colored
+by client fallback logic.
 
 ## Contracts
 
@@ -147,7 +161,8 @@ The raw model response must validate against:
     {
       "text": "b5 was a blunder because it gave Black a forcing follow-up before the king could settle.",
       "line_card_id": "played-line",
-      "line_card_anchor": "forcing follow-up"
+      "line_card_anchor": "forcing follow-up",
+      "highlight_color": "red"
     }
   ],
   "line_cards": [
@@ -161,13 +176,15 @@ The raw model response must validate against:
 }
 ```
 
-`line_card_id` and `line_card_anchor` may be `null`. When a segment references a
-line card, `line_card_anchor` is required, must be an exact short substring of
-that segment text, and must not be a whole long sentence. Every line-card id and
-move sequence must match supplied verified line evidence exactly. Line cards are
-bounded at 16 SAN plies; their prose should explain the idea, not read the move
-list aloud. The line-card title and `why` must also match supplied line evidence
-exactly. The derived public string is the joined segment text.
+`line_card_id`, `line_card_anchor`, and `highlight_color` may be `null`. When a
+segment references a line card, `line_card_anchor` is required, must be an exact
+short substring of that segment text, and must not be a whole long sentence;
+`highlight_color` should be `red`, `orange`, `green`, or `blue` for new model
+output. Stored legacy segments may omit it or set it to `null`. Every line-card
+id and move sequence must match supplied verified line evidence exactly. Line
+cards are bounded at 16 SAN plies; their prose should explain the idea, not read
+the move list aloud. The line-card title and `why` must also match supplied line
+evidence exactly. The derived public string is the joined segment text.
 
 The generation layer includes contracts for:
 

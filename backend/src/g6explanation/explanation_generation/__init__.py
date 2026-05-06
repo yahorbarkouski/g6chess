@@ -5,6 +5,7 @@ from g6explanation.explanation_generation.coach_model import CoachModelProvider
 from g6explanation.explanation_generation.contracts import (
     CoachModelResponse,
     CoachPrompt,
+    ExplanationHighlightColor,
     ExplanationLineCard,
     ExplanationLineEvidence,
     ExplanationOutput,
@@ -30,6 +31,7 @@ __all__ = [
     "CoachModelResponse",
     "CoachPrompt",
     "ExplanationGenerationError",
+    "ExplanationHighlightColor",
     "ExplanationInputError",
     "ExplanationLineCard",
     "ExplanationLineEvidence",

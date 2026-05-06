@@ -354,7 +354,12 @@ class PromptEchoCoachProvider:
             content=json.dumps(
                 {
                     "segments": [
-                        {"text": explanation, "line_card_id": None, "line_card_anchor": None}
+                        {
+                            "text": explanation,
+                            "line_card_id": None,
+                            "line_card_anchor": None,
+                            "highlight_color": None,
+                        }
                     ],
                     "line_cards": [],
                 }
