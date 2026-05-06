@@ -110,7 +110,10 @@ the best line is already forced mate against the player, the engine-best defense
 is still `best`; only newly allowing mate or shortening the mate should be
 treated as a mate-transition blunder. If the played move preserves high
 Stockfish WDL win probability, do not label the move as a normal mistake or
-blunder solely because it was not the top engine move.
+blunder solely because it was not the top engine move. In non-mating positions,
+WDL can make a move more serious, but it cannot be the only reason to call a
+move a `blunder`; below the centipawn blunder band, a WDL-only blunder signal is
+capped at `mistake`.
 
 Move significance answers how much this move deserves emphasis. It is one strict
 `label` plus `score`; do not add generated prose reasons. Labels are `low`,

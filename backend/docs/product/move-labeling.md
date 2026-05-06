@@ -79,13 +79,18 @@ loss = best_expected_score - played_expected_score
 | `neutral` | A small but noticeable loss, or a mate position that did not get worse. | Normal centipawn loss is 75 or less, or WDL loss is 45 or less. Also used when the player was already losing by forced mate and the move did not shorten that mate. |
 | `inaccuracy` | A moderate objective loss. | Normal centipawn loss is 150 or less, or WDL loss is 80 or less. |
 | `mistake` | A serious objective loss. | Normal centipawn loss is 300 or less, or WDL loss is 150 or less. |
-| `blunder` | A very large loss, a newly allowed forced mate, or a worsened forced mate. | Normal centipawn loss is above 300, WDL loss is above 150, the move newly allows forced mate against the player, or it shortens an already forced mate against the player. |
+| `blunder` | A very large non-mating loss, a newly allowed forced mate, or a worsened forced mate. | Normal centipawn loss is above 300, the move newly allows forced mate against the player, or it shortens an already forced mate against the player. A WDL-only blunder signal is capped at `mistake` unless centipawn loss is also in the blunder band. |
 | `missed_win` | The best line had forced mate for the player, but the played move did not preserve a forced mate. | Mate-specific today. It does not currently mean every non-mating missed large advantage. |
 
 ### Normal Thresholds
 
 When no mate or forced-move special case applies, the system assigns one label
-from centipawn loss and one label from WDL loss, then takes the worse label.
+from centipawn loss and one label from WDL loss, then takes the worse label with
+one guardrail: WDL may make a non-mating move more serious, but it may not be the
+only reason the move becomes a `blunder`. If centipawn loss is below the blunder
+band, a WDL-only blunder signal is capped at `mistake`. This keeps sharp
+positions from looking like both sides are constantly blundering when Stockfish
+WDL swings harder than the centipawn evaluation.
 
 | Loss type | `excellent` | `good` | `neutral` | `inaccuracy` | `mistake` | `blunder` |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

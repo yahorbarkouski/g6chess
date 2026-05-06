@@ -59,6 +59,9 @@ product-ready.
 - Non-mating forced moves are capped at low beauty, and high played WDL win
   probability prevents non-mating moves from being labeled as ordinary mistakes
   or blunders.
+- Non-mating WDL loss can make a move more serious, but it cannot be the only
+  reason to call a move a `blunder`; below the centipawn blunder band, a
+  WDL-only blunder signal is capped at `mistake`.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
 - `EvidenceVerifier` blocks malformed context before generation.

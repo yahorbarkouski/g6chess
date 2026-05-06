@@ -67,7 +67,7 @@ def classify_quality(
     else:
         cp_label = _label_from_cp_loss(cp_loss)
         wdl_label = _label_from_wdl_loss(wdl_loss)
-        label = _worse_label(cp_label, wdl_label)
+        label = _merge_non_mating_loss_labels(cp_label, wdl_label)
         label = _apply_high_win_probability_floor(label, played_line)
 
     return MoveQuality(
@@ -114,6 +114,15 @@ def _label_from_wdl_loss(loss: int | None) -> MoveQualityLabel:
 
 def _worse_label(left: MoveQualityLabel, right: MoveQualityLabel) -> MoveQualityLabel:
     return left if QUALITY_ORDER[left] >= QUALITY_ORDER[right] else right
+
+
+def _merge_non_mating_loss_labels(
+    cp_label: MoveQualityLabel, wdl_label: MoveQualityLabel
+) -> MoveQualityLabel:
+    label = _worse_label(cp_label, wdl_label)
+    if label == "blunder" and cp_label != "blunder":
+        return "mistake"
+    return label
 
 
 def _apply_high_win_probability_floor(

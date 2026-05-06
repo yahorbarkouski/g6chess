@@ -929,7 +929,7 @@ def test_mate_transition_sets_significance_to_critical() -> None:
     assert significance.score == 1.0
 
 
-def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
+def test_wdl_loss_can_make_quality_worse_without_becoming_non_mating_blunder() -> None:
     engine_analysis = EngineAnalysis(
         engine_version="static-test-engine",
         analysis_budget=EngineAnalysisBudget(kind="static", value=1),
@@ -963,7 +963,43 @@ def test_wdl_loss_can_make_quality_worse_than_centipawns() -> None:
     assert quality.score_loss_vs_best_cp == 10
     assert quality.wdl_expected_score_loss == 250
     assert quality.wdl_delta_player_pov == WdlDelta(win=-300, draw=100, loss=200)
-    assert quality.label == "blunder"
+    assert quality.label == "mistake"
+
+
+def test_non_mating_wdl_blunder_signal_does_not_override_mistake_cp_band() -> None:
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1),
+        top_lines=[
+            EngineLine(
+                move_uci="e2e4",
+                move_san="e4",
+                score=Score.cp(66),
+                rank=1,
+                wdl=Wdl(win=202, draw=797, loss=1),
+                pv_uci=["e2e4"],
+                pv_san=["e4"],
+            )
+        ],
+        played_line=EngineLine(
+            move_uci="d2d4",
+            move_san="d4",
+            score=Score.cp(-162),
+            rank=None,
+            wdl=Wdl(win=0, draw=73, loss=927),
+            pv_uci=["d2d4"],
+            pv_san=["d4"],
+        ),
+    )
+
+    quality = classify_quality(
+        engine_analysis,
+        PlayedMoveFacts(uci="d2d4", san="d4", legal=True, is_check=False, is_capture=False),
+    )
+
+    assert quality.score_loss_vs_best_cp == 228
+    assert quality.wdl_expected_score_loss == 564
+    assert quality.label == "mistake"
 
 
 def test_wdl_gap_can_make_significance_critical_without_centipawn_gap() -> None:
