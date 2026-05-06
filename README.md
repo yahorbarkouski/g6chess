@@ -1,8 +1,8 @@
-# [g6](https://g6chess.com): Free Chess Analysis
+# g6: Free Chess Analysis
 
-<video src="public/demo.mov" controls muted playsinline width="100%"></video>
+[![g6 analysis workspace](public/demo.png)](https://github.com/yahorbarkouski/g6chess/releases/download/demo-assets/demo.mp4)
 
-Public frontend for g6, an evidence-grounded chess analysis product.
+Public frontend for [g6](https://g6chess.com), an evidence-grounded chess analysis product.
 
 The app lets someone paste a Chess.com or Lichess game link, open a
 `g6chess.com/game/live/...` or `g6chess.com/lichess/...` route, or paste PGN. It
