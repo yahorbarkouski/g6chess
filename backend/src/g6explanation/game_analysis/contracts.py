@@ -7,9 +7,14 @@ from typing import Literal, TypeAlias
 from pydantic import Field, model_validator
 
 from g6explanation.context_engine.contracts import (
+    CandidateMove,
     ColorName,
+    ConceptClaim,
     ContextContract,
     ContextResult,
+    EngineLine,
+    KeyMoveContext,
+    MainPoint,
     MoveBeauty,
     MoveQualityLabel,
     MoveSignificance,
@@ -21,7 +26,7 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationSegment,
 )
 
-GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v1"
+GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v2"
 
 GameAnalysisStatus: TypeAlias = Literal["pending", "running", "succeeded", "failed"]
 GameMoveAnalysisState: TypeAlias = Literal[
@@ -125,14 +130,33 @@ class GameMoveAnalysis(ContextContract):
     """Current analysis state for one ply."""
 
     ply: int = Field(ge=1)
+    move_number: int | None = Field(default=None, ge=1)
     san: str
     uci: str
     player_color: ColorName
+    fen_before: str | None = None
+    fen_after: str | None = None
     state: GameMoveAnalysisState
     requires_explanation: bool
     quality: MoveQualityLabel
     significance: MoveSignificance
     beauty: MoveBeauty
+    quality_severity_text: str | None = None
+    score_loss_vs_best_cp: int | None = None
+    phase: str | None = None
+    legal_move_count: int | None = Field(default=None, ge=0)
+    context_version: str | None = None
+    verifier_version: str | None = None
+    engine_version: str | None = None
+    engine_top_lines: list[EngineLine] = Field(default_factory=list[EngineLine])
+    engine_played_line: EngineLine | None = None
+    main_point: MainPoint | None = None
+    concept_claims: list[ConceptClaim] = Field(default_factory=list[ConceptClaim])
+    allowed_claims: list[str] = Field(default_factory=list[str])
+    human_common_candidate: CandidateMove | None = None
+    player_level: str | None = None
+    time_situation: str | None = None
+    best_or_key_move: KeyMoveContext | None = None
     context_latency_seconds: float
     clock_before_seconds: float | None = None
     remaining_clock_seconds: float | None = None

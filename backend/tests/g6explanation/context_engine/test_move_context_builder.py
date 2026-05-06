@@ -26,6 +26,7 @@ from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     StaticHumanLikelihoodProvider,
     analysis,
+    century_be6_queen_sacrifice_context,
     engine_line,
     hung_rook_time_scramble_context,
     na4_tactical_objection_context,
@@ -381,6 +382,27 @@ def test_tactical_objection_claims_explain_why_capturable_fork_works() -> None:
     assert "Nxe4 forked the queen on c5 and the bishop on g5" in claims
     assert "tactical_proof" in _concept_kinds(result)
     assert ("tactic", "tactical_reply", "Nxe4") in _concept_keys(result)
+
+
+def test_verified_queen_sacrifice_outranks_smaller_attack_claim() -> None:
+    result = century_be6_queen_sacrifice_context()
+
+    claims = {claim.claim for claim in result.evidence.concept_claims}
+
+    assert result.evidence.played.san == "Be6"
+    assert result.evidence.quality.label == "best"
+    assert result.evidence.beauty.label == "brilliant"
+    assert result.evidence.main_point.concept == "queen sacrifice"
+    assert result.evidence.main_point.claim == "Be6 set up a brilliant queen sacrifice on c5."
+    assert "Be6 set up a queen sacrifice on c5" in claims
+    assert "Be6 set up giving up the queen on c5" in claims
+    assert "Be6 attacked the bishop on c4" in claims
+    assert result.llm_context.main_point == "Be6 set up a brilliant queen sacrifice on c5."
+    assert "sacrifice" in _concept_kinds(result)
+    assert not any(
+        claim.kind in {"hidden_resource", "hard_to_find"} and claim.move_san == "Be6"
+        for claim in result.evidence.concept_claims
+    )
 
 
 def test_bad_move_that_immediately_hangs_rook_uses_material_reason() -> None:

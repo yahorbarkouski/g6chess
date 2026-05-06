@@ -147,13 +147,13 @@ Keep product requests at:
 
 ```text
 explain_significance=["critical"]
-include_context=true
+include_context=false
 use_baseline_fallback=false
 ```
 
-The current frontend still needs `include_context=true` to hydrate board state.
-Move this to `false` after the polling snapshot includes the minimal board
-fields without full context packets.
+Use `include_context=true` only for internal inspection tools. Normal frontend
+polling uses compact per-move board, engine, label, and explanation fields
+without downloading full context packets.
 
 ## Runtime Knobs
 
@@ -166,7 +166,13 @@ G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS
 G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS
 G6EXPLANATION_MODAL_WORKER_CPU
 G6EXPLANATION_MODAL_WORKER_MEMORY_MB
+G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS
+G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY
+G6EXPLANATION_LOG_LEVEL
 ```
+
+Worker function defaults request `16` CPU cores and `16384` MiB memory for one
+analysis container.
 
 Worker image defaults:
 
@@ -175,8 +181,8 @@ G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY=/usr/games/stockfish
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_DEPTH=16
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_THREADS=1
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_HASH_MB=128
-G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS=4
-G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY=8
+G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS=8
+G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY=30
 MAIA2_MODEL_ROOT=/models/maia2
 ```
 
@@ -192,9 +198,8 @@ G6EXPLANATION_ENABLE_VISUALIZATION_CONTEXTS=false
 G6EXPLANATION_ALLOW_PUBLIC_INCLUDE_CONTEXT=true
 ```
 
-`include_context=true` remains allowed because the current frontend still needs
-full context packets to hydrate the board. Turn it off only after the snapshot
-contract exposes the minimal board fields the UI needs without full context.
+`include_context=true` remains allowed for trusted debugging and internal
+inspection. Keep ordinary product requests on the compact snapshot path.
 
 ## Verification
 

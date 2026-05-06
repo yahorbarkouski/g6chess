@@ -36,6 +36,8 @@ CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
 TACTICAL_PROOF_TOLERANCE_CP = 75
 IMMEDIATE_PUNISHMENT_MIN_VALUE = PIECE_VALUES[chess.KNIGHT]
+SACRIFICE_MIN_VALUE = PIECE_VALUES[chess.ROOK]
+SACRIFICE_LINE_PLIES = 8
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,22 @@ class ImmediateMaterialPunishment:
     @property
     def opponent_gain_claim(self) -> str:
         return f"{self.reply_san} won the {self.piece_name} on {self.square_name}"
+
+
+@dataclass(frozen=True)
+class VerifiedMaterialSacrifice:
+    played_san: str
+    piece_name: str
+    square_name: str
+    capture_san: str
+
+    @property
+    def sacrifice_claim(self) -> str:
+        return f"{self.played_san} set up a {self.piece_name} sacrifice on {self.square_name}"
+
+    @property
+    def material_claim(self) -> str:
+        return f"{self.played_san} set up giving up the {self.piece_name} on {self.square_name}"
 
 
 def build_move_concept_claims(
@@ -188,6 +206,84 @@ def build_tactical_objection_claims(
             continue
         claims.extend(objection)
     return claims
+
+
+def verified_material_sacrifice(
+    board: chess.Board,
+    played_uci: str,
+    played_san: str,
+    analysis: EngineAnalysis,
+) -> VerifiedMaterialSacrifice | None:
+    """Return a high-value piece sacrifice proved by the verified played PV."""
+
+    try:
+        played_move = chess.Move.from_uci(played_uci)
+    except ValueError:
+        return None
+    if played_move not in board.legal_moves:
+        return None
+    if not analysis.played_line.pv_uci or analysis.played_line.pv_uci[0] != played_uci:
+        return None
+
+    player = board.turn
+    replay = board.copy(stack=False)
+    for uci in analysis.played_line.pv_uci[:SACRIFICE_LINE_PLIES]:
+        try:
+            move = chess.Move.from_uci(uci)
+        except ValueError:
+            break
+        if move not in replay.legal_moves:
+            break
+
+        moving_piece = replay.piece_at(move.from_square)
+        captured_piece = _captured_piece(replay, move)
+        capture_san = replay.san(move)
+        if (
+            moving_piece is not None
+            and moving_piece.color != player
+            and captured_piece is not None
+            and captured_piece.color == player
+            and captured_piece.piece_type != chess.KING
+            and PIECE_VALUES.get(captured_piece.piece_type, 0) >= SACRIFICE_MIN_VALUE
+        ):
+            return VerifiedMaterialSacrifice(
+                played_san=played_san,
+                piece_name=_piece_name(captured_piece.piece_type),
+                square_name=chess.square_name(move.to_square),
+                capture_san=capture_san,
+            )
+        replay.push(move)
+
+    return None
+
+
+def build_material_sacrifice_claims(
+    board: chess.Board,
+    played_uci: str,
+    played_san: str,
+    analysis: EngineAnalysis,
+) -> list[ConceptClaim]:
+    """Return sacrifice claims for sound high-value investments in the played PV."""
+
+    sacrifice = verified_material_sacrifice(board, played_uci, played_san, analysis)
+    if sacrifice is None:
+        return []
+    return [
+        ConceptClaim(
+            kind="sacrifice",
+            subject="played_move",
+            claim=sacrifice.sacrifice_claim,
+            source="engine_line",
+            move_san=played_san,
+        ),
+        ConceptClaim(
+            kind="material",
+            subject="played_move",
+            claim=sacrifice.material_claim,
+            source="engine_line",
+            move_san=played_san,
+        ),
+    ]
 
 
 def immediate_material_punishment(

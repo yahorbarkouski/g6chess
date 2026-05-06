@@ -17,6 +17,7 @@ from g6explanation.explanation_generation.contracts import (
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
+    century_be6_queen_sacrifice_context,
     engine_line,
     hung_rook_time_scramble_context,
     na4_tactical_objection_context,
@@ -108,6 +109,19 @@ def test_line_evidence_skips_played_line_when_bad_move_simply_hangs_piece() -> N
     line_ids = {line.id for line in build_line_evidence(context)}
 
     assert "played-line" not in line_ids
+
+
+def test_line_evidence_names_verified_queen_sacrifice() -> None:
+    context = century_be6_queen_sacrifice_context()
+
+    played_line = _line_by_id(context, "played-line")
+
+    assert played_line.moves[:6] == ["Be6", "Qxc3", "Qxc5", "dxc5", "Bxc3", "Bxe6"]
+    assert played_line.title == "How the queen sacrifice works"
+    assert played_line.why == (
+        "The line shows Black giving up the queen and keeping compensation afterward."
+    )
+    assert "follow-up" not in played_line.why
 
 
 def _line_by_id(context: ContextResult, line_id: str) -> ExplanationLineEvidence:

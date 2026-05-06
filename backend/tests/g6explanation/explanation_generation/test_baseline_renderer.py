@@ -3,6 +3,7 @@ from __future__ import annotations
 from g6explanation.explanation_generation.baseline_renderer import render_baseline_explanation
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
 from tests.g6explanation.context_engine.helpers import (
+    century_be6_queen_sacrifice_context,
     hung_rook_time_scramble_context,
     na4_tactical_objection_context,
 )
@@ -65,3 +66,14 @@ def test_baseline_renderer_keeps_simple_hung_piece_blunder_concise() -> None:
     assert output.explanation == "Rf4+ was a blunder because it hung the rook to gxf4."
     assert "follow-up" not in output.explanation
     assert "Kh7" not in output.explanation
+
+
+def test_baseline_renderer_foregrounds_verified_queen_sacrifice() -> None:
+    context = century_be6_queen_sacrifice_context()
+
+    output = render_baseline_explanation(context)
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+    assert output.explanation == "Be6 set up a brilliant queen sacrifice on c5."
+    assert "attacked the bishop" not in output.explanation

@@ -579,18 +579,47 @@ def _move_from_context_result(
     opening_book: OpeningBookMetadata | None,
 ) -> GameMoveAnalysis:
     context = context_result.context
+    evidence = context.evidence
+    position = evidence.position
+    human_common_candidate = next(
+        (
+            candidate
+            for candidate in evidence.candidates
+            if "human_common_move" in candidate.roles and "played_move" not in candidate.roles
+        ),
+        None,
+    )
     return GameMoveAnalysis(
         ply=context_result.ply,
-        san=context.evidence.played.san,
-        uci=context.evidence.played.uci,
-        player_color=context.evidence.request.player_color,
+        move_number=position.move_number,
+        san=evidence.played.san,
+        uci=evidence.played.uci,
+        player_color=evidence.request.player_color,
+        fen_before=position.fen_before,
+        fen_after=position.fen_after,
         state="context_ready",
         requires_explanation=requires_explanation,
-        quality=context.evidence.quality.label,
-        significance=context.evidence.significance,
-        beauty=context.evidence.beauty,
+        quality=evidence.quality.label,
+        significance=evidence.significance,
+        beauty=evidence.beauty,
+        quality_severity_text=evidence.quality.severity_text,
+        score_loss_vs_best_cp=evidence.quality.score_loss_vs_best_cp,
+        phase=position.phase,
+        legal_move_count=len(position.legal_moves_uci),
+        context_version=evidence.context_version,
+        verifier_version=context.verification.verifier_version,
+        engine_version=evidence.engine.engine_version,
+        engine_top_lines=evidence.engine.top_lines,
+        engine_played_line=evidence.engine.played_line,
+        main_point=evidence.main_point,
+        concept_claims=evidence.concept_claims,
+        allowed_claims=evidence.allowed_claims,
+        human_common_candidate=human_common_candidate,
+        player_level=context.llm_context.player_level,
+        time_situation=context.llm_context.time_situation,
+        best_or_key_move=context.llm_context.best_or_key_move,
         context_latency_seconds=context_result.latency_seconds,
-        clock_before_seconds=context.evidence.request.clock_before_seconds,
+        clock_before_seconds=evidence.request.clock_before_seconds,
         remaining_clock_seconds=context_result.clock_after_seconds,
         think_time_seconds=context_result.think_time_seconds,
         opening_book=opening_book,

@@ -66,7 +66,7 @@ def _played_line_evidence(context_result: ContextResult) -> ExplanationLineEvide
         id="played-line",
         role="played_line",
         moves=moves,
-        title="How the mistake gets punished" if is_bad else "How the idea plays out",
+        title=_played_line_title(context_result, is_bad=is_bad),
         why=_played_line_why(context_result, is_bad=is_bad),
     )
 
@@ -172,7 +172,33 @@ def _played_line_why(
         return "The full line shows the forcing pattern all the way to mate."
     if is_bad:
         return "The follow-up shows the opponent keeping pressure after the mistake."
+    if sacrifice_piece := _played_sacrifice_piece(context_result):
+        player = context_result.evidence.request.player_color.capitalize()
+        return (
+            f"The line shows {player} giving up the {sacrifice_piece} and "
+            "keeping compensation afterward."
+        )
     return "The follow-up shows how the move's idea keeps working after the first response."
+
+
+def _played_line_title(context_result: ContextResult, *, is_bad: bool) -> str:
+    if is_bad:
+        return "How the mistake gets punished"
+    if sacrifice_piece := _played_sacrifice_piece(context_result):
+        return f"How the {sacrifice_piece} sacrifice works"
+    return "How the idea plays out"
+
+
+def _played_sacrifice_piece(context_result: ContextResult) -> str | None:
+    sacrifice_text = " ".join(
+        claim.claim.lower()
+        for claim in context_result.llm_context.concept_claims
+        if claim.kind == "sacrifice" and claim.subject == "played_move"
+    )
+    for piece in ("queen", "rook", "bishop", "knight"):
+        if f"{piece} sacrifice" in sacrifice_text:
+            return piece
+    return None
 
 
 def _has_immediate_material_punishment(context_result: ContextResult) -> bool:

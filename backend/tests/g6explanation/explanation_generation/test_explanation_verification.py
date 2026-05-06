@@ -29,6 +29,7 @@ from g6explanation.explanation_generation.line_evidence import (
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     analysis,
+    century_be6_queen_sacrifice_context,
     hung_rook_time_scramble_context,
     na4_tactical_objection_context,
 )
@@ -926,6 +927,37 @@ def test_verifier_does_not_treat_not_free_piece_as_extra_attack_target() -> None
         ],
     )
     output = rich_output("e4 attacked the queen on d6, so the pawn is not simply free.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_verified_queen_sacrifice_line_card() -> None:
+    context = century_be6_queen_sacrifice_context()
+    line = next(line for line in build_line_evidence(context) if line.id == "played-line")
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text=(
+                    "Be6 set up a brilliant queen sacrifice: Black gives up the queen, "
+                    "and the follow-up keeps the compensation."
+                ),
+                line_card_id="played-line",
+                line_card_anchor="the follow-up",
+            )
+        ],
+        line_cards=[line_card_from_evidence(line)],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_does_not_treat_queen_sacrifice_as_attack_target() -> None:
+    context = century_be6_queen_sacrifice_context()
+    output = rich_output("Be6 attacks the bishop on c4 while setting up a queen sacrifice on c5.")
 
     verification = ExplanationVerifier().verify(context, output)
 

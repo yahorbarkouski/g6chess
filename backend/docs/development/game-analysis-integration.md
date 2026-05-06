@@ -148,7 +148,7 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
     "url": "https://www.chess.com/game/168193636078",
     "time_control": "rapid",
     "explain_significance": ["critical"],
-    "include_context": true,
+    "include_context": false,
     "use_baseline_fallback": false
   }'
 ```
@@ -170,10 +170,12 @@ The response mirrors `POST /api/game-analysis` and includes source metadata:
 }
 ```
 
-The frontend integration should set `include_context=true` while it still needs
-FENs and principal variation data to hydrate the existing board UI. It should
-not send a default `player_level`; provider URL imports derive both side ratings
-from source payloads and fail if those ratings are unavailable.
+The frontend integration should set `include_context=false` for normal polling.
+Snapshots now include compact board, engine, label, and explanation fields per
+completed move, so full context packets are only needed by internal inspection
+tools. The frontend should not send a default `player_level`; provider URL
+imports derive both side ratings from source payloads and fail if those ratings
+are unavailable.
 
 ## Import A Lichess Game
 
@@ -187,7 +189,7 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
     "url": "https://lichess.org/fY44h4OY",
     "time_control": "rapid",
     "explain_significance": ["critical"],
-    "include_context": true,
+    "include_context": false,
     "use_baseline_fallback": false
   }'
 ```
@@ -220,7 +222,7 @@ curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
     "source": "pgn",
     "pgn": "[Event \"Example\"]\n[WhiteElo \"1500\"]\n[BlackElo \"1450\"]\n[TimeControl \"180\"]\n\n1. e4 e5 2. Nf3 Nc6 *",
     "explain_significance": ["critical"],
-    "include_context": true
+    "include_context": false
   }'
 ```
 
@@ -286,7 +288,7 @@ async function startAnalysis(pgn: string) {
       pgn,
       time_control: "rapid",
       explain_significance: ["critical"],
-      include_context: true,
+      include_context: false,
     }),
   });
 
@@ -316,8 +318,10 @@ Recommended frontend behavior:
 - Show explanation placeholders only for moves where `requires_explanation` is
   true.
 - Treat `failed` as a partial-result state, not a blank screen.
-- Convert context packet evaluation scores into the UI's white-point-of-view
-  convention before rendering engine bars or line scores.
+- Use compact per-move engine fields from the snapshot for normal board and line
+  rendering; request `include_context=true` only on internal debugging surfaces.
+- Convert snapshot engine scores into the UI's white-point-of-view convention
+  before rendering engine bars or line scores.
 
 ## Backend Integration Pattern
 

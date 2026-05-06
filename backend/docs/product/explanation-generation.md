@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v19`. Current explanation schema
+Current prompt version: `single_move_coach.v22`. Current explanation schema
 version: `explanation_output.v4`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
@@ -128,6 +128,14 @@ Version 20 makes immediate hung-piece mistakes concise: when a verified
 material claim says the played move hung a named piece to the opponent's reply,
 the model should use that simple material reason instead of generic follow-up,
 pressure, or long-line wording.
+Version 21 adds sacrifice-first guidance for verified high-value sacrifices:
+when the context supplies a typed `sacrifice` claim, especially a queen or rook
+sacrifice with beautiful or brilliant beauty evidence, the model should make
+that the main chess point instead of foregrounding a smaller attack,
+hard-to-find wording, or generic follow-up.
+Version 22 tightens that ordering: sacrifice explanations should start from the
+sacrifice itself, while attack, quiet-move, hidden-resource, hard-to-find, or
+follow-up details are supporting details only.
 
 ## Contracts
 
@@ -225,6 +233,8 @@ Minimum checks:
   do not authorize gain wording
 - material trade prose, such as trading or exchanging a bishop for a knight,
   requires a trusted material trade claim with the same material terms
+- sacrifice prose, such as queen sacrifice or giving up a rook, requires a
+  trusted typed `sacrifice` concept claim and matching typed `material` support
 - recapture prose requires a trusted typed `recapture` concept claim from recent
   move history
 - tactic prose requires a trusted typed `tactic` concept claim that names the

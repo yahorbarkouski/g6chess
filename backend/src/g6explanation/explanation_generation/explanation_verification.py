@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v6"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v7"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -64,7 +64,7 @@ MATERIAL_GAIN_RE = re.compile(
 )
 MATERIAL_LOSS_RE = re.compile(
     r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|hanged|"
-    r"gives\s+up|gave\s+up|giving\s+up)\s+"
+    r"gives\s+up|gave\s+up|giving\s+up|sacrifices?|sacrificed|sacrificing)\s+"
     rf"{MATERIAL_OBJECT_PATTERN}\b",
     re.IGNORECASE,
 )
@@ -108,7 +108,8 @@ TACTIC_TERMS = {
 ATTACK_TARGET_RE = re.compile(
     r"\b(?:attacks|attacked|attacking|threatens?|threatened|threatening)\b"
     r"[^.?!;,]{0,100}"
-    r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b(?!\s+moves?\b)",
+    r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b"
+    r"(?!\s+(?:moves?|sacrifices?)\b)",
     re.IGNORECASE,
 )
 ATTACK_TERM_ALIASES: dict[str, tuple[str, ...]] = {
@@ -158,6 +159,7 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
     "hidden_resource": ("hidden resource",),
     "hard_to_find": ("hard to find", "difficult to find", "engine-like", "engine like"),
     "teachable_skill_gap": ("stronger players", "stronger levels"),
+    "sacrifice": ("sacrifice", "sacrificed", "sacrifices", "sacrificing"),
     "king_safety": (
         "king safety",
         "king was exposed",
@@ -1087,8 +1089,8 @@ def _unsupported_attack_term(text: str, attack_support: str) -> str | None:
 def _contains_attack_target_phrase(text: str, phrase: str) -> bool:
     pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])")
     for match in pattern.finditer(text):
-        suffix = text[match.end() : match.end() + 8]
-        if re.match(r"\s+moves?\b", suffix):
+        suffix = text[match.end() : match.end() + 12]
+        if re.match(r"\s+(?:moves?|sacrifices?)\b", suffix):
             continue
         return True
     return False
@@ -1137,7 +1139,7 @@ def _has_material_loss_support(material_support: str) -> bool:
     return (
         re.search(
             r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|hanged|"
-            r"gives\s+up|gave\s+up|giving\s+up)\b",
+            r"gives\s+up|gave\s+up|giving\s+up|sacrifices?|sacrificed|sacrificing)\b",
             material_support,
         )
         is not None

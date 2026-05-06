@@ -98,6 +98,20 @@ def test_game_analysis_http_api_starts_job_and_returns_completed_snapshot() -> N
     assert [move["san"] for move in snapshot["moves"]] == ["e4", "e5", "Nf3"]
     assert all(move["quality"] == "best" for move in snapshot["moves"])
     assert all(move["explanation"] for move in snapshot["moves"])
+    assert all(move["context"] is None for move in snapshot["moves"])
+    first_move = snapshot["moves"][0]
+    assert first_move["move_number"] == 1
+    assert first_move["fen_before"].startswith("rnbqkbnr/pppppppp")
+    assert first_move["fen_after"].startswith("rnbqkbnr/pppppppp")
+    assert first_move["context_version"]
+    assert first_move["verifier_version"]
+    assert first_move["engine_version"] == "static-game-analysis-test"
+    assert first_move["engine_top_lines"][0]["move_san"] == "e4"
+    assert first_move["engine_played_line"]["move_san"] == "e4"
+    assert first_move["main_point"]["claim"]
+    assert first_move["phase"]
+    assert first_move["legal_move_count"] > 0
+    assert first_move["player_level"] == "1500"
     assert any(saved.status == "running" and saved.context_completed > 0 for saved in store.saved)
 
 

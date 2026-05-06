@@ -87,12 +87,15 @@ Each snapshot includes:
 - explanation required, completed, and failed counts
 - one `GameMoveAnalysis` per completed context
 - per-move quality, significance, beauty, SAN, UCI, color, and latency
+- per-move compact board, engine, main-point, candidate, and metadata fields
+  needed by the frontend without requiring full context packets
 - per-move clock-before, remaining-clock, and think-time fields when PGN clock
   comments are available
 - optional per-move `opening_book` metadata with book status, novelty status,
   ECO/opening name, and compact continuation lines for UI preview
 - verified explanation metadata when an explanation has completed
-- optional full `ContextResult` when `include_context=true`
+- optional full `ContextResult` when `include_context=true` for internal
+  inspection
 
 The move list is sorted by ply even though work completes in parallel.
 
@@ -105,9 +108,10 @@ Production-shaped local game analysis uses:
 - OpenRouter `openai/gpt-5.5` through the existing provider adapter
 - Redis for local job snapshots
 - parallel context workers configured by
-  `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`
+  `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`, defaulting to `8` in Modal
 - OpenRouter concurrency configured by
-  `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`
+  `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`, defaulting to `30` in
+  Modal
 - opening-book metadata enabled by default from the CC0 Lichess openings
   dataset; the backend downloads and caches the TSV source automatically when
   local data is missing

@@ -53,11 +53,11 @@ product-ready.
 - Supported concept claims include conservative deterministic evidence for
   net material gain or loss, material-recovery recaptures, verified immediate
   material trades from supplied PVs, immediate opponent material punishments
-  where a verified reply captures the moved piece, king safety, development,
-  open files, passed pawns, outposts, initiative, forcing move facts, direct
-  attacks on valuable pieces, clear multi-target forks, opened bishop diagonal
-  routes, and tactical proof lines showing why an apparently capturable tactic is
-  not simply free.
+  where a verified reply captures the moved piece, verified high-value
+  sacrifices from supplied PVs, king safety, development, open files, passed
+  pawns, outposts, initiative, forcing move facts, direct attacks on valuable
+  pieces, clear multi-target forks, opened bishop diagonal routes, and tactical
+  proof lines showing why an apparently capturable tactic is not simply free.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when
@@ -97,6 +97,10 @@ product-ready.
   call an idea "better" unless verified better-move evidence supports that label.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
+- Game-analysis snapshots expose compact per-move board, engine, label, and
+  explanation fields for frontend polling. Full `ContextResult` packets are
+  optional debug payloads gated by `include_context=true`, not required for the
+  public review UI.
 - Real eval records used for future training manifests must store source-rights
   metadata, verified `LLMContext`, prompt/schema/context/verifier versions, and
   the verified explanation text. Training manifests admit only manually accepted

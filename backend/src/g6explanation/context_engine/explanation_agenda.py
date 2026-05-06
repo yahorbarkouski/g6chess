@@ -6,9 +6,11 @@ import chess
 
 from g6explanation.context_engine.concept_evidence import (
     build_immediate_material_punishment_claims,
+    build_material_sacrifice_claims,
     build_move_concept_claims,
     build_tactical_objection_claims,
     immediate_material_punishment,
+    verified_material_sacrifice,
 )
 from g6explanation.context_engine.contracts import (
     CandidateMove,
@@ -17,6 +19,7 @@ from g6explanation.context_engine.contracts import (
     EngineAnalysis,
     KeyMoveContext,
     MainPoint,
+    MoveBeauty,
     MoveQuality,
     PlayedMoveFacts,
     TimeSituation,
@@ -31,6 +34,7 @@ def build_main_point(
     key_candidate: CandidateMove | None,
     featured_candidate: CandidateMove | None,
     analysis: EngineAnalysis,
+    beauty: MoveBeauty,
 ) -> MainPoint:
     quality_claim = build_quality_claim(played, quality)
     if quality.label == "forced":
@@ -46,6 +50,17 @@ def build_main_point(
             claim=(
                 f"{quality_claim} because it hung the {punishment.piece_name} "
                 f"to {punishment.reply_san}."
+            ),
+        )
+    if quality.label in {"best", "excellent", "good"} and (
+        sacrifice := verified_material_sacrifice(board, played.uci, played.san, analysis)
+    ):
+        adjective = "brilliant " if beauty.label == "brilliant" else ""
+        return MainPoint(
+            concept=f"{sacrifice.piece_name} sacrifice",
+            claim=(
+                f"{played.san} set up a {adjective}{sacrifice.piece_name} "
+                f"sacrifice on {sacrifice.square_name}."
             ),
         )
     if key_candidate is None:
@@ -116,6 +131,11 @@ def build_allowed_claims(
     )
     if punishment is not None:
         claims.append(punishment.played_loss_claim)
+    if quality.label in {"best", "excellent", "good"} and (
+        sacrifice := verified_material_sacrifice(board, played.uci, played.san, analysis)
+    ):
+        claims.append(sacrifice.sacrifice_claim)
+        claims.append(sacrifice.material_claim)
     if key_candidate:
         claims.append(f"{key_candidate.san} would have been the key alternative")
         if key_candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
@@ -159,6 +179,13 @@ def build_concept_claims(
         else []
     )
     claims.extend(material_punishment_claims)
+    sacrifice_claims = (
+        build_material_sacrifice_claims(board, played.uci, played.san, analysis)
+        if quality.label in {"best", "excellent", "good"}
+        else []
+    )
+    claims.extend(sacrifice_claims)
+    played_sacrifice_is_main_point = bool(sacrifice_claims)
 
     if quality.label == "forced":
         claims.append(
@@ -265,7 +292,8 @@ def build_concept_claims(
                 analysis,
             )
         )
-        claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
+        if not (played_sacrifice_is_main_point and featured_candidate.uci == played.uci):
+            claims.extend(_candidate_policy_concept_claims(featured_candidate, "featured_move"))
         claims.extend(
             build_move_concept_claims(
                 board,
@@ -277,7 +305,10 @@ def build_concept_claims(
         )
 
     if engine_best_candidate is not None:
-        claims.extend(_candidate_policy_concept_claims(engine_best_candidate, "engine_best_move"))
+        if not (played_sacrifice_is_main_point and engine_best_candidate.uci == played.uci):
+            claims.extend(
+                _candidate_policy_concept_claims(engine_best_candidate, "engine_best_move")
+            )
         claims.extend(
             build_move_concept_claims(
                 board,
@@ -449,6 +480,7 @@ def _primary_played_purpose_claim_with_kind(
 
     claims: list[ConceptClaim] = []
     if analysis is not None:
+        claims.extend(build_material_sacrifice_claims(board, played.uci, played.san, analysis))
         claims.extend(build_tactical_objection_claims(board, played.uci, played.san, analysis))
     claims.extend(
         build_move_concept_claims(
@@ -460,6 +492,7 @@ def _primary_played_purpose_claim_with_kind(
         )
     )
     priority: tuple[str, ...] = (
+        "sacrifice",
         "tactical_proof",
         "forced_mate",
         "tactic",
@@ -513,7 +546,7 @@ def _featured_best_concept(
     ):
         return "forced mate"
     primary_kind = _primary_played_purpose_kind(board, played, analysis)
-    if primary_kind in {"tactic", "piece_activity", "recapture", "development"}:
+    if primary_kind in {"sacrifice", "tactic", "piece_activity", "recapture", "development"}:
         return primary_kind.replace("_", " ")
     if played.is_check:
         return "forcing move"

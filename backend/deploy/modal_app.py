@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import modal
@@ -17,6 +18,10 @@ runtime_secret = modal.Secret.from_name(RUNTIME_SECRET_NAME)
 maia_models = modal.Volume.from_name(MAIA_VOLUME_NAME, create_if_missing=True)
 
 
+def _str_env(name: str, default: str) -> str:
+    return os.environ.get(name, default)
+
+
 def _image(*, include_maia: bool) -> modal.Image:
     optional_dependencies = ["deployment"]
     if include_maia:
@@ -28,19 +33,27 @@ def _image(*, include_maia: bool) -> modal.Image:
     if include_maia:
         image = image.apt_install("stockfish").env(
             {
+                "G6EXPLANATION_LOG_LEVEL": _str_env("G6EXPLANATION_LOG_LEVEL", "INFO"),
                 "MAIA2_MODEL_ROOT": MAIA_MODEL_ROOT,
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY": "/usr/games/stockfish",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_DEPTH": "16",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_MULTIPV": "5",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_THREADS": "1",
                 "G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_HASH_MB": "128",
-                "G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS": "4",
-                "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": "8",
+                "G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS": _str_env(
+                    "G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS",
+                    "8",
+                ),
+                "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY": _str_env(
+                    "G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY",
+                    "30",
+                ),
             }
         )
     else:
         image = image.env(
             {
+                "G6EXPLANATION_LOG_LEVEL": _str_env("G6EXPLANATION_LOG_LEVEL", "INFO"),
                 "G6EXPLANATION_API_PROTECTION_ENABLED": "true",
                 "G6EXPLANATION_ALLOW_PUBLIC_INCLUDE_CONTEXT": "true",
                 "G6EXPLANATION_ENABLE_OPENAPI_DOCS": "false",
@@ -95,7 +108,7 @@ def _list_env(name: str) -> list[str] | None:
     image=worker_image,
     secrets=[runtime_secret],
     volumes={MAIA_MODEL_ROOT: maia_models},
-    cpu=_float_env("G6EXPLANATION_MODAL_WORKER_CPU", 8.0),
+    cpu=_float_env("G6EXPLANATION_MODAL_WORKER_CPU", 16.0),
     memory=_int_env("G6EXPLANATION_MODAL_WORKER_MEMORY_MB", 16384),
     timeout=_int_env("G6EXPLANATION_MODAL_WORKER_TIMEOUT_SECONDS", 1800),
     startup_timeout=_int_env("G6EXPLANATION_MODAL_WORKER_STARTUP_TIMEOUT_SECONDS", 900),
@@ -104,6 +117,7 @@ def _list_env(name: str) -> list[str] | None:
     scaledown_window=_int_env("G6EXPLANATION_MODAL_WORKER_SCALEDOWN_SECONDS", 300),
 )
 def run_game_analysis_job(analysis_id: str, request_json: str) -> None:
+    _configure_logging()
     from g6explanation.game_analysis import (
         GameAnalysisRunner,
         GameAnalysisStartRequest,
@@ -140,6 +154,7 @@ def run_game_analysis_job(analysis_id: str, request_json: str) -> None:
     requires_proxy_auth=_bool_env("G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH", False),
 )
 def fastapi_app() -> object:
+    _configure_logging()
     from g6explanation.game_analysis import (
         GameAnalysisRunner,
         GameAnalysisService,
@@ -172,3 +187,13 @@ def _redis_store(store_cls: type[object]) -> object:
         key_prefix=os.environ.get("G6EXPLANATION_GAME_ANALYSIS_REDIS_PREFIX", "g6:game_analysis"),
         ttl_seconds=_int_env("G6EXPLANATION_GAME_ANALYSIS_TTL_SECONDS", 24 * 60 * 60),
     )
+
+
+def _configure_logging() -> None:
+    level_name = os.environ.get("G6EXPLANATION_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    logging.getLogger().setLevel(level)

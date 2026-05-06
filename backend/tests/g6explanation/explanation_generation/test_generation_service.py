@@ -98,7 +98,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v20"
+    assert result.prompt_version == "single_move_coach.v22"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload
@@ -118,6 +118,8 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "avoid repeated 'MOVE was QUALITY because'" in prompt_payload
     assert "usually lead with the concrete chess function" in prompt_payload
     assert "For routine best moves" in prompt_payload
+    assert "make that sacrifice the main chess point" in prompt_payload
+    assert "Start the visible explanation from the sacrifice itself" in prompt_payload
     assert "avoid the phrase 'critical best move'" in prompt_payload
     assert "Do not use generic value-preservation filler" in prompt_payload
     assert "Do not lean on 'no sharper alternative needed'" in prompt_payload

@@ -152,6 +152,44 @@ def na4_tactical_objection_context() -> ContextResult:
     return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
 
 
+def century_be6_queen_sacrifice_context() -> ContextResult:
+    """Return the Game of the Century 17...Be6 context with its queen sacrifice PV."""
+
+    board = chess.Board("r3r1k1/pp3pbp/1qp3p1/2B5/2BP2b1/Q1n2N2/P4PPP/3R1K1R b - - 3 17")
+    played_pv = [
+        "g4e6",
+        "a3c3",
+        "b6c5",
+        "d4c5",
+        "g7c3",
+        "c4e6",
+        "e8e6",
+        "g2g3",
+        "b7b5",
+    ]
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=2),
+        top_lines=[
+            engine_line(board, "g4e6", 192, rank=1, pv_uci=played_pv),
+            engine_line(board, "c3b5", -62, rank=2),
+        ],
+        played_line=engine_line(board, "g4e6", 192, rank=None, pv_uci=played_pv),
+    )
+    human = StaticHumanLikelihoodProvider(
+        {"g4e6": HumanMoveLikelihood(player_level_probability=0.02)}
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="g4e6",
+        player_color="black",
+        player_level=PlayerLevel.rating(2300, "historical-demo"),
+        opponent_level=PlayerLevel.rating(2400, "historical-demo"),
+        time_control="classical",
+    )
+    return MoveContextBuilder(StaticAnalysisProvider(engine_analysis), human).build(request)
+
+
 def hung_rook_time_scramble_context() -> ContextResult:
     """Return a static low-clock blunder where Rf4+ simply hangs a rook to gxf4."""
 

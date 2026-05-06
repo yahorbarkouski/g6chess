@@ -84,6 +84,7 @@ ConceptClaimKind: TypeAlias = Literal[
     "hard_to_find",
     "teachable_skill_gap",
     "material",
+    "sacrifice",
     "tactic",
     "tactical_proof",
     "king_safety",

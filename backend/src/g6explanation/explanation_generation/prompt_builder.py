@@ -157,8 +157,18 @@ def build_coach_prompt(
                 "claim names them. Prefer this over a generic 'follow-up' sentence."
             ),
             (
+                "When concept_claims includes sacrifice, make that sacrifice the main "
+                "chess point. If the sacrifice claim names a queen or rook and beauty "
+                "is beautiful or brilliant, it is fine to call it a beautiful or "
+                "brilliant queen or rook sacrifice. Start the visible explanation from "
+                "the sacrifice itself; smaller attack, quiet-move, hidden-resource, "
+                "hard-to-find, or generic follow-up details are optional support only "
+                "and should not lead."
+            ),
+            (
                 "If a supplied claim says the move attacks or forks pieces, name the "
-                "attacked pieces exactly as supplied before using any line-card continuation."
+                "attacked pieces exactly as supplied before using any line-card continuation, "
+                "unless a sacrifice claim is supplied and already gives the clearer main point."
             ),
             (
                 "Do not name opening systems or opening-family labels unless supplied "

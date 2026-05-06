@@ -67,6 +67,12 @@ The static prompt should say:
 - For non-bad moves, usually lead with the supported chess function: development,
   center control, pressure, piece improvement, a threat, simplification, holding
   the position, or another typed concept claim.
+- When supplied typed claims include a sacrifice, make the sacrifice the main
+  chess point. If the claim names a queen or rook and the deterministic beauty
+  label is `beautiful` or `brilliant`, that beauty wording is allowed. Start
+  visible prose from the sacrifice itself; smaller attacks, quiet-move framing,
+  hidden-resource language, hard-to-find caveats, or generic follow-up details
+  are optional support only and should not lead.
 - When supplied typed claims expose concrete board features such as attacks on
   valuable pieces, forks, center control, opened diagonals, or cleared piece
   routes, prefer that concrete board fact over generic continuation wording.

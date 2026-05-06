@@ -22,6 +22,22 @@ on:
         description: Maximum concurrent worker containers.
         required: true
         default: "5"
+      worker_cpu:
+        description: Worker CPU cores for one analysis container.
+        required: true
+        default: "16"
+      worker_memory_mb:
+        description: Worker memory in MiB.
+        required: true
+        default: "16384"
+      context_workers:
+        description: Per-job Stockfish/Maia context workers.
+        required: true
+        default: "8"
+      openrouter_concurrency:
+        description: Per-job OpenRouter explanation concurrency.
+        required: true
+        default: "30"
 
 permissions:
   contents: read
@@ -53,6 +69,10 @@ jobs:
       G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ github.event.inputs.api_min_containers || '0' }}
       G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ github.event.inputs.worker_min_containers || '0' }}
       G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ github.event.inputs.worker_max_containers || '5' }}
+      G6EXPLANATION_MODAL_WORKER_CPU: ${{ github.event.inputs.worker_cpu || '16' }}
+      G6EXPLANATION_MODAL_WORKER_MEMORY_MB: ${{ github.event.inputs.worker_memory_mb || '16384' }}
+      G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS: ${{ github.event.inputs.context_workers || '8' }}
+      G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY: ${{ github.event.inputs.openrouter_concurrency || '30' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

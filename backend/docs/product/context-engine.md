@@ -207,6 +207,10 @@ Current deterministic concept evidence is intentionally conservative:
   reply captures the moved non-pawn piece with net material loss; the context
   should expose the simple hung-piece reason instead of only a generic
   opponent-resource claim
+- high-value sacrifices shown by the verified played PV; a quiet move that sets
+  up giving up a queen or rook should expose a typed `sacrifice` claim plus the
+  matching material claim, so the explanation does not bury the sacrifice under
+  a smaller attack or generic follow-up
 - direct attacks by the moved piece on valuable enemy pieces, including clear
   multi-target fork evidence such as a knight attacking both rooks
 - tactical proof for an apparently capturable tactic, using a verified opponent
