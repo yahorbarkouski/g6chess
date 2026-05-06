@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import csv
+import http.client
 import io
 import logging
 import tempfile
 import threading
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -28,6 +31,9 @@ LICHESS_OPENINGS_FILES = ("a.tsv", "b.tsv", "c.tsv", "d.tsv", "e.tsv")
 LICHESS_OPENINGS_SOURCE = "https://github.com/lichess-org/chess-openings"
 DEFAULT_OPENING_BOOK_CACHE_DIR = Path.home() / ".cache" / "g6explanation" / "lichess-openings"
 DOWNLOAD_TIMEOUT_SECONDS = 20
+DOWNLOAD_MAX_RETRIES = 3
+DOWNLOAD_RETRY_BACKOFF_SECONDS = 1.0
+RETRYABLE_DOWNLOAD_STATUSES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_MAX_BOOK_LINES = 3
 DEFAULT_MAX_BOOK_DEPTH = 8
 
@@ -35,6 +41,7 @@ BookLookupFn = Callable[[chess.Board, chess.Move], bool]
 BookMainLinesFn = Callable[[chess.Board], list[BookLine]]
 HasBookMovesFn = Callable[[chess.Board], bool]
 LookupOpeningFn = Callable[[chess.Board], "OpeningIdentity | None"]
+SleepFn = Callable[[float], None]
 
 _default_book: OpeningBookDatabase | None = None
 _default_book_lock = threading.Lock()
@@ -340,7 +347,42 @@ def _load_default_opening_book() -> OpeningBookDatabase:
     return book
 
 
-def _download_file(url: str, destination: Path) -> None:
+def _download_file(
+    url: str,
+    destination: Path,
+    *,
+    max_retries: int = DOWNLOAD_MAX_RETRIES,
+    retry_backoff_seconds: float = DOWNLOAD_RETRY_BACKOFF_SECONDS,
+    sleep: SleepFn = time.sleep,
+) -> None:
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative.")
+    if retry_backoff_seconds < 0:
+        raise ValueError("retry_backoff_seconds must be non-negative.")
+
+    attempts = max_retries + 1
+    for attempt_index in range(1, attempts + 1):
+        try:
+            _download_file_once(url, destination)
+            return
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRYABLE_DOWNLOAD_STATUSES or attempt_index == attempts:
+                raise
+            _log_download_retry(url, attempt_index, attempts, exc)
+        except (
+            urllib.error.URLError,
+            http.client.HTTPException,
+            TimeoutError,
+            ConnectionError,
+        ) as exc:
+            if attempt_index == attempts:
+                raise
+            _log_download_retry(url, attempt_index, attempts, exc)
+        if retry_backoff_seconds > 0:
+            sleep(retry_backoff_seconds * attempt_index)
+
+
+def _download_file_once(url: str, destination: Path) -> None:
     LOGGER.info("Downloading opening-book source: url=%s destination=%s", url, destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with (
@@ -350,6 +392,21 @@ def _download_file(url: str, destination: Path) -> None:
         tmp.write(response.read())
         temporary_path = Path(tmp.name)
     temporary_path.replace(destination)
+
+
+def _log_download_retry(
+    url: str,
+    attempt_index: int,
+    attempts: int,
+    exc: BaseException,
+) -> None:
+    LOGGER.warning(
+        "Opening-book source download failed; retrying: url=%s attempt=%s/%s error=%s",
+        url,
+        attempt_index,
+        attempts,
+        exc,
+    )
 
 
 def _opening_rows(text: str) -> Iterable[_OpeningRow]:

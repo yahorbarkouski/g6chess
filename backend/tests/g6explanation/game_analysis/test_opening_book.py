@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import io
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime
+from pathlib import Path
+from types import TracebackType
 
 import chess
 import chess.pgn
+import pytest
 
 from g6explanation.context_engine.contracts import MoveBeauty, MoveSignificance
+from g6explanation.game_analysis import opening_book
 from g6explanation.game_analysis.contracts import (
     BookLine,
     BookLineMove,
@@ -148,6 +154,56 @@ def test_snapshot_contract_round_trips_opening_book_metadata() -> None:
     assert round_tripped == snapshot
     assert round_tripped.moves[0].opening_book is not None
     assert round_tripped.moves[0].opening_book.book_lines[0].moves[0].uci == "e7e5"
+
+
+def test_download_file_retries_transient_url_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "a.tsv"
+    calls = 0
+    sleeps: list[float] = []
+
+    def fake_urlopen(url: str, *, timeout: float) -> FakeUrlResponse:
+        nonlocal calls
+        del url, timeout
+        calls += 1
+        if calls == 1:
+            raise urllib.error.URLError(ConnectionResetError(104, "Connection reset by peer"))
+        return FakeUrlResponse(b"eco\tname\tpgn\n")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    opening_book._download_file(  # pyright: ignore[reportPrivateUsage]
+        "https://example.test/a.tsv",
+        destination,
+        max_retries=1,
+        retry_backoff_seconds=0.25,
+        sleep=sleeps.append,
+    )
+
+    assert calls == 2
+    assert sleeps == [0.25]
+    assert destination.read_bytes() == b"eco\tname\tpgn\n"
+
+
+class FakeUrlResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> FakeUrlResponse:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        del exc_type, exc, traceback
+
+    def read(self) -> bytes:
+        return self._body
 
 
 def opening_book_plies(pgn: str) -> list[OpeningBookPly]:
