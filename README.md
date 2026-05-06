@@ -1,4 +1,6 @@
-# g6: Free Chess Analysis
+# [g6](https://g6chess.com): Free Chess Analysis
+
+![g6 analysis workspace](public/demo.png)
 
 Public frontend for g6, an evidence-grounded chess analysis product.
 
@@ -6,16 +8,11 @@ The app lets someone paste a Chess.com or Lichess game link, open a
 `g6chess.com/game/live/...` or `g6chess.com/lichess/...` route, or paste PGN. It
 imports the game through the analysis API, polls for completed move analysis,
 and renders a board-first review with move labels, engine/book continuations,
-and coach-style explanations.
-
-This repository is intentionally just the public client. The private analysis
-engine owns the harder work: position reconstruction, Stockfish/Maia evidence,
-move classification, explanation verification, model-provider configuration, and
-source-rights-safe eval/training gates.
+and coach-style explanations
 
 ## Product Direction
 
-g6 is not an LLM chess calculator. The product boundary is:
+g6 is not an LLM chess calculator, the product boundary is:
 
 ```text
 Stockfish + human-likelihood evidence + rules + verifiers = chess truth
@@ -80,8 +77,8 @@ The app runs at:
 http://127.0.0.1:5173/
 ```
 
-Point it at an analysis API with:
-
+Point it at an analysis API with
+[If you're interested in the collaboration and contribution, please contact me for private repository access]:
 ```bash
 VITE_G6_API_BASE_URL=http://127.0.0.1:8001
 ```
@@ -123,13 +120,3 @@ bun run build
 
 `bun install` copies the browser Stockfish worker assets into
 `public/stockfish/`.
-
-## Before Public Release
-
-Still worth deciding/documenting before treating this as a polished public repo:
-
-- project license
-- brand and logo usage
-- local font licensing
-- Stockfish asset serving strategy
-- sound asset provenance
