@@ -143,10 +143,6 @@
     padding: 0;
     border: none;
   }
-
-  .chess-board-wrap [data-piece] {
-    will-change: transform;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

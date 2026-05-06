@@ -32,10 +32,7 @@ interface MoveRowData extends MovePair {
 type PieceType = "K" | "Q" | "R" | "B" | "N";
 export type MarkerDisplayMode = "critical" | "all";
 
-const MOVE_ROW_STYLE = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "29px",
-} as const;
+const ACTIVE_MOVE_SCROLL_MARGIN_PX = 4;
 
 const PIECE_GLYPH: Record<"white" | "black", Record<PieceType, string>> = {
   white: { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘" },
@@ -105,7 +102,7 @@ const MoveRow = memo(function MoveRow({
   onSelectPly: (ply: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[10%_1fr_1fr] items-center py-px" style={MOVE_ROW_STYLE}>
+    <div className="grid grid-cols-[10%_1fr_1fr] items-center py-px">
       <span className="text-center text-[10px] text-stone-400 dark:text-stone-500">
         {row.moveNumber}.
       </span>
@@ -147,9 +144,13 @@ const MoveCell = memo(function MoveCell({
   const ref = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (isActive) {
-      ref.current?.scrollIntoView({ block: "nearest" });
+    if (!isActive) {
+      return;
     }
+    const frame = window.requestAnimationFrame(() => {
+      scrollIntoViewIfNeeded(ref.current);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [isActive]);
 
   if (!move) {
@@ -352,4 +353,35 @@ function formatThinkTime(move: GameMove): string {
     return formatClock(move.remaining_clock_seconds);
   }
   return "";
+}
+
+function scrollIntoViewIfNeeded(element: HTMLElement | null): void {
+  if (element === null) {
+    return;
+  }
+  const container = nearestScrollContainer(element);
+  if (container === null) {
+    return;
+  }
+
+  const elementRect = element.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const isAbove = elementRect.top < containerRect.top + ACTIVE_MOVE_SCROLL_MARGIN_PX;
+  const isBelow = elementRect.bottom > containerRect.bottom - ACTIVE_MOVE_SCROLL_MARGIN_PX;
+  if (!isAbove && !isBelow) {
+    return;
+  }
+
+  element.scrollIntoView({ block: "nearest" });
+}
+
+function nearestScrollContainer(element: HTMLElement): HTMLElement | null {
+  let current = element.parentElement;
+  while (current !== null) {
+    if (current.scrollHeight > current.clientHeight) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
 }
