@@ -128,22 +128,22 @@ class ApiProtection:
                 _api_minute_rule(identity.ip),
                 RateLimitRule(
                     f"ip:{identity.ip}:analysis_start",
-                    _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_10M", 3),
+                    _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_10M", 15),
                     10 * 60,
                 ),
                 RateLimitRule(
                     f"ip:{identity.ip}:analysis_start_day",
-                    _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_DAY", 12),
+                    _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_DAY", 60),
                     24 * 60 * 60,
                 ),
                 RateLimitRule(
                     f"ip:{identity.ip}:pgn_start",
-                    _int_env("G6EXPLANATION_LIMIT_PGN_START_10M", 2),
+                    _int_env("G6EXPLANATION_LIMIT_PGN_START_10M", 10),
                     10 * 60,
                 ),
                 RateLimitRule(
                     "global:analysis_start",
-                    _int_env("G6EXPLANATION_LIMIT_GLOBAL_ANALYSIS_START_MINUTE", 20),
+                    _int_env("G6EXPLANATION_LIMIT_GLOBAL_ANALYSIS_START_MINUTE", 100),
                     60,
                 ),
             ],
@@ -168,17 +168,17 @@ class ApiProtection:
             _api_minute_rule(identity.ip),
             RateLimitRule(
                 f"ip:{identity.ip}:analysis_start",
-                _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_10M", 3),
+                _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_10M", 15),
                 10 * 60,
             ),
             RateLimitRule(
                 f"ip:{identity.ip}:analysis_start_day",
-                _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_DAY", 12),
+                _int_env("G6EXPLANATION_LIMIT_ANALYSIS_START_DAY", 60),
                 24 * 60 * 60,
             ),
             RateLimitRule(
                 "global:analysis_start",
-                _int_env("G6EXPLANATION_LIMIT_GLOBAL_ANALYSIS_START_MINUTE", 20),
+                _int_env("G6EXPLANATION_LIMIT_GLOBAL_ANALYSIS_START_MINUTE", 100),
                 60,
             ),
         ]
@@ -187,12 +187,12 @@ class ApiProtection:
                 [
                     RateLimitRule(
                         f"ip:{identity.ip}:pgn_start",
-                        _int_env("G6EXPLANATION_LIMIT_PGN_START_10M", 2),
+                        _int_env("G6EXPLANATION_LIMIT_PGN_START_10M", 10),
                         10 * 60,
                     ),
                     RateLimitRule(
                         f"ip:{identity.ip}:pgn_start_day",
-                        _int_env("G6EXPLANATION_LIMIT_PGN_START_DAY", 8),
+                        _int_env("G6EXPLANATION_LIMIT_PGN_START_DAY", 40),
                         24 * 60 * 60,
                     ),
                 ]
@@ -202,17 +202,17 @@ class ApiProtection:
                 [
                     RateLimitRule(
                         f"ip:{identity.ip}:chesscom_start",
-                        _int_env("G6EXPLANATION_LIMIT_CHESSCOM_START_HOUR", 5),
+                        _int_env("G6EXPLANATION_LIMIT_CHESSCOM_START_HOUR", 25),
                         60 * 60,
                     ),
                     RateLimitRule(
                         f"ip:{identity.ip}:chesscom_start_day",
-                        _int_env("G6EXPLANATION_LIMIT_CHESSCOM_START_DAY", 20),
+                        _int_env("G6EXPLANATION_LIMIT_CHESSCOM_START_DAY", 100),
                         24 * 60 * 60,
                     ),
                     RateLimitRule(
                         "global:chesscom_egress",
-                        _int_env("G6EXPLANATION_LIMIT_GLOBAL_CHESSCOM_MINUTE", 30),
+                        _int_env("G6EXPLANATION_LIMIT_GLOBAL_CHESSCOM_MINUTE", 150),
                         60,
                     ),
                 ]
@@ -222,17 +222,17 @@ class ApiProtection:
                 [
                     RateLimitRule(
                         f"ip:{identity.ip}:lichess_start",
-                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_HOUR", 10),
+                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_HOUR", 50),
                         60 * 60,
                     ),
                     RateLimitRule(
                         f"ip:{identity.ip}:lichess_start_day",
-                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_DAY", 40),
+                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_DAY", 200),
                         24 * 60 * 60,
                     ),
                     RateLimitRule(
                         "global:lichess_egress",
-                        _int_env("G6EXPLANATION_LIMIT_GLOBAL_LICHESS_MINUTE", 20),
+                        _int_env("G6EXPLANATION_LIMIT_GLOBAL_LICHESS_MINUTE", 100),
                         60,
                     ),
                 ]
@@ -247,7 +247,7 @@ class ApiProtection:
                 _api_minute_rule(identity.ip),
                 RateLimitRule(
                     f"ip:{identity.ip}:cached_lookup",
-                    _int_env("G6EXPLANATION_LIMIT_CACHED_LOOKUP_MINUTE", 60),
+                    _int_env("G6EXPLANATION_LIMIT_CACHED_LOOKUP_MINUTE", 300),
                     60,
                 ),
             ],
@@ -263,12 +263,12 @@ class ApiProtection:
                 _api_minute_rule(identity.ip),
                 RateLimitRule(
                     f"analysis:{safe_analysis_id}:poll:{identity.ip}",
-                    _int_env("G6EXPLANATION_LIMIT_POLL_ANALYSIS_IP_MINUTE", 90),
+                    _int_env("G6EXPLANATION_LIMIT_POLL_ANALYSIS_IP_MINUTE", 450),
                     60,
                 ),
                 RateLimitRule(
                     f"analysis:{safe_analysis_id}:poll:global",
-                    _int_env("G6EXPLANATION_LIMIT_POLL_ANALYSIS_GLOBAL_MINUTE", 600),
+                    _int_env("G6EXPLANATION_LIMIT_POLL_ANALYSIS_GLOBAL_MINUTE", 3000),
                     60,
                 ),
             ],
@@ -356,7 +356,7 @@ def _source_key_for_import(request: GameAnalysisImportRequest) -> str:
 def _api_minute_rule(ip: str) -> RateLimitRule:
     return RateLimitRule(
         f"ip:{ip}:api",
-        _int_env("G6EXPLANATION_LIMIT_API_MINUTE", 300),
+        _int_env("G6EXPLANATION_LIMIT_API_MINUTE", 1500),
         60,
     )
 
