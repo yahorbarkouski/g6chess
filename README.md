@@ -59,6 +59,8 @@ not enough to run the full g6 analysis product without the private backend.
 
 ## Local Development
 
+If you're interested in the collaboration and contribution, please contact me for private backend repository access. I'm planning to opensource it anyway eventually, but the current state is not ready for public review.
+
 Install dependencies:
 
 ```bash
