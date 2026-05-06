@@ -219,6 +219,27 @@ Prompt or model changes require evals:
 
 Compare against the current baseline.
 
+## Manual Labeling Suite
+
+Use the deterministic manual labeling suite when changing move quality,
+significance, time-context handling, candidate findability, recommendation
+policy, concept tags, or baseline explanation behavior:
+
+```text
+uv run pytest tests/g6explanation/context_engine/test_manual_labeling_suite.py -q
+```
+
+The suite contains 100 hand-curated cases and should pass by default. It also
+contains an opt-in target comparison for richer future coach tags:
+
+```text
+G6EXPLANATION_RUN_MANUAL_LABELING_TARGET_EVAL=1 \
+uv run pytest tests/g6explanation/context_engine/test_manual_labeling_suite.py::test_manual_labeling_suite_target_tags_are_represented_by_current_context -q
+```
+
+That target comparison currently documents known product gaps and is expected to
+fail until those target tags become represented by verified context fields.
+
 ## First Explanation Generation Tests
 
 Before calling a real model, add tests for:
