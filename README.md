@@ -1,6 +1,6 @@
 # g6: Free Chess Analysis
 
-[![g6 analysis workspace](public/demo.png)](https://github.com/yahorbarkouski/g6chess/releases/download/demo-assets/demo.mp4)
+https://github.com/user-attachments/assets/983c9ebf-1496-47e1-a61a-580f2b8c7dca
 
 Public frontend for [g6](https://g6chess.com), an evidence-grounded chess analysis product.
 
