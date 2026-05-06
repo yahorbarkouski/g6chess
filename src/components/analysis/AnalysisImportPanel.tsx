@@ -315,10 +315,6 @@ export function AnalysisImportPanel({
     const request = buildRequest("pgn", { url: "", pgn: picked.pgn, turnstileToken });
     if (needsTurnstile && turnstileToken === null) {
       promptForTurnstile(request, null);
-      if (mode !== "pgn") {
-        setMode("pgn");
-      }
-      setPgn(picked.pgn);
       return;
     }
     try {
@@ -326,10 +322,6 @@ export function AnalysisImportPanel({
     } catch (err) {
       if (needsTurnstile && isTurnstileFailure(err)) {
         promptForTurnstile(request, null);
-        if (mode !== "pgn") {
-          setMode("pgn");
-        }
-        setPgn(picked.pgn);
         return;
       }
       setLocalError(importErrorMessage(err));
