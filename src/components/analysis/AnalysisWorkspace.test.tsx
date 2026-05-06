@@ -52,8 +52,10 @@ vi.mock("../../lib/use-chesscom-move-sound", () => ({
 }));
 
 vi.mock("./UltraAnalysisBoard", () => ({
-  UltraAnalysisBoard: ({ fen }: { fen: string | null }) => (
-    <div data-testid="analysis-board">{fen}</div>
+  UltraAnalysisBoard: ({ fen, orientation }: { fen: string | null; orientation?: string }) => (
+    <div data-orientation={orientation} data-testid="analysis-board">
+      {fen}
+    </div>
   ),
 }));
 
@@ -125,7 +127,7 @@ describe("AnalysisWorkspace imports", () => {
         expect.objectContaining({
           source: "chess_com_live_url",
           url: "https://www.chess.com/game/live/168193636078",
-          include_context: true,
+          include_context: false,
         }),
       ),
     );
@@ -306,7 +308,70 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
-  it("shows Turnstile after an uncached Chess.com route import requires verification", async () => {
+  it("starts a Lichess black-side route with the board oriented to black", async () => {
+    window.history.replaceState(null, "", "/lichess/fY44h4OY/black");
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source: lichessSource(),
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.getCachedLichessGameAnalysis).toHaveBeenCalledWith(
+        "fY44h4OY",
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "lichess_game_url",
+          url: "https://lichess.org/fY44h4OY",
+        }),
+      ),
+    );
+
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
+    expect(window.location.pathname).toBe("/lichess/fY44h4OY/black");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("keeps a pasted Lichess black-side URL oriented to black", async () => {
+    const user = userEvent.setup();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source: lichessSource(),
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await user.type(screen.getByLabelText("Game URL"), "https://lichess.org/fY44h4OY/black");
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "lichess_game_url",
+          url: "https://lichess.org/fY44h4OY",
+        }),
+      ),
+    );
+
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
+    expect(window.location.pathname).toBe("/lichess/fY44h4OY/black");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("verifies with Turnstile before starting an uncached Chess.com route import", async () => {
     vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
     window.history.replaceState(null, "", "/game/live/168193636078");
     const source = importedSource();
@@ -320,16 +385,12 @@ describe("AnalysisWorkspace imports", () => {
       }),
       remove: vi.fn(),
     };
-    apiMocks.startImportedGameAnalysis
-      .mockRejectedValueOnce(
-        new ApiError(403, "Turnstile validation failed.", { code: "turnstile_failed" }),
-      )
-      .mockResolvedValue({
-        analysis_id: "analysis-1",
-        status: "pending",
-        status_url: "/api/game-analysis/analysis-1",
-        source,
-      });
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
     apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
 
     render(<AnalysisWorkspace />);
@@ -340,15 +401,8 @@ describe("AnalysisWorkspace imports", () => {
         expect.any(AbortSignal),
       ),
     );
-    await waitFor(() =>
-      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
-        expect.objectContaining({
-          source: "chess_com_live_url",
-          url: "https://www.chess.com/game/live/168193636078",
-        }),
-      ),
-    );
     expect(await screen.findByTestId("turnstile-widget")).toBeTruthy();
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
 
     act(() => {
       verifyTurnstile?.("route-turnstile-token");

@@ -101,6 +101,9 @@ Expected API shape today:
 - Import responses and game-analysis snapshots include a `game` skeleton with
   PGN-derived SAN/UCI/FEN move data. The client can render the board from that
   skeleton while deeper context and explanations are still pending.
+- Normal import requests use `include_context=false`. Completed move snapshots
+  include compact board, engine-line, label, and explanation fields for the UI;
+  full context packets are reserved for internal/debug tooling.
 - Engine `top_lines` describe pre-move alternatives from `fen_before`. When the
   played move matches the best line, the UI pairs that with the next ply's best
   line as a `Best continuation` row and shows the remaining current-position

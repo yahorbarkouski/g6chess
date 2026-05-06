@@ -19,6 +19,7 @@ const ENGINE_LINE_ROW_HEIGHT_PX = 58;
 const ENGINE_LINE_ROW_GAP_PX = 6;
 const ENGINE_LINES_HEADING_HEIGHT_PX = 28;
 const ENGINE_LINES_SECTION_GAP_PX = 8;
+const ENGINE_LINE_PLACEHOLDER_KEYS = ["first", "second", "third"] as const;
 
 interface PreviewState {
   rootFen: string;
@@ -54,10 +55,6 @@ export function EngineLinesView({
   playerSide = "white",
   className,
 }: EngineLinesViewProps) {
-  if (lines.length === 0 && continuationLine === null) {
-    return null;
-  }
-
   const merged = bestMatchesContinuation && continuationLine !== null;
   const continuationRowCount = continuationLine === null ? 0 : 1;
   const visibleLineCount = Math.max(0, maxLines - continuationRowCount);
@@ -96,6 +93,7 @@ export function EngineLinesView({
       variant: "default",
     });
   });
+  const placeholderCount = Math.max(0, reservedRowCount - rowItems.length);
 
   return (
     <section className={cn("space-y-2", className)} style={{ minHeight: reservedSectionHeight }}>
@@ -113,8 +111,30 @@ export function EngineLinesView({
             variant={item.variant}
           />
         ))}
+        {ENGINE_LINE_PLACEHOLDER_KEYS.slice(0, placeholderCount).map((key) => (
+          <EngineLinePlaceholderRow key={`engine-line-placeholder-${key}`} />
+        ))}
       </div>
     </section>
+  );
+}
+
+function EngineLinePlaceholderRow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="min-h-[58px] rounded bg-stone-100/50 px-2 py-1.5 dark:bg-stone-800/25"
+    >
+      <div className="mb-1 flex min-h-4 items-center gap-2">
+        <span className="h-[10px] w-16 rounded bg-stone-200/70 dark:bg-stone-700/40" />
+        <span className="h-[11px] w-8 rounded bg-stone-200/60 dark:bg-stone-700/35" />
+      </div>
+      <div className="flex min-h-[26px] items-center gap-1 overflow-hidden">
+        <span className="h-[24px] w-12 rounded border border-stone-200 bg-white/40 dark:border-stone-700 dark:bg-stone-900/30" />
+        <span className="h-[24px] w-14 rounded border border-stone-200 bg-white/40 dark:border-stone-700 dark:bg-stone-900/30" />
+        <span className="h-[24px] w-11 rounded border border-stone-200 bg-white/40 dark:border-stone-700 dark:bg-stone-900/30" />
+      </div>
+    </div>
   );
 }
 

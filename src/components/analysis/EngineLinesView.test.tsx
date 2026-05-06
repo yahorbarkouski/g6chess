@@ -52,6 +52,17 @@ describe("BookLinesView", () => {
 });
 
 describe("EngineLinesView", () => {
+  it("keeps row geometry reserved while engine lines are not ready", () => {
+    render(
+      <EngineLinesView lines={[]} maxLines={2} onPreview={vi.fn()} rootFen={WHITE_TO_MOVE_FEN} />,
+    );
+
+    const section = screen.getByRole("heading", { name: "Engine lines" }).closest("section");
+
+    expect(section).toHaveStyle({ minHeight: "158px" });
+    expect(section?.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
+  });
+
   it("promotes the next-ply continuation when the played move matched the best line", () => {
     render(
       <EngineLinesView

@@ -1,5 +1,11 @@
+import { Toaster } from "sonner";
 import { AnalysisWorkspace } from "./components/analysis/AnalysisWorkspace";
 
 export function App() {
-  return <AnalysisWorkspace />;
+  return (
+    <>
+      <AnalysisWorkspace />
+      <Toaster richColors />
+    </>
+  );
 }

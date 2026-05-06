@@ -252,6 +252,141 @@ describe("mapGameAnalysisSnapshot", () => {
       "brilliant",
     ]);
   });
+
+  it("maps slim analyzed moves without full context packets", () => {
+    const snapshot: GameAnalysisSnapshot = {
+      snapshot_version: "game_analysis_snapshot.v1",
+      analysis_id: "analysis-slim",
+      status: "succeeded",
+      total_plies: 1,
+      context_completed: 1,
+      explanation_required: 1,
+      explanation_completed: 1,
+      explanation_failed: 0,
+      explain_significance: ["critical"],
+      created_at: "2026-05-04T10:00:00Z",
+      updated_at: "2026-05-04T10:00:01Z",
+      started_at: "2026-05-04T10:00:00Z",
+      completed_at: "2026-05-04T10:00:01Z",
+      error: null,
+      moves: [
+        moveAnalysis({
+          ply: 1,
+          moveNumber: 1,
+          playerColor: "white",
+          san: "e4",
+          uci: "e2e4",
+          fenBefore: "startpos w",
+          fenAfter: "after e4 b",
+          quality: "excellent",
+          topScore: cp(50),
+          playedScore: cp(40),
+          explanation: "e4 was strong.",
+          withContext: false,
+        }),
+      ],
+    };
+
+    const mapped = mapGameAnalysisSnapshot(snapshot);
+
+    expect(mapped.moves[0]).toMatchObject({
+      ply: 1,
+      san: "e4",
+      uci: "e2e4",
+      fen_before: "startpos w",
+      fen_after: "after e4 b",
+    });
+    expect(mapped.timeline[0]?.eval_cp).toBe(40);
+    expect(mapped.move_markers[0]).toMatchObject({
+      san: "e4",
+      best_move_san: "e4",
+      natural_move_san: "Nf3",
+      explanation: "e4 was strong.",
+      drop_cp: 40,
+    });
+    expect(mapped.move_markers[0]?.label_metadata).toMatchObject({
+      phase: "opening",
+      legal_move_count: 1,
+      main_point_claim: "e4 changes the center.",
+      allowed_claims: ["center"],
+      player_level: "1500",
+      engine_depth: 18,
+    });
+    expect(mapped.summary).toMatchObject({
+      engine_version: "test-stockfish",
+      context_version: "context.v1",
+      verifier_version: "verifier.v1",
+    });
+  });
+
+  it("maps labeled slim moves before context or engine lines are present", () => {
+    const labeledMove = {
+      ...moveAnalysis({
+        ply: 1,
+        moveNumber: 1,
+        playerColor: "white",
+        san: "e4",
+        uci: "e2e4",
+        fenBefore: "startpos w",
+        fenAfter: "after e4 b",
+        quality: "excellent",
+        topScore: cp(50),
+        playedScore: cp(40),
+        explanation: "pending",
+        withContext: false,
+      }),
+      engine_top_lines: [],
+      engine_played_line: null,
+      main_point: null,
+      human_common_candidate: null,
+      explanation: null,
+      explanation_segments: [],
+      explanation_line_cards: [],
+    } satisfies GameMoveAnalysis;
+    const snapshot: GameAnalysisSnapshot = {
+      snapshot_version: "game_analysis_snapshot.v1",
+      analysis_id: "analysis-labeled",
+      status: "running",
+      total_plies: 2,
+      context_completed: 1,
+      explanation_required: 1,
+      explanation_completed: 0,
+      explanation_failed: 0,
+      explain_significance: ["critical"],
+      created_at: "2026-05-04T10:00:00Z",
+      updated_at: "2026-05-04T10:00:01Z",
+      started_at: "2026-05-04T10:00:00Z",
+      completed_at: null,
+      error: null,
+      moves: [labeledMove],
+    };
+
+    const mapped = mapGameAnalysisSnapshot(snapshot);
+
+    expect(mapped.moves).toHaveLength(1);
+    expect(mapped.moves[0]).toMatchObject({
+      ply: 1,
+      san: "e4",
+      fen_before: "startpos w",
+      fen_after: "after e4 b",
+    });
+    expect(mapped.timeline[0]).toMatchObject({
+      ply: 1,
+      eval_cp: null,
+      best_lines: [],
+    });
+    expect(mapped.move_markers[0]).toMatchObject({
+      san: "e4",
+      primary_class: "excellent",
+      best_move_san: null,
+      explanation: "",
+    });
+    expect(mapped.move_markers[0]?.label_metadata).toMatchObject({
+      quality: "excellent",
+      significance_label: "critical",
+      phase: "opening",
+    });
+  });
 });
 
 describe("scoreToWhitePovCp", () => {
@@ -284,6 +419,7 @@ function moveAnalysis({
   openingBook,
   beauty,
   conceptClaims,
+  withContext = true,
 }: {
   ply: number;
   moveNumber: number;
@@ -303,18 +439,45 @@ function moveAnalysis({
   openingBook?: NonNullable<GameMoveAnalysis["opening_book"]>;
   beauty?: GameMoveAnalysis["beauty"];
   conceptClaims?: ConceptClaim[];
+  withContext?: boolean;
 }): GameMoveAnalysis {
   const moveBeauty = beauty ?? { label: "ordinary", score: 0 };
+  const topLine = line(san, uci, topScore);
+  const playedLine = line(san, uci, playedScore);
+  const mainPoint = {
+    concept: "central control",
+    claim: `${san} changes the center.`,
+  };
+  const commonCandidate = candidate("Nf3", "g1f3", "human_common_move");
   return {
     ply,
+    move_number: moveNumber,
     san,
     uci,
     player_color: playerColor,
+    fen_before: fenBefore,
+    fen_after: fenAfter,
     state: "explained",
     requires_explanation: true,
     quality,
     significance: { label: "critical", score: 1 },
     beauty: moveBeauty,
+    quality_severity_text: quality,
+    score_loss_vs_best_cp: 40,
+    phase: "opening",
+    legal_move_count: 1,
+    context_version: "context.v1",
+    verifier_version: "verifier.v1",
+    engine_version: "test-stockfish",
+    engine_top_lines: [topLine],
+    engine_played_line: playedLine,
+    main_point: mainPoint,
+    concept_claims: conceptClaims ?? [],
+    allowed_claims: ["center"],
+    human_common_candidate: commonCandidate,
+    player_level: "1500",
+    time_situation: "normal",
+    best_or_key_move: null,
     context_latency_seconds: 0.01,
     clock_before_seconds:
       remainingClockSeconds === undefined || thinkTimeSeconds === undefined
@@ -330,20 +493,22 @@ function moveAnalysis({
     explanation_attempts: 1,
     explanation_model: "test-model",
     explanation_error: null,
-    context: context({
-      ply,
-      moveNumber,
-      playerColor,
-      san,
-      uci,
-      fenBefore,
-      fenAfter,
-      quality,
-      topScore,
-      playedScore,
-      beauty: moveBeauty,
-      conceptClaims: conceptClaims ?? [],
-    }),
+    context: withContext
+      ? context({
+          ply,
+          moveNumber,
+          playerColor,
+          san,
+          uci,
+          fenBefore,
+          fenAfter,
+          quality,
+          topScore,
+          playedScore,
+          beauty: moveBeauty,
+          conceptClaims: conceptClaims ?? [],
+        })
+      : null,
   };
 }
 

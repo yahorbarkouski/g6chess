@@ -49,7 +49,7 @@ describe("AnalysisImportPanel", () => {
     expect(onImport).toHaveBeenCalledWith({
       source: "pgn",
       pgn: "1. e4 e5 *",
-      include_context: true,
+      include_context: false,
       use_baseline_fallback: false,
       explain_significance: ["critical"],
     });
@@ -68,7 +68,7 @@ describe("AnalysisImportPanel", () => {
     expect(onImport).toHaveBeenCalledWith({
       source: "chess_com_live_url",
       url: "https://www.chess.com/game/live/168193636078",
-      include_context: true,
+      include_context: false,
       use_baseline_fallback: false,
       explain_significance: ["critical"],
     });
@@ -84,26 +84,27 @@ describe("AnalysisImportPanel", () => {
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    expect(onImport).toHaveBeenCalledWith({
-      source: "lichess_game_url",
-      url: "https://lichess.org/fY44h4OY",
-      include_context: true,
-      use_baseline_fallback: false,
-      explain_significance: ["critical"],
-    });
+    expect(onImport).toHaveBeenCalledWith(
+      {
+        source: "lichess_game_url",
+        url: "https://lichess.org/fY44h4OY",
+        include_context: false,
+        use_baseline_fallback: false,
+        explain_significance: ["critical"],
+      },
+      {
+        boardOrientation: "black",
+        externalGameId: "fY44h4OY",
+        source: "lichess_game_url",
+      },
+    );
   });
 
-  it("renders Turnstile only when an import needs verification", async () => {
+  it("verifies with Turnstile before starting an import when protection is enabled", async () => {
     vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
     vi.resetModules();
     const user = userEvent.setup();
-    const { ApiError } = await import("../../lib/api");
-    const onImport = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new ApiError(403, "Turnstile validation failed.", { code: "turnstile_failed" }),
-      )
-      .mockResolvedValue(undefined);
+    const onImport = vi.fn().mockResolvedValue(undefined);
 
     let verifyTurnstile: ((token: string) => void) | undefined;
     const removeTurnstile = vi.fn();
@@ -126,16 +127,8 @@ describe("AnalysisImportPanel", () => {
     await user.type(screen.getByLabelText("Game URL"), "g6chess.com/game/live/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
-    await waitFor(() =>
-      expect(onImport).toHaveBeenCalledWith({
-        source: "chess_com_live_url",
-        url: "https://www.chess.com/game/live/168193636078",
-        include_context: true,
-        use_baseline_fallback: false,
-        explain_significance: ["critical"],
-      }),
-    );
     const turnstile = await screen.findByTestId("turnstile-widget");
+    expect(onImport).not.toHaveBeenCalled();
     const feedbackCard = screen.getByRole("link", { name: /Leave feedback/i });
     expect(feedbackCard.compareDocumentPosition(turnstile)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
@@ -144,11 +137,12 @@ describe("AnalysisImportPanel", () => {
     });
 
     await waitFor(() => expect(screen.queryByTestId("turnstile-widget")).toBeNull());
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(onImport).toHaveBeenCalledWith({
         source: "chess_com_live_url",
         url: "https://www.chess.com/game/live/168193636078",
-        include_context: true,
+        include_context: false,
         use_baseline_fallback: false,
         explain_significance: ["critical"],
         turnstile_token: "verified-token",

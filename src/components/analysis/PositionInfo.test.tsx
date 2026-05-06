@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ElementType, ReactNode } from "react";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisMoveMarker, BestLine, GameMove } from "../../types/analysis";
 import { PositionInfo } from "./PositionInfo";
@@ -23,6 +24,12 @@ vi.mock("@/components/loading-ui/text-shimmer", () => ({
       {children}
     </Component>
   ),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+  },
 }));
 
 vi.mock("./UltraAnalysisBoard", () => ({
@@ -76,6 +83,9 @@ describe("PositionInfo", () => {
 
     expect(playedAnchor).toHaveTextContent("key reply Nxb5");
     expect(playedAnchor.className).toContain("bg-amber");
+    expect(playedAnchor.className).toContain("box-decoration-clone");
+    expect(playedAnchor.parentElement?.className).toContain("inline");
+    expect(playedAnchor.parentElement?.className).not.toContain("inline-block");
     expect(playedAnchor.className).not.toContain("border-b");
     expect(betterAnchor.className).toContain("bg-emerald");
     expect(screen.queryByRole("button", { name: /b5 was a blunder because/i })).toBeNull();
@@ -246,9 +256,13 @@ describe("PositionInfo", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Copy PGN through 9... b5" }));
+    const moveTitle = screen.getByRole("button", { name: "Copy moves through 9... b5" });
+    expect(moveTitle).toHaveAttribute("title", "Copy moves to clipboard");
+
+    await user.click(moveTitle);
 
     expect(writeText).toHaveBeenCalledWith("1. e4 e5 2. Nf3");
+    expect(toast.success).toHaveBeenCalledWith("Moves copied to clipboard");
   });
 
   it("uses the opening name as the selected book move badge", () => {

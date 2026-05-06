@@ -8,7 +8,7 @@ import {
 import { chesscom } from "@ultrachess/pieces/chesscom";
 import { Chessboard, type PositionTransition, useChessGame } from "@ultrachess/react";
 import { green } from "@ultrachess/themes/green";
-import { type CSSProperties, type ReactNode, useCallback, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { parseSquare } from "ultrachess";
 import { pieceCodeAtSquare, squareName, uciToSquares } from "../../lib/chess";
 import { cn } from "../../lib/utils";
@@ -49,6 +49,7 @@ interface UltraAnalysisBoardProps {
   shadowed?: boolean;
   dimmed?: boolean;
   showCoordinates?: boolean;
+  onWheel?: (event: WheelEvent) => void;
   className?: string;
 }
 
@@ -65,9 +66,11 @@ export function UltraAnalysisBoard({
   shadowed = true,
   dimmed = false,
   showCoordinates = true,
+  onWheel,
   className,
 }: UltraAnalysisBoardProps) {
   const game = useChessGame();
+  const boardRef = useRef<HTMLDivElement | null>(null);
 
   const managedArrows = useManagedArrows(arrows);
   const animation = useMemo(
@@ -76,6 +79,15 @@ export function UltraAnalysisBoard({
   );
   const renderSquare = useHighlightedSquareOverlay(highlightedMove);
   const handleMove = useOnMoveAdapter(game, onPieceDrop);
+
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board || !onWheel) {
+      return;
+    }
+    board.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => board.removeEventListener("wheel", onWheel, { capture: true });
+  }, [onWheel]);
 
   return (
     <div
@@ -86,6 +98,7 @@ export function UltraAnalysisBoard({
         dimmed && "opacity-95",
         className,
       )}
+      ref={boardRef}
     >
       <Chessboard
         allowDrag={allowDragging}

@@ -14,7 +14,6 @@ import type {
   ExplanationSegment as ApiExplanationSegment,
   CandidateMove,
   ColorName,
-  ContextResult,
   EngineLine,
   GameAnalysisGame,
   GameAnalysisImportResponse,
@@ -22,6 +21,7 @@ import type {
   GameMainlineMove,
   GameMoveAnalysis,
   ImportedGameMetadata,
+  MainPoint,
   OpeningBookMetadata,
   Score,
   Wdl,
@@ -34,16 +34,17 @@ export function mapGameAnalysisSnapshot(
   source: ImportedGameMetadata | null = null,
   fallbackGame: GameAnalysisGame | null = null,
 ): AnalysisResponse {
-  const movesWithContext = snapshot.moves
-    .filter((move): move is GameMoveAnalysis & { context: ContextResult } => move.context !== null)
-    .sort((a, b) => a.ply - b.ply);
+  // The polling contract uses snapshot.moves as the completed/labeled ply stream.
+  // Full context and engine lines are optional payload enrichments.
+  const analyzedMoves = [...snapshot.moves].sort((a, b) => a.ply - b.ply);
   const game = snapshot.game ?? fallbackGame;
   const moves = game?.moves.length
     ? game.moves.map(mapMainlineMove)
-    : movesWithContext.map(mapGameMove);
-  const timeline = movesWithContext.map(mapTimelinePoint);
-  const moveMarkers = movesWithContext.map((move, index) => mapMoveMarker(move, index));
-  const firstContext = movesWithContext[0]?.context ?? null;
+    : analyzedMoves.map(mapGameMove);
+  const timeline = analyzedMoves.map(mapTimelinePoint);
+  const moveMarkers = analyzedMoves.map((move, index) => mapMoveMarker(move, index));
+  const firstContext = analyzedMoves.find((move) => move.context !== null)?.context ?? null;
+  const firstAnalyzedMove = analyzedMoves[0] ?? null;
 
   return {
     id: snapshot.analysis_id,
@@ -55,9 +56,17 @@ export function mapGameAnalysisSnapshot(
     move_markers: moveMarkers,
     summary: {
       engine_version:
-        firstContext?.evidence.engine.engine_version ?? "g6explanation game-analysis API",
-      context_version: firstContext?.evidence.context_version ?? snapshot.snapshot_version,
-      verifier_version: firstContext?.verification.verifier_version ?? "pending",
+        firstContext?.evidence.engine.engine_version ??
+        firstAnalyzedMove?.engine_version ??
+        "g6explanation game-analysis API",
+      context_version:
+        firstContext?.evidence.context_version ??
+        firstAnalyzedMove?.context_version ??
+        snapshot.snapshot_version,
+      verifier_version:
+        firstContext?.verification.verifier_version ??
+        firstAnalyzedMove?.verifier_version ??
+        "pending",
     },
   };
 }
@@ -100,16 +109,62 @@ export function scoreToWhitePovCp(score: Score, playerColor: ColorName): number 
   return playerColor === "white" ? playerPovCp : -playerPovCp;
 }
 
-function mapGameMove(move: GameMoveAnalysis & { context: ContextResult }): GameMove {
-  const position = move.context.evidence.position;
+function moveNumber(move: GameMoveAnalysis): number {
+  return move.context?.evidence.position.move_number ?? move.move_number ?? Math.ceil(move.ply / 2);
+}
+
+function playedSan(move: GameMoveAnalysis): string {
+  return move.context?.evidence.played.san || move.san;
+}
+
+function playedUci(move: GameMoveAnalysis): string {
+  return move.context?.evidence.played.uci || move.uci;
+}
+
+function fenBefore(move: GameMoveAnalysis): string {
+  return move.context?.evidence.position.fen_before ?? move.fen_before ?? "";
+}
+
+function fenAfter(move: GameMoveAnalysis): string {
+  return move.context?.evidence.position.fen_after ?? move.fen_after ?? "";
+}
+
+function engineTopLines(move: GameMoveAnalysis): EngineLine[] {
+  return move.context?.evidence.engine.top_lines ?? move.engine_top_lines ?? [];
+}
+
+function enginePlayedLine(move: GameMoveAnalysis): EngineLine | null {
+  return move.context?.evidence.engine.played_line ?? move.engine_played_line ?? null;
+}
+
+function moveMainPoint(move: GameMoveAnalysis): MainPoint | null {
+  return move.context?.evidence.main_point ?? move.main_point ?? null;
+}
+
+function moveBestOrKeyMove(move: GameMoveAnalysis) {
+  return move.context?.llm_context.best_or_key_move ?? move.best_or_key_move ?? null;
+}
+
+function moveConceptClaims(move: GameMoveAnalysis) {
+  return move.context?.evidence.concept_claims ?? move.concept_claims ?? [];
+}
+
+function humanCommonCandidateForMove(move: GameMoveAnalysis): CandidateMove | null {
+  if (move.context !== null) {
+    return humanCommonCandidate(move.context.evidence.candidates);
+  }
+  return move.human_common_candidate ?? null;
+}
+
+function mapGameMove(move: GameMoveAnalysis): GameMove {
   return {
     ply: move.ply,
-    move_number: position.move_number,
+    move_number: moveNumber(move),
     side: move.player_color,
-    san: move.context.evidence.played.san || move.san,
-    uci: move.context.evidence.played.uci || move.uci,
-    fen_before: position.fen_before,
-    fen_after: position.fen_after,
+    san: playedSan(move),
+    uci: playedUci(move),
+    fen_before: fenBefore(move),
+    fen_after: fenAfter(move),
     ...(move.remaining_clock_seconds == null
       ? {}
       : { remaining_clock_seconds: move.remaining_clock_seconds }),
@@ -133,19 +188,17 @@ function mapMainlineMove(move: GameMainlineMove): GameMove {
   };
 }
 
-function mapTimelinePoint(
-  move: GameMoveAnalysis & { context: ContextResult },
-): AnalysisTimelinePoint {
-  const evidence = move.context.evidence;
+function mapTimelinePoint(move: GameMoveAnalysis): AnalysisTimelinePoint {
   const openingBook = move.opening_book ?? null;
   const bookLines = mapBookLines(openingBook?.book_lines ?? []);
+  const playedLine = enginePlayedLine(move);
   return {
     ply: move.ply,
-    san: evidence.played.san || move.san,
+    san: playedSan(move),
     side: move.player_color,
-    eval_cp: scoreToWhitePovCp(evidence.engine.played_line.score, move.player_color),
-    fen_before: evidence.position.fen_before,
-    best_lines: evidence.engine.top_lines.map((line) => mapBestLine(line, move.player_color)),
+    eval_cp: playedLine === null ? null : scoreToWhitePovCp(playedLine.score, move.player_color),
+    fen_before: fenBefore(move),
+    best_lines: engineTopLines(move).map((line) => mapBestLine(line, move.player_color)),
     ...(openingBook === null
       ? {}
       : {
@@ -158,19 +211,20 @@ function mapTimelinePoint(
   };
 }
 
-function mapMoveMarker(
-  move: GameMoveAnalysis & { context: ContextResult },
-  index: number,
-): AnalysisMoveMarker {
-  const evidence = move.context.evidence;
+function mapMoveMarker(move: GameMoveAnalysis, index: number): AnalysisMoveMarker {
   const openingBook = move.opening_book ?? null;
   const bookLines = mapBookLines(openingBook?.book_lines ?? []);
-  const topLine = evidence.engine.top_lines[0] ?? evidence.engine.played_line;
-  const naturalMove = humanCommonCandidate(evidence.candidates);
-  const evalBeforeCp = scoreToWhitePovCp(topLine.score, move.player_color) ?? 0;
-  const evalAfterCp = scoreToWhitePovCp(evidence.engine.played_line.score, move.player_color) ?? 0;
-  const tags = markerTags(move, evidence.main_point.concept, openingBook);
-  const explanation = move.explanation ?? evidence.main_point.claim;
+  const playedLine = enginePlayedLine(move);
+  const topLines = engineTopLines(move);
+  const topLine = topLines[0] ?? playedLine;
+  const naturalMove = humanCommonCandidateForMove(move);
+  const evalBeforeCp =
+    topLine === null ? 0 : (scoreToWhitePovCp(topLine.score, move.player_color) ?? 0);
+  const evalAfterCp =
+    playedLine === null ? 0 : (scoreToWhitePovCp(playedLine.score, move.player_color) ?? 0);
+  const mainPoint = moveMainPoint(move);
+  const tags = markerTags(move, mainPoint?.concept ?? "", openingBook);
+  const explanation = move.explanation ?? mainPoint?.claim ?? "";
   const explanationLineCards = mapExplanationLineCards(move.explanation_line_cards);
   const explanationSegments = mapExplanationSegments(
     move.explanation_segments,
@@ -181,12 +235,12 @@ function mapMoveMarker(
   return {
     rank_order: index + 1,
     ply: move.ply,
-    move_number: evidence.position.move_number,
+    move_number: moveNumber(move),
     side: move.player_color,
-    san: evidence.played.san || move.san,
-    uci: evidence.played.uci || move.uci,
-    best_move_san: topLine.move_san,
-    best_move_uci: topLine.move_uci,
+    san: playedSan(move),
+    uci: playedUci(move),
+    best_move_san: topLine?.move_san ?? null,
+    best_move_uci: topLine?.move_uci ?? null,
     natural_move_san: naturalMove?.san ?? null,
     natural_move_uci: naturalMove?.uci ?? null,
     primary_class: openingBook?.is_book_move ? "book" : primaryClassFromApi(move),
@@ -195,22 +249,23 @@ function mapMoveMarker(
       state: move.state,
       requires_explanation: move.requires_explanation,
       quality: move.quality,
-      severity_text: evidence.quality.severity_text,
+      severity_text: move.context?.evidence.quality.severity_text ?? move.quality_severity_text,
       significance_label: move.significance.label,
       significance_score: move.significance.score,
       beauty_label: move.beauty.label,
       beauty_score: move.beauty.score,
-      phase: evidence.position.phase,
-      legal_move_count: evidence.position.legal_moves_uci.length,
-      main_point_concept: evidence.main_point.concept,
-      main_point_claim: evidence.main_point.claim,
-      allowed_claims: evidence.allowed_claims,
-      player_level: move.context.llm_context.player_level,
-      time_situation: move.context.llm_context.time_situation,
-      best_or_key_move: move.context.llm_context.best_or_key_move?.move ?? null,
-      best_or_key_reason: move.context.llm_context.best_or_key_move?.reason ?? null,
-      engine_depth: topLine.depth,
-      engine_nodes: topLine.nodes,
+      phase: move.context?.evidence.position.phase ?? move.phase,
+      legal_move_count:
+        move.context?.evidence.position.legal_moves_uci.length ?? move.legal_move_count,
+      main_point_concept: mainPoint?.concept ?? null,
+      main_point_claim: mainPoint?.claim ?? null,
+      allowed_claims: move.context?.evidence.allowed_claims ?? move.allowed_claims ?? [],
+      player_level: move.context?.llm_context.player_level ?? move.player_level,
+      time_situation: move.context?.llm_context.time_situation ?? move.time_situation,
+      best_or_key_move: moveBestOrKeyMove(move)?.move ?? null,
+      best_or_key_reason: moveBestOrKeyMove(move)?.reason ?? null,
+      engine_depth: topLine?.depth ?? null,
+      engine_nodes: topLine?.nodes ?? null,
       context_latency_seconds: move.context_latency_seconds,
       explanation_model: move.explanation_model,
       explanation_error: move.explanation_error,
@@ -231,11 +286,12 @@ function mapMoveMarker(
         }),
     eval_before_cp: evalBeforeCp,
     eval_after_cp: evalAfterCp,
-    drop_cp: move.context.evidence.quality.score_loss_vs_best_cp ?? 0,
+    drop_cp:
+      move.context?.evidence.quality.score_loss_vs_best_cp ?? move.score_loss_vs_best_cp ?? 0,
     explanation,
     explanation_segments: explanationSegments,
     explanation_line_cards: explanationLineCards,
-    best_lines: evidence.engine.top_lines.map((line) => mapBestLine(line, move.player_color)),
+    best_lines: topLines.map((line) => mapBestLine(line, move.player_color)),
   };
 }
 
@@ -373,18 +429,18 @@ function hasExceptionalPlayedMoveEvidence(move: GameMoveAnalysis): boolean {
 }
 
 function hasPlayedMoveTacticClaim(move: GameMoveAnalysis): boolean {
-  const playedSan = move.context?.evidence.played.san || move.san;
-  return (move.context?.evidence.concept_claims ?? []).some(
+  const san = playedSan(move);
+  return moveConceptClaims(move).some(
     (claim) =>
       claim.kind === "tactic" &&
       claim.subject === "played_move" &&
       claim.source === "deterministic_detector" &&
-      (claim.move_san === null || claim.move_san === playedSan),
+      (claim.move_san === null || claim.move_san === san),
   );
 }
 
 function isPlayedMateForPlayer(move: GameMoveAnalysis): boolean {
-  const score = move.context?.evidence.engine.played_line.score;
+  const score = enginePlayedLine(move)?.score;
   return score?.kind === "mate" && score.mate_for === "player";
 }
 

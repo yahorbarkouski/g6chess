@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  type ExternalGameTarget,
   extractGameImportTarget,
   isSupportedGameAnalysisUrl,
   normalizeGameImportUrl,
@@ -23,7 +24,10 @@ interface AnalysisImportPanelProps {
   status: ImportPanelStatus;
   error: string | null;
   initialUrl?: string | null;
-  onImport: (request: GameAnalysisImportRequest) => Promise<void>;
+  onImport: (
+    request: GameAnalysisImportRequest,
+    hintedTarget?: ExternalGameTarget | null,
+  ) => Promise<void>;
   onClearError?: () => void;
   turnstileToken?: string | null;
   turnstileResetKey?: number;
@@ -33,6 +37,11 @@ interface AnalysisImportPanelProps {
 }
 
 type Mode = "url" | "pgn";
+
+interface PendingTurnstileImport {
+  request: GameAnalysisImportRequest;
+  hintedTarget: ExternalGameTarget | null;
+}
 
 const DEFAULT_EXPLAIN_SIGNIFICANCE: readonly SignificanceLabel[] = ["critical"];
 function turnstileSiteKey(): string {
@@ -173,8 +182,8 @@ export function AnalysisImportPanel({
   const [localError, setLocalError] = useState<string | null>(null);
   const [localTurnstileToken, setLocalTurnstileToken] = useState<string | null>(null);
   const [localTurnstileResetKey, setLocalTurnstileResetKey] = useState(0);
-  const [pendingTurnstileRequest, setPendingTurnstileRequest] =
-    useState<GameAnalysisImportRequest | null>(null);
+  const [pendingTurnstileImport, setPendingTurnstileImport] =
+    useState<PendingTurnstileImport | null>(null);
   const [turnstilePrompted, setTurnstilePrompted] = useState(false);
   const lastRandomGameIndexRef = useRef<number | null>(null);
 
@@ -184,11 +193,12 @@ export function AnalysisImportPanel({
   const turnstileToken =
     controlledTurnstileToken === undefined ? localTurnstileToken : controlledTurnstileToken;
   const turnstileResetKey = controlledTurnstileResetKey ?? localTurnstileResetKey;
+  const isAwaitingTurnstile = needsTurnstile && pendingTurnstileImport !== null;
   const shouldShowTurnstile =
     needsTurnstile && turnstileToken === null && (turnstilePrompted || turnstileRequired);
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
-  const canSubmit = !isBusy && isValidInput(mode, value);
+  const canSubmit = !isBusy && !isAwaitingTurnstile && isValidInput(mode, value);
   const setTurnstileToken = useCallback(
     (token: string | null) => {
       if (controlledTurnstileToken === undefined) {
@@ -207,31 +217,59 @@ export function AnalysisImportPanel({
   }, [controlledTurnstileResetKey, onTurnstileReset, setTurnstileToken]);
   const handleTurnstileExpire = useCallback(() => setTurnstileToken(null), [setTurnstileToken]);
 
-  function promptForTurnstile(request: GameAnalysisImportRequest) {
-    setPendingTurnstileRequest(request);
-    setTurnstilePrompted(true);
-  }
+  const promptForTurnstile = useCallback(
+    (request: GameAnalysisImportRequest, hintedTarget: ExternalGameTarget | null) => {
+      setPendingTurnstileImport({
+        request: withoutTurnstileToken(request),
+        hintedTarget,
+      });
+      setTurnstilePrompted(true);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (!needsTurnstile || pendingTurnstileRequest === null || turnstileToken === null || isBusy) {
+    if (!needsTurnstile || pendingTurnstileImport === null || turnstileToken === null || isBusy) {
       return;
     }
     const request = {
-      ...pendingTurnstileRequest,
+      ...pendingTurnstileImport.request,
       turnstile_token: turnstileToken,
     };
-    setPendingTurnstileRequest(null);
+    const { hintedTarget } = pendingTurnstileImport;
+    setPendingTurnstileImport(null);
     setLocalError(null);
-    void onImport(request).catch((err: unknown) => {
+    void importWithOptionalHint(onImport, request, hintedTarget).catch((err: unknown) => {
+      if (isTurnstileFailure(err)) {
+        promptForTurnstile(request, hintedTarget);
+        resetTurnstile();
+        return;
+      }
       setLocalError(importErrorMessage(err));
       setTurnstilePrompted(false);
       resetTurnstile();
     });
-  }, [isBusy, needsTurnstile, onImport, pendingTurnstileRequest, resetTurnstile, turnstileToken]);
+  }, [
+    isBusy,
+    needsTurnstile,
+    onImport,
+    pendingTurnstileImport,
+    promptForTurnstile,
+    resetTurnstile,
+    turnstileToken,
+  ]);
 
   function clearErrors() {
     setLocalError(null);
     onClearError?.();
+  }
+
+  function clearPendingVerification() {
+    setPendingTurnstileImport(null);
+    setTurnstilePrompted(false);
+    if (needsTurnstile) {
+      resetTurnstile();
+    }
   }
 
   async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
@@ -240,12 +278,19 @@ export function AnalysisImportPanel({
       return;
     }
     setLocalError(null);
+    const hintedTarget = orientationHintForTarget(
+      mode === "url" ? extractGameImportTarget(url.trim()) : null,
+    );
     const request = buildRequest(mode, { url: url.trim(), pgn, turnstileToken });
+    if (needsTurnstile && turnstileToken === null) {
+      promptForTurnstile(request, hintedTarget);
+      return;
+    }
     try {
-      await onImport(request);
+      await importWithOptionalHint(onImport, request, hintedTarget);
     } catch (err) {
       if (needsTurnstile && isTurnstileFailure(err)) {
-        promptForTurnstile(request);
+        promptForTurnstile(request, hintedTarget);
         return;
       }
       setLocalError(importErrorMessage(err));
@@ -268,11 +313,19 @@ export function AnalysisImportPanel({
     lastRandomGameIndexRef.current = index;
     clearErrors();
     const request = buildRequest("pgn", { url: "", pgn: picked.pgn, turnstileToken });
+    if (needsTurnstile && turnstileToken === null) {
+      promptForTurnstile(request, null);
+      if (mode !== "pgn") {
+        setMode("pgn");
+      }
+      setPgn(picked.pgn);
+      return;
+    }
     try {
       await onImport(request);
     } catch (err) {
       if (needsTurnstile && isTurnstileFailure(err)) {
-        promptForTurnstile(request);
+        promptForTurnstile(request, null);
         if (mode !== "pgn") {
           setMode("pgn");
         }
@@ -289,11 +342,15 @@ export function AnalysisImportPanel({
 
   function toggleMode() {
     clearErrors();
+    clearPendingVerification();
     setMode((current) => (current === "url" ? "pgn" : "url"));
   }
 
   function handleFieldChange(next: string) {
     clearErrors();
+    if (pendingTurnstileImport !== null) {
+      clearPendingVerification();
+    }
     if (mode === "url") {
       setUrl(stripNewlines(next));
     } else {
@@ -654,13 +711,30 @@ function buildRequest(
   const request: GameAnalysisImportRequest = {
     ...sourceFields,
     explain_significance: [...DEFAULT_EXPLAIN_SIGNIFICANCE],
-    include_context: true,
+    include_context: false,
     use_baseline_fallback: false,
   };
   if (values.turnstileToken !== null) {
     request.turnstile_token = values.turnstileToken;
   }
   return request;
+}
+
+function withoutTurnstileToken(request: GameAnalysisImportRequest): GameAnalysisImportRequest {
+  const { turnstile_token: _turnstileToken, ...nextRequest } = request;
+  return nextRequest;
+}
+
+function orientationHintForTarget(target: ExternalGameTarget | null): ExternalGameTarget | null {
+  return target !== null && target.boardOrientation !== null ? target : null;
+}
+
+function importWithOptionalHint(
+  onImport: AnalysisImportPanelProps["onImport"],
+  request: GameAnalysisImportRequest,
+  hintedTarget: ExternalGameTarget | null,
+): Promise<void> {
+  return hintedTarget === null ? onImport(request) : onImport(request, hintedTarget);
 }
 
 function importErrorMessage(error: unknown): string {

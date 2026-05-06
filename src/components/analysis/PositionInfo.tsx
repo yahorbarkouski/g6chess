@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { TextShimmer } from "@/components/loading-ui/text-shimmer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
@@ -76,11 +77,13 @@ export function PositionInfo({
     if (!moves || !currentPly) {
       return;
     }
-    const pgn = movesToPgn(moves, currentPly);
-    if (!pgn) {
+    const moveText = movesToMoveText(moves, currentPly);
+    if (!moveText) {
       return;
     }
-    void navigator.clipboard?.writeText(pgn);
+    void navigator.clipboard?.writeText(moveText).then(() => {
+      toast.success("Moves copied to clipboard");
+    });
   }, [currentPly, moves]);
   const moveTitle = formatMoveLabel(currentMove);
 
@@ -90,10 +93,10 @@ export function PositionInfo({
         <div className="min-w-0">
           {canCopyMoves ? (
             <button
-              aria-label={`Copy PGN through ${moveTitle}`}
+              aria-label={`Copy moves through ${moveTitle}`}
               className="cursor-pointer border-0 bg-transparent p-0 text-left font-serif text-2xl text-stone-900 transition-colors hover:text-stone-600 focus-visible:rounded-sm dark:text-stone-100 dark:hover:text-stone-300"
               onClick={handleCopyMoves}
-              title="Copy moves"
+              title="Copy moves to clipboard"
               type="button"
             >
               <MorphText>{moveTitle}</MorphText>
@@ -183,7 +186,7 @@ function SelectedMoveBadge({
   );
 }
 
-function movesToPgn(moves: GameMove[], upToPly: number): string {
+function movesToMoveText(moves: GameMove[], upToPly: number): string {
   const parts: string[] = [];
   for (const move of moves) {
     if (move.ply > upToPly) {
@@ -579,7 +582,7 @@ function LineCardAnchor({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the actual control is the button; this wrapper keeps its hover preview interactive.
     <div
-      className="relative inline-block align-baseline"
+      className="relative inline align-baseline"
       onBlur={handleRootBlur}
       onFocus={openHoverCard}
       onPointerEnter={openHoverCard}
@@ -588,7 +591,7 @@ function LineCardAnchor({
       <button
         aria-label={`${triggerText}: ${card.title}`}
         className={cn(
-          "inline cursor-pointer rounded-sm px-0.5 text-left transition-colors py-0.5 text-sm",
+          "inline cursor-pointer box-decoration-clone rounded-sm px-0.5 py-0.5 text-left text-sm transition-colors",
           tone === "good"
             ? "bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/50 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-900/55"
             : "bg-amber-50/80 text-stone-800 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500/50 dark:bg-amber-950/45 dark:text-stone-200 dark:hover:bg-amber-900/50",

@@ -12,6 +12,7 @@ import {
   canonicalPathForRoute,
   chessComLiveGameUrl,
   currentBrowserPath,
+  type ExternalGameOrientation,
   type ExternalGameSource,
   type ExternalGameTarget,
   extractGameImportTarget,
@@ -84,10 +85,14 @@ import {
 import { WorkspaceFooter } from "./WorkspaceFooter";
 
 const EMPTY_BOARD_ARROWS: BoardArrow[] = [];
+const EMPTY_BEST_LINES: BestLine[] = [];
 const DESKTOP_MEDIA_QUERY = "(min-width: 1100px)";
 const MIN_BROWSER_EVAL_BAR_DEPTH = 13;
 const MAX_PRE_ANALYZE_FENS = 12;
 const PRE_ANALYZE_NEIGHBOR_PLIES = 4;
+const WHEEL_MOVE_NAVIGATION_COOLDOWN_MS = 45;
+const WHEEL_MOVE_NAVIGATION_MIN_DELTA = 12;
+const WHEEL_MOVE_NAVIGATION_DELTA_PER_PLY = 48;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
 const ANALYSIS_LOADING_EMPTY_MESSAGE = "Crunching the analysis. The board is yours to explore";
@@ -114,7 +119,10 @@ interface AnalysisImportHomeProps {
   status: ImportPanelStatus;
   error: string | null;
   initialUrl: string | null;
-  onImport: (request: GameAnalysisImportRequest) => Promise<void>;
+  onImport: (
+    request: GameAnalysisImportRequest,
+    hintedTarget?: ExternalGameTarget | null,
+  ) => Promise<void>;
   onClearError: () => void;
   turnstileToken: string | null;
   turnstileResetKey: number;
@@ -126,6 +134,7 @@ interface AnalysisImportHomeProps {
 interface AnalysisGameWorkspaceProps {
   analysis: AnalysisResponse;
   initialPly: number | null;
+  initialBoardOrientation: ExternalGameOrientation | null;
   moveLoadingIndicator: MoveLoadingIndicatorState;
   onOpenImport: () => void;
   shareTarget: SharedAnalysisTarget | null;
@@ -158,7 +167,11 @@ export function AnalysisWorkspace() {
   );
   const routeImportUrl =
     route.externalSource !== null && route.externalGameId !== null
-      ? sourceUrlForTarget({ source: route.externalSource, externalGameId: route.externalGameId })
+      ? sourceUrlForTarget({
+          source: route.externalSource,
+          externalGameId: route.externalGameId,
+          boardOrientation: route.boardOrientation,
+        })
       : null;
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
@@ -326,6 +339,7 @@ export function AnalysisWorkspace() {
         analysisId,
         externalSource: target?.source ?? null,
         externalGameId: target?.externalGameId ?? null,
+        boardOrientation: target?.boardOrientation ?? null,
         ply,
       });
       if (nextPath === null) {
@@ -339,9 +353,10 @@ export function AnalysisWorkspace() {
     },
     [pushPath, replacePath],
   );
+  const routeExternalTarget = useMemo(() => externalTargetFromRoute(route), [route]);
 
   const handleImportedGameAnalysis = useCallback(
-    async (request: GameAnalysisImportRequest) => {
+    async (request: GameAnalysisImportRequest, hintedTarget: ExternalGameTarget | null = null) => {
       setImportStatus("submitting");
       setImportError(null);
       setImportSnapshot(null);
@@ -364,11 +379,17 @@ export function AnalysisWorkspace() {
         }
         setImportStatus("polling");
 
-        const target =
-          externalTargetFromSource(nextJob.source) ??
-          (request.url === undefined || request.url === null
+        const requestTarget =
+          request.url === undefined || request.url === null
             ? null
-            : extractGameImportTarget(request.url));
+            : extractGameImportTarget(request.url);
+        const target = mergeExternalTargetHints(
+          mergeExternalTargetHints(
+            mergeExternalTargetHints(externalTargetFromSource(nextJob.source), requestTarget),
+            hintedTarget,
+          ),
+          routeExternalTarget,
+        );
         navigateToImportedGamePath(
           nextJob.analysis_id,
           target,
@@ -381,7 +402,7 @@ export function AnalysisWorkspace() {
         throw error;
       }
     },
-    [navigateToImportedGamePath, route.kind, route.ply],
+    [navigateToImportedGamePath, route.kind, route.ply, routeExternalTarget],
   );
 
   useEffect(() => {
@@ -423,7 +444,7 @@ export function AnalysisWorkspace() {
         setImportStatus("polling");
         navigateToImportedGamePath(
           nextJob.analysis_id,
-          externalTargetFromSource(nextJob.source) ?? importTarget,
+          mergeExternalTargetHints(externalTargetFromSource(nextJob.source), importTarget),
           route.ply,
           "replace",
         );
@@ -525,7 +546,10 @@ export function AnalysisWorkspace() {
       return;
     }
     const needsTurnstile = isTurnstileEnabled();
-    if (needsTurnstile && turnstileToken === null && turnstileRequired) {
+    if (needsTurnstile && turnstileToken === null) {
+      if (!turnstileRequired) {
+        setTurnstileRequired(true);
+      }
       return;
     }
 
@@ -614,7 +638,9 @@ export function AnalysisWorkspace() {
   return (
     <AnalysisGameWorkspace
       analysis={analysis}
+      initialBoardOrientation={route.boardOrientation}
       initialPly={route.ply}
+      key={`${analysis.id}:${route.boardOrientation ?? ""}`}
       moveLoadingIndicator={buildMoveLoadingIndicator(importStatus, importSnapshot)}
       onOpenImport={handleOpenImport}
       shareTarget={shareTarget}
@@ -657,6 +683,7 @@ function AnalysisImportHome({
 
 function AnalysisGameWorkspace({
   analysis,
+  initialBoardOrientation,
   initialPly,
   moveLoadingIndicator,
   onOpenImport,
@@ -683,6 +710,7 @@ function AnalysisGameWorkspace({
   const currentFen = currentMove?.fen_after ?? analysis.moves[0]?.fen_before ?? "";
   const previousPlyRef = useRef(currentPly);
   const routePlyRef = useRef(initialPly);
+  const lastWheelNavigationAtRef = useRef(0);
 
   const board = useAnalysisBoard({
     baseFen: currentFen,
@@ -763,7 +791,8 @@ function AnalysisGameWorkspace({
     [board.handlePreview],
   );
   const material = useMemo(() => computeCapturedMaterial(currentFen), [currentFen]);
-  const boardOrientation = flippedBoard ? oppositeSide(analysis.player_side) : analysis.player_side;
+  const baseBoardOrientation = initialBoardOrientation ?? analysis.player_side;
+  const boardOrientation = flippedBoard ? oppositeSide(baseBoardOrientation) : baseBoardOrientation;
   const boardTransitionMove = useMemo<BoardTransitionMove | null>(() => {
     const previousPly = previousPlyRef.current;
     if (previousPly === currentPly || Math.abs(previousPly - currentPly) !== 1) {
@@ -857,6 +886,40 @@ function AnalysisGameWorkspace({
     board.clearPreview();
   }, [board.clearPreview, board.discovery, board.exitDiscovery]);
 
+  const handleBoardWheel = useCallback(
+    (event: WheelEvent) => {
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        shouldIgnoreWheelMoveNavigationTarget(event.target)
+      ) {
+        return;
+      }
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (Math.abs(event.deltaY) < WHEEL_MOVE_NAVIGATION_MIN_DELTA) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastWheelNavigationAtRef.current < WHEEL_MOVE_NAVIGATION_COOLDOWN_MS) {
+        return;
+      }
+
+      lastWheelNavigationAtRef.current = now;
+      const stepCount = Math.max(
+        1,
+        Math.min(4, Math.floor(Math.abs(event.deltaY) / WHEEL_MOVE_NAVIGATION_DELTA_PER_PLY)),
+      );
+      stepPly((event.deltaY > 0 ? 1 : -1) * stepCount);
+    },
+    [stepPly],
+  );
+
   const handleFlipBoard = useCallback(() => {
     setFlippedBoard((value) => !value);
   }, []);
@@ -909,6 +972,7 @@ function AnalysisGameWorkspace({
               onGoToBoundary={goToBoundary}
               onOpenImport={onOpenImport}
               onBookPreview={handleBookPreview}
+              onBoardWheel={handleBoardWheel}
               onPreview={board.handlePreview}
               onSelectPly={handleSelectPly}
               onShowMaiaArrowChange={setShowMaiaArrow}
@@ -955,6 +1019,7 @@ function AnalysisGameWorkspace({
               onGoToBoundary={goToBoundary}
               onOpenImport={onOpenImport}
               onBookPreview={handleBookPreview}
+              onBoardWheel={handleBoardWheel}
               onPreview={board.handlePreview}
               onSelectPly={handleSelectPly}
               onSetMobileTab={setMobileTab}
@@ -991,6 +1056,13 @@ function WorkspaceMoveLoadingIndicator({ progress }: { progress: number | null }
       />
     </div>
   );
+}
+
+function shouldIgnoreWheelMoveNavigationTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
 function BackToImportButton({ className, onClick }: { className?: string; onClick: () => void }) {
@@ -1046,6 +1118,7 @@ function DesktopLayout({
   dimmed,
   onPreview,
   onBookPreview,
+  onBoardWheel,
   handleDiscoveryStepClick,
   handlePieceDrop,
   onSelectPly,
@@ -1095,6 +1168,7 @@ function DesktopLayout({
                 discoveryActive={Boolean(discovery)}
                 fen={displayFen}
                 highlightedMove={highlightedMove}
+                onWheel={onBoardWheel}
                 onPieceDrop={handlePieceDrop}
                 orientation={boardOrientation}
                 previewActive={Boolean(preview)}
@@ -1215,6 +1289,7 @@ function MobileLayout({
   onShowMaiaArrowChange,
   onPreview,
   onBookPreview,
+  onBoardWheel,
   handleDiscoveryStepClick,
   handlePieceDrop,
   onSelectPly,
@@ -1264,6 +1339,7 @@ function MobileLayout({
               discoveryActive={Boolean(discovery)}
               fen={displayFen}
               highlightedMove={highlightedMove}
+              onWheel={onBoardWheel}
               onPieceDrop={handlePieceDrop}
               orientation={boardOrientation}
               previewActive={Boolean(preview)}
@@ -1510,6 +1586,7 @@ function EngineAwareUltraAnalysisBoard({
   dimmed?: boolean;
   fen: string;
   highlightedMove: string | null;
+  onWheel: (event: WheelEvent) => void;
   onPieceDrop: (args: {
     sourceSquare: string;
     targetSquare: string | null;
@@ -1613,25 +1690,21 @@ function EngineLinesSlot({
     serverEngineLines,
   });
 
-  if (!engineLines) {
-    return null;
-  }
-
   const playerSideForLines =
     discoveryActive || previewActive
-      ? sideToMoveFromFen(engineLines.fen || displayFen)
+      ? sideToMoveFromFen(engineLines?.fen || displayFen)
       : analysisPlayerSide;
 
   return (
     <EngineLinesView
       activePreview={activePreview}
-      lines={engineLines.lines}
+      lines={engineLines?.lines ?? EMPTY_BEST_LINES}
       bestMatchesContinuation={bestMatchesContinuation}
       continuationLine={continuationLine}
       onPreview={onPreview}
       maxLines={maxLines}
       playerSide={playerSideForLines}
-      rootFen={engineLines.fen}
+      rootFen={engineLines?.fen ?? analysisFen}
     />
   );
 }
@@ -1786,6 +1859,7 @@ interface WorkspaceLayoutProps {
   dimmed: boolean;
   onPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   onBookPreview: (rootFen: string, lineMoves: string[], step: number) => void;
+  onBoardWheel: (event: WheelEvent) => void;
   handleDiscoveryStepClick: (step: number) => void;
   handlePieceDrop: (args: {
     sourceSquare: string;
@@ -1890,7 +1964,7 @@ function buildRouteImportRequest(
     source: target.source,
     url: sourceUrlForTarget(target),
     explain_significance: ["critical"],
-    include_context: true,
+    include_context: false,
     use_baseline_fallback: false,
   };
   if (turnstileToken !== null) {
@@ -1960,11 +2034,15 @@ function buildShareTarget(
   if (job === null) {
     return null;
   }
-  const target = externalTargetFromSource(job.source) ?? externalTargetFromRoute(route);
+  const target = mergeExternalTargetHints(
+    externalTargetFromSource(job.source),
+    externalTargetFromRoute(route),
+  );
   return {
     analysisId: job.analysis_id,
     externalSource: target?.source ?? null,
     externalGameId: target?.externalGameId ?? null,
+    boardOrientation: target?.boardOrientation ?? null,
   };
 }
 
@@ -1979,6 +2057,7 @@ function externalTargetFromRoute(route: AnalysisRouteState): ExternalGameTarget 
   return {
     source: route.externalSource,
     externalGameId: route.externalGameId,
+    boardOrientation: route.boardOrientation,
   };
 }
 
@@ -1989,6 +2068,7 @@ function externalTargetFromSource(source: ImportedGameMetadata | null): External
   return {
     source: source.source,
     externalGameId: source.external_game_id,
+    boardOrientation: null,
   };
 }
 
@@ -2004,11 +2084,35 @@ function externalTargetMatchesSource(
 }
 
 function externalTargetsEqual(left: ExternalGameTarget, right: ExternalGameTarget): boolean {
-  return left.source === right.source && left.externalGameId === right.externalGameId;
+  return (
+    left.source === right.source &&
+    left.externalGameId === right.externalGameId &&
+    left.boardOrientation === right.boardOrientation
+  );
 }
 
 function externalTargetKey(target: ExternalGameTarget): string {
-  return `${target.source}:${target.externalGameId}`;
+  return `${target.source}:${target.externalGameId}:${target.boardOrientation ?? ""}`;
+}
+
+function mergeExternalTargetHints(
+  sourceTarget: ExternalGameTarget | null,
+  hintedTarget: ExternalGameTarget | null,
+): ExternalGameTarget | null {
+  if (sourceTarget === null) {
+    return hintedTarget;
+  }
+  if (
+    hintedTarget === null ||
+    sourceTarget.source !== hintedTarget.source ||
+    sourceTarget.externalGameId !== hintedTarget.externalGameId
+  ) {
+    return sourceTarget;
+  }
+  return {
+    ...sourceTarget,
+    boardOrientation: hintedTarget.boardOrientation,
+  };
 }
 
 function isExternalGameSource(
@@ -2051,7 +2155,7 @@ function analysisFromSnapshot(
   fallbackGame: GameAnalysisGame | null,
 ): AnalysisResponse | null {
   const game = snapshot.game ?? fallbackGame;
-  if (game?.moves.length || snapshot.moves.some((move) => move.context !== null)) {
+  if (game?.moves.length || snapshot.moves.length > 0) {
     return mapGameAnalysisSnapshot(snapshot, source, game ?? null);
   }
   return null;
