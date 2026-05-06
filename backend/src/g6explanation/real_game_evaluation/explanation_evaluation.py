@@ -102,6 +102,7 @@ class RealExplanationEvalCase:
     played_move: str | None = None
     clock_before_seconds: float | None = None
     increment_seconds: float | None = None
+    think_time_seconds: float | None = None
     source: ExplanationDataSource = PROJECT_SYNTHETIC_SOURCE
 
     def request(self) -> MoveContextRequest:
@@ -114,6 +115,7 @@ class RealExplanationEvalCase:
                 time_control=self.time_control,
                 clock_before_seconds=self.clock_before_seconds,
                 increment_seconds=self.increment_seconds,
+                think_time_seconds=self.think_time_seconds,
             )
         if self.fen_before is not None and self.played_move is not None:
             return MoveContextRequest(
@@ -124,6 +126,7 @@ class RealExplanationEvalCase:
                 time_control=self.time_control,
                 clock_before_seconds=self.clock_before_seconds,
                 increment_seconds=self.increment_seconds,
+                think_time_seconds=self.think_time_seconds,
             )
         raise ValueError("A real explanation eval case needs either PGN+ply or FEN+played_move.")
 

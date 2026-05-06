@@ -39,9 +39,17 @@ RAW_ENGINE_RE = re.compile(
 INTERNAL_LANGUAGE_RE = re.compile(
     r"\b(?:"
     r"featured move|move quality|quality label|verified context|supplied context|"
-    r"allowed_claims|concept_claims|recommendation_policy|engine[- ]listed|"
+    r"allowed_claims|concept_claims|diagnostic_tags|recommendation_policy|engine[- ]listed|"
     r"engine's listed|engine best move|engine's best move|engine choice|"
     r"engine line|deterministic evidence|schema-valid|json object"
+    r")\b",
+    re.IGNORECASE,
+)
+TIME_CLAIM_RE = re.compile(
+    r"\b(?:"
+    r"time pressure|low time|time scramble|scramble|clock|increment|"
+    r"under one second|spent time|spent too much time|used too much time|"
+    r"fast move|found quickly|quickly found"
     r")\b",
     re.IGNORECASE,
 )
@@ -226,11 +234,13 @@ class ExplanationVerifier:
         _verify_move_mentions(mentions, allowed_aliases, issues)
         _verify_quality(context_result, explanation, issues)
         _verify_supported_claim_terms(context_result, explanation, mentions, issues)
+        _verify_time_claims(context_result, explanation, issues)
         for line_card in output.line_cards:
             card_text = f"{line_card.title}. {line_card.why}"
             card_mentions = _move_mentions(card_text)
             _verify_move_mentions(card_mentions, allowed_aliases, issues)
             _verify_supported_claim_terms(context_result, card_text, card_mentions, issues)
+            _verify_time_claims(context_result, card_text, issues)
         _verify_best_move_consistency(context_result, explanation, mentions, issues)
         _verify_recommendation_policy(context_result, explanation, mentions, issues)
         _verify_hard_move_caveats(context_result, explanation, mentions, issues)
@@ -555,6 +565,54 @@ def _verify_supported_claim_terms(
         )
 
 
+def _verify_time_claims(
+    context_result: ContextResult,
+    explanation: str,
+    issues: _IssueCollector,
+) -> None:
+    for match in TIME_CLAIM_RE.finditer(explanation):
+        if _has_time_claim_support(context_result, match.group(0).lower()):
+            continue
+        issues.fail(
+            "unsupported_time_claim",
+            "$.explanation",
+            "Explanation includes clock or time-pressure wording without supplied time evidence.",
+        )
+        return
+
+
+def _has_time_claim_support(context_result: ContextResult, term: str) -> bool:
+    request = context_result.evidence.request
+    if "increment" in term:
+        return request.increment_seconds is not None or _has_time_diagnostic_tag(context_result)
+    if "spent" in term or "used too much time" in term:
+        return request.think_time_seconds is not None or _has_time_diagnostic_tag(context_result)
+    if "clock" in term:
+        return request.clock_before_seconds is not None
+    if request.clock_before_seconds is not None and request.clock_before_seconds <= 30:
+        return True
+    if request.think_time_seconds is not None and request.think_time_seconds <= 1:
+        return True
+    if context_result.llm_context.time_situation in {"low_time", "time_scramble"}:
+        return True
+    return _has_time_diagnostic_tag(context_result)
+
+
+def _has_time_diagnostic_tag(context_result: ContextResult) -> bool:
+    time_tag_fragments = {
+        "fast",
+        "time",
+        "scramble",
+        "increment",
+        "under-time",
+        "used-too-much-time",
+    }
+    return any(
+        tag.kind == "coach" and any(fragment in tag.tag for fragment in time_tag_fragments)
+        for tag in context_result.llm_context.diagnostic_tags
+    )
+
+
 def _verify_best_move_consistency(
     context_result: ContextResult,
     explanation: str,
@@ -705,6 +763,8 @@ def _support_text(context_result: ContextResult) -> str:
                 concept_claim.claim,
             ]
         )
+    for diagnostic_tag in context_result.llm_context.diagnostic_tags:
+        parts.extend([diagnostic_tag.tag.replace(":", " "), diagnostic_tag.claim])
     for move_context in _move_contexts(context_result):
         parts.append(move_context.reason)
     return " ".join(parts).lower()

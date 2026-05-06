@@ -100,6 +100,68 @@ def test_verifier_accepts_castling_word_as_played_move_mention() -> None:
     assert verification.passed
 
 
+def test_verifier_rejects_time_claim_without_time_evidence() -> None:
+    context = best_context()
+    output = rich_output("e4 fit the position under time pressure.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_time_claim" in _failure_codes(verification)
+
+
+def test_verifier_accepts_time_claim_when_clock_evidence_exists() -> None:
+    board = chess.Board()
+    engine_analysis = analysis(
+        board,
+        played_uci="e2e4",
+        top_scores=[("e2e4", 100), ("d2d4", 80)],
+        played_score=100,
+    )
+    context = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(
+        MoveContextRequest(
+            fen_before=board.fen(),
+            played_move="e2e4",
+            player_color="white",
+            player_level=PlayerLevel.rating(1200),
+            clock_before_seconds=5,
+            increment_seconds=0,
+        )
+    )
+    output = rich_output("e4 fit the position under time pressure.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_pressure_claim_when_clock_is_not_low() -> None:
+    board = chess.Board()
+    engine_analysis = analysis(
+        board,
+        played_uci="e2e4",
+        top_scores=[("e2e4", 100), ("d2d4", 80)],
+        played_score=100,
+    )
+    context = MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(
+        MoveContextRequest(
+            fen_before=board.fen(),
+            played_move="e2e4",
+            player_color="white",
+            player_level=PlayerLevel.rating(1200),
+            time_control="rapid",
+            clock_before_seconds=180,
+            increment_seconds=2,
+        )
+    )
+    output = rich_output("e4 fit the position under time pressure.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_time_claim" in _failure_codes(verification)
+
+
 def test_verifier_rejects_unsupported_pv_continuation() -> None:
     context = mistake_context_with_practical_alternative()
     output = rich_output("g4 was a mistake; the line then goes e5 and Nc6.")

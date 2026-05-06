@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import chess
 import pytest
 from pydantic import ValidationError
 
@@ -11,6 +12,8 @@ from g6explanation.context_engine.contracts import (
     KeyMoveContext,
     LLMContext,
     MoveBeauty,
+    MoveContextRequest,
+    MoveDiagnosticTag,
     MoveQuality,
     PlayerLevel,
     Score,
@@ -28,6 +31,7 @@ def test_context_models_export_json_schema() -> None:
         ConceptClaim,
         MoveQuality,
         MoveBeauty,
+        MoveDiagnosticTag,
         CandidateMove,
         VerificationIssue,
         VerificationResult,
@@ -69,6 +73,17 @@ def test_wdl_delta_contract_accepts_signed_zero_sum_values() -> None:
 def test_player_level_contract_rejects_rating_without_integer_value() -> None:
     with pytest.raises(ValidationError):
         PlayerLevel.model_validate({"kind": "rating", "value": "1200"})
+
+
+def test_move_context_request_rejects_negative_time_values() -> None:
+    with pytest.raises(ValidationError):
+        MoveContextRequest(
+            fen_before=chess.STARTING_FEN,
+            played_move="e2e4",
+            player_color="white",
+            player_level=PlayerLevel.rating(1200),
+            think_time_seconds=-1,
+        )
 
 
 def test_candidate_contract_rejects_unknown_role() -> None:
@@ -137,5 +152,26 @@ def test_concept_claim_contract_is_strict() -> None:
                 "claim": "g4 was positionally bad",
                 "source": "deterministic_detector",
                 "move_san": "g4",
+            }
+        )
+
+
+def test_move_diagnostic_tag_contract_is_strict() -> None:
+    tag = MoveDiagnosticTag(
+        tag="coach:fast-good-move-credit",
+        kind="coach",
+        source="time_context",
+        claim="A sound move under severe clock pressure deserves practical credit.",
+    )
+
+    assert tag.to_dict()["tag"] == "coach:fast-good-move-credit"
+
+    with pytest.raises(ValidationError):
+        MoveDiagnosticTag.model_validate(
+            {
+                "tag": "coach:fast-good-move-credit",
+                "kind": "coach",
+                "source": "unsupported_source",
+                "claim": "unsupported",
             }
         )

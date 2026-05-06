@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -80,6 +79,7 @@ class LabelingSuiteCase:
     time_control: str | None = None
     clock_before_seconds: float | None = None
     increment_seconds: float | None = None
+    think_time_seconds: float | None = None
     human: tuple[HumanSpec, ...] = ()
     after_reply_uci: str | None = None
     expected_key_move: str | None = None
@@ -100,6 +100,7 @@ class LabelingSuiteCase:
             time_control=self.time_control,
             clock_before_seconds=self.clock_before_seconds,
             increment_seconds=self.increment_seconds,
+            think_time_seconds=self.think_time_seconds,
         )
 
 
@@ -815,6 +816,7 @@ MANUAL_LABELING_SUITE: tuple[LabelingSuiteCase, ...] = (
         time_control="rapid",
         clock_before_seconds=180,
         increment_seconds=2,
+        think_time_seconds=45,
         target_tags=tags("quality:blunder", "coach:used-too-much-time-for-blunder"),
     ),
     LabelingSuiteCase(
@@ -1585,6 +1587,7 @@ def test_manual_labeling_suite_matches_current_deterministic_contracts(
     assert result.evidence.quality.label == case.expected_quality
     assert result.evidence.significance.label == case.expected_significance
     assert result.llm_context.time_situation == case.expected_time_situation
+    assert result.evidence.diagnostic_tags == result.llm_context.diagnostic_tags
     assert result.verification.passed
 
     if case.expected_key_move is not None:
@@ -1609,10 +1612,6 @@ def test_manual_labeling_suite_matches_current_deterministic_contracts(
     assert output.explanation
 
 
-@pytest.mark.skipif(
-    os.getenv("G6EXPLANATION_RUN_MANUAL_LABELING_TARGET_EVAL") != "1",
-    reason="Manual target labeling eval is opt-in because it documents known product gaps.",
-)
 def test_manual_labeling_suite_target_tags_are_represented_by_current_context() -> None:
     missing_by_case: dict[str, set[str]] = {}
     for case in MANUAL_LABELING_SUITE:
@@ -1693,6 +1692,8 @@ def _current_tags(result: ContextResult) -> set[str]:
     }
     for claim in result.evidence.concept_claims:
         tags.add(f"concept:{claim.kind}")
+    for diagnostic_tag in result.llm_context.diagnostic_tags:
+        tags.add(diagnostic_tag.tag)
     for candidate in result.evidence.candidates:
         tags.add(f"findability:{candidate.san}:{candidate.time_adjusted_findability}")
         tags.add(f"policy:{candidate.san}:{candidate.recommendation_policy}")

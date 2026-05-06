@@ -34,7 +34,7 @@ context. Put them in the static prompt.
 
 Useful optional inputs:
 
-- time control, clock before move, increment
+- time control, clock before move, increment, and think time spent on the move
 - move number or ply
 - recent move history
 - opponent rating and game result
@@ -126,6 +126,14 @@ are `low`, `notable`, `beautiful`, and `brilliant`. Unsound moves do not get a
 beauty bonus. Non-mating `forced` moves are capped at low beauty because the
 player had no choice.
 
+Move diagnostic tags are deterministic review and coach-wording signals. They
+are namespaced strings such as `wdl:dominant`,
+`coach:fast-good-move-credit`, or `coach:no-blame-forced`, with a structured
+source and claim. They may describe time pressure, think-time usage, WDL edge
+cases, practical alternatives, rating-level wording, or review-attention
+caveats. They do not change objective quality, significance, beauty, legality,
+candidate policy, or concept evidence.
+
 ## LLM Context Shape
 
 The compact context should include:
@@ -134,6 +142,7 @@ The compact context should include:
 - position facts, including previous move UCI, SAN, and whether it was a capture
   when known
 - player level and time situation
+- diagnostic tags for review and coach-wording caveats
 - severity from the player's point of view
 - significance and beauty signals
 - the main explanation point
@@ -144,7 +153,7 @@ The compact context should include:
 - candidate practicality and findability
 - human note when backed by evidence
 - typed `concept_claims` for every supported concept family
-- allowed claim text and any necessary forbidden claims
+- allowed claim text and deterministic diagnostic tags
 
 It should not include:
 

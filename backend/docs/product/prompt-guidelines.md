@@ -96,6 +96,14 @@ The static prompt should say:
 - For good high-WDL or good-not-best moves, explain why the played move still
   worked instead of caveating with a hidden engine resource unless that hidden
   idea is the central lesson.
+- Treat `diagnostic_tags` as deterministic review and wording guidance, not as
+  new chess evidence. They may support time-pressure credit, WDL caveats,
+  slow-blunder context, increment context, or no-blame forced-move wording, but
+  objective `quality`, `significance`, `beauty`, candidates, and typed
+  `concept_claims` remain the source of truth.
+- Use time-pressure, clock, fast-move, increment, or spent-time wording only
+  when `time_situation`, clock fields, `think_time_seconds`, or
+  `diagnostic_tags` explicitly support it.
 - For low-significance best, excellent, good, or neutral moves, avoid hidden
   resources, hard-to-find language, and comparison alternatives. One supported
   purpose for the played move is enough.
@@ -149,6 +157,7 @@ Per-request context should provide:
 - candidate practicality and findability
 - typed concept claims
 - allowed claims
+- diagnostic tags for review and coach-wording caveats
 - forbidden claims when needed
 
 Do not pass prompt instructions as dynamic fields. Keep the same LLM context
@@ -163,6 +172,8 @@ The model may:
 - state serious move quality labels when the context requires them
 - explain the supported better move or idea
 - mention that a move was hard or easy to find when the context says so
+- mention time pressure, fast play, increment context, or spent time when the
+  context says so
 
 The model may not:
 
@@ -175,6 +186,8 @@ The model may not:
 - claim positional concepts without typed concept-claim evidence
 - silently change the best move or recommendation policy
 - use vague claims such as "wins material" without deterministic support
+- invent clock pressure or time-usage explanations without supplied time fields
+  or diagnostic tags
 
 ## Rating Wording
 

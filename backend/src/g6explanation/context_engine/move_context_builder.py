@@ -45,6 +45,9 @@ from g6explanation.context_engine.signals import (
     calculate_significance,
     classify_quality,
 )
+from g6explanation.context_engine.signals.coach_diagnostics import build_move_diagnostic_tags
+
+MOVE_CONTEXT_VERSION = "move_context.v2"
 
 
 class MoveContextBuilder:
@@ -144,8 +147,19 @@ class MoveContextBuilder:
             practical_alternative,
             analysis,
         )
+        diagnostic_tags = build_move_diagnostic_tags(
+            board=board,
+            request=request,
+            played=reconstructed.played,
+            analysis=analysis,
+            quality=quality,
+            significance=significance,
+            candidates=candidates,
+            concept_claims=concept_claims,
+            time_situation=situation,
+        )
         evidence = EvidencePacket(
-            context_version="move_context.v1",
+            context_version=MOVE_CONTEXT_VERSION,
             request=request,
             position=reconstructed.position,
             played=reconstructed.played,
@@ -157,6 +171,7 @@ class MoveContextBuilder:
             main_point=main_point,
             concept_claims=concept_claims,
             allowed_claims=allowed_claims,
+            diagnostic_tags=diagnostic_tags,
         )
         llm_context = LLMContext(
             played=reconstructed.played.san,
@@ -174,6 +189,7 @@ class MoveContextBuilder:
             human_note=build_human_note(key_candidate, situation),
             concept_claims=concept_claims,
             allowed_claims=allowed_claims,
+            diagnostic_tags=diagnostic_tags,
         )
         verification = self._evidence_verifier.verify(evidence, llm_context)
         _raise_verification_failure(verification)

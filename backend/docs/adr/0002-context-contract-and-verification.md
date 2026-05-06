@@ -42,6 +42,12 @@ product-ready.
   supported concept families. Free-form `allowed_claims` remain wording support,
   but they do not authorize unsupported strategic, tactical, mate, material, or
   forcing concepts by themselves.
+- Evidence packets and LLM contexts expose structured `diagnostic_tags` for
+  deterministic coach and review caveats, including WDL edge cases, time
+  pressure, think-time usage, practical-option wording, rating-level wording, and
+  no-blame forced-move wording. These tags guide explanation emphasis but do not
+  change objective quality, significance, beauty, candidate policy, or concept
+  truth.
 - Legal played-move facts such as castling, en passant, and promotion are typed
   concept claims when exposed to the LLM.
 - Supported concept claims include conservative deterministic evidence for
@@ -64,14 +70,17 @@ product-ready.
   WDL-only blunder signal is capped at `mistake`.
 - Significance and beauty are deterministic compact signals with labels and
   scores, not generated prose.
+- `MoveContextRequest` carries `think_time_seconds` when known. Time fields may
+  affect findability, diagnostic tags, and wording verification, but they must
+  not alter objective move quality.
 - `EvidenceVerifier` blocks malformed context before generation.
 - The explanation-generation raw output contract is sentence-sized segmented UI
   copy plus optional short anchors for verified hover line cards. Public plain
   text remains a derived joined string for compatibility.
 - The explanation-generation layer must block unsupported moves, PVs, line-card
   ids or move sequences, tactics, material claims, mate claims, strategic concept
-  claims, piece-attack claims, unsupported opening labels, and wrong-side attribution
-  before any model output is product-ready.
+  claims, piece-attack claims, unsupported opening labels, unsupported time
+  claims, and wrong-side attribution before any model output is product-ready.
 - Line cards may only reference move sequences supplied as verified line
   evidence; models may write visible prose, short highlight anchors, and
   hover-card wording, but they may not invent card ids, alter supplied moves, or

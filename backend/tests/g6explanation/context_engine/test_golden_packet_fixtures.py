@@ -55,7 +55,7 @@ def test_golden_packet_fixtures_cover_chess_state_edges(
     board_after = board.copy(stack=False)
     board_after.push(chess.Move.from_uci(played_uci))
 
-    assert result.evidence.context_version == "move_context.v1"
+    assert result.evidence.context_version == "move_context.v2"
     assert result.evidence.played.uci == played_uci
     assert result.evidence.played.legal is True
     assert result.evidence.position.fen_after == board_after.fen()

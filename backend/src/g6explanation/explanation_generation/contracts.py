@@ -10,7 +10,7 @@ from g6explanation.context_engine.contracts import ContextContract
 
 EXPLANATION_SCHEMA_VERSION = "explanation_output.v4"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v17"
+PROMPT_VERSION = "single_move_coach.v18"
 MAX_LINE_CARD_PLIES = 16
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
@@ -25,6 +25,7 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
     "unsupported_material_claim",
     "unsupported_tactic_claim",
     "unsupported_concept_claim",
+    "unsupported_time_claim",
     "raw_engine_dump",
     "internal_language",
     "best_move_inconsistent",

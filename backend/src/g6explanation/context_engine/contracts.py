@@ -152,6 +152,19 @@ VerificationIssueCode: TypeAlias = Literal[
     "request_fen_mismatch",
     "side_to_move_mismatch",
 ]
+MoveDiagnosticTagKind: TypeAlias = Literal["coach", "wdl", "review_significance"]
+MoveDiagnosticTagSource: TypeAlias = Literal[
+    "quality_classification",
+    "significance_policy",
+    "wdl_comparison",
+    "time_context",
+    "candidate_policy",
+    "human_likelihood",
+    "rating_context",
+    "legal_move_count",
+    "played_move_fact",
+    "deterministic_detector",
+]
 TimeSituation: TypeAlias = Literal[
     "unknown",
     "classical_or_no_pressure",
@@ -220,7 +233,15 @@ class MoveContextRequest(ContextContract):
     time_control: str | None = None
     clock_before_seconds: float | None = None
     increment_seconds: float | None = None
+    think_time_seconds: float | None = None
     opponent_level: PlayerLevel | None = None
+
+    @field_validator("clock_before_seconds", "increment_seconds", "think_time_seconds")
+    @classmethod
+    def _seconds_are_non_negative(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("Clock, increment, and think-time seconds must be non-negative.")
+        return value
 
 
 class Score(ContextContract):
@@ -425,6 +446,21 @@ class KeyMoveContext(ContextContract):
     recommendation_policy: RecommendationPolicy
 
 
+class MoveDiagnosticTag(ContextContract):
+    tag: str
+    kind: MoveDiagnosticTagKind
+    source: MoveDiagnosticTagSource
+    claim: str
+
+    @field_validator("tag", "claim")
+    @classmethod
+    def _strip_non_empty_text(cls, value: str) -> str:
+        stripped = " ".join(value.split())
+        if not stripped:
+            raise ValueError("Diagnostic tags and claims cannot be empty.")
+        return stripped
+
+
 class EvidencePacket(ContextContract):
     context_version: str
     request: MoveContextRequest
@@ -438,6 +474,7 @@ class EvidencePacket(ContextContract):
     main_point: MainPoint
     concept_claims: list[ConceptClaim] = Field(default_factory=list[ConceptClaim])
     allowed_claims: list[str] = Field(default_factory=list[str])
+    diagnostic_tags: list[MoveDiagnosticTag] = Field(default_factory=list[MoveDiagnosticTag])
 
 
 class LLMContext(ContextContract):
@@ -456,6 +493,7 @@ class LLMContext(ContextContract):
     human_note: str | None
     concept_claims: list[ConceptClaim] = Field(default_factory=list[ConceptClaim])
     allowed_claims: list[str] = Field(default_factory=list[str])
+    diagnostic_tags: list[MoveDiagnosticTag] = Field(default_factory=list[MoveDiagnosticTag])
 
 
 class VerificationIssue(ContextContract):

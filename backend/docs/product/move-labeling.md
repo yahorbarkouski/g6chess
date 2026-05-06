@@ -6,13 +6,14 @@ This document describes how the current implementation marks moves. It is a
 description of today's behavior, not a proposal for ideal chess terminology.
 
 The main source of truth is the context engine. It attaches three independent
-signals to every analyzed move:
+labels plus deterministic diagnostic tags to every analyzed move:
 
 | Signal | Question it answers | Labels today | Product use |
 | --- | --- | --- | --- |
 | Move quality | Was the played move objectively good for the player? | `best`, `forced`, `excellent`, `good`, `neutral`, `inaccuracy`, `mistake`, `blunder`, `missed_win` | Primary verdict and explanation contract. |
 | Significance | How much does this move deserve attention? | `low`, `moderate`, `high`, `critical` | Full-game analysis decides which moves need explanations from this. |
 | Beauty | Was a sound move aesthetically or practically special? | `low`, `notable`, `beautiful`, `brilliant` | Optional praise or UI emphasis. It is not objective move quality. |
+| Diagnostic tags | What deterministic caveats should guide review wording? | Namespaced strings such as `wdl:edge`, `coach:fast-good-move-credit`, `coach:no-blame-forced` | Wording and review guidance only. These are not objective labels. |
 
 There is no current `great` quality label. `brilliant` exists only as a beauty
 label, and can only apply to moves that are sound enough under the quality
@@ -21,8 +22,9 @@ policy.
 ## Where Labels Appear
 
 The context engine builds one `EvidencePacket` and one compact `LLMContext` for
-the move. Both include the quality, significance, and beauty signals. The
-full-game API copies those same signals into each `GameMoveAnalysis` record:
+the move. Both include the quality, significance, beauty, and diagnostic tag
+signals. The full-game API copies the main labels into each `GameMoveAnalysis`
+record:
 
 ```json
 {
@@ -34,7 +36,15 @@ full-game API copies those same signals into each `GameMoveAnalysis` record:
   "beauty": {
     "label": "low",
     "score": 0.0
-  }
+  },
+  "diagnostic_tags": [
+    {
+      "tag": "coach:fast-good-move-credit",
+      "kind": "coach",
+      "source": "time_context",
+      "claim": "A sound move under severe clock pressure deserves practical credit."
+    }
+  ]
 }
 ```
 
@@ -212,18 +222,24 @@ beauty_score = round(soundness * ((0.65 * idea_quality) + (0.35 * significance))
 
 ## Related Signals That Are Not Move Labels
 
-The system also tracks candidate-move policy. These fields affect wording and
-which move is featured, but they do not change the quality label.
+The system also tracks candidate-move policy and diagnostic tags. These fields
+affect wording and which move is featured, but they do not change the quality
+label.
 
 | Field | Current values | Meaning |
 | --- | --- | --- |
 | Findability | `obvious`, `findable`, `hard`, `very_hard`, `engine_like`, `unknown` | How realistic the move was for the player, using Maia or static rules where available. |
 | Recommendation policy | `recommend_directly`, `mention_with_caveat`, `use_as_practical_alternative`, `explain_as_hidden_resource`, `do_not_recommend` | Whether the explanation may recommend, caveat, or suppress the move. |
 | Candidate role | `played_move`, `engine_best`, `practical_alternative`, `human_common_move`, and others | Why the candidate is present in the evidence packet. |
+| Diagnostic tag | Namespaced string plus `kind`, `source`, and `claim` | Deterministic coach or review caveat, such as WDL edge, low-clock credit, slow-blunder context, beginner wording, or no-blame forced-move wording. |
 
 Important product rule: findability changes coaching language, not objective
 move quality. A human-common move can still be a `mistake`, and a hard engine
 resource can still be the objective best move.
+
+Time context follows the same rule. Low clock, increment, or
+`think_time_seconds` may produce diagnostic tags and caveats, but they do not
+downgrade or excuse the objective quality label.
 
 ## Reviewer Comment Targets
 

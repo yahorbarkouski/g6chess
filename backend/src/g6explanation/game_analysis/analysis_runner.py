@@ -390,6 +390,7 @@ def game_ply_requests(request: GameAnalysisStartRequest) -> list[_PlyRequest]:
                 time_control=request.time_control,
                 clock_before_seconds=frame.clock_before_seconds,
                 increment_seconds=frame.increment_seconds,
+                think_time_seconds=frame.think_time_seconds,
             ),
             opening_book_ply=OpeningBookPly(
                 ply=frame.ply,

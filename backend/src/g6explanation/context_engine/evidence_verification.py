@@ -16,6 +16,7 @@ from g6explanation.context_engine.contracts import (
     EvidencePacket,
     KeyMoveContext,
     LLMContext,
+    MoveDiagnosticTag,
     PracticalityCategory,
     VerificationIssue,
     VerificationIssueCode,
@@ -730,6 +731,31 @@ def _verify_llm_context(
             f"LLM context is missing evidence concept claims: {missing_concept_claims}.",
         )
 
+    evidence_diagnostic_tags = {_diagnostic_tag_key(tag) for tag in evidence.diagnostic_tags}
+    llm_diagnostic_tags = {_diagnostic_tag_key(tag) for tag in llm_context.diagnostic_tags}
+    unsupported_diagnostic_tags = [
+        tag
+        for tag in llm_context.diagnostic_tags
+        if _diagnostic_tag_key(tag) not in evidence_diagnostic_tags
+    ]
+    if unsupported_diagnostic_tags:
+        issues.fail(
+            "llm_context_inconsistent",
+            "$.llm_context.diagnostic_tags",
+            f"LLM context includes unsupported diagnostic tags: {unsupported_diagnostic_tags}.",
+        )
+    missing_diagnostic_tags = [
+        tag
+        for tag in evidence.diagnostic_tags
+        if _diagnostic_tag_key(tag) not in llm_diagnostic_tags
+    ]
+    if missing_diagnostic_tags:
+        issues.fail(
+            "llm_context_inconsistent",
+            "$.llm_context.diagnostic_tags",
+            f"LLM context is missing evidence diagnostic tags: {missing_diagnostic_tags}.",
+        )
+
     _verify_key_move_context(
         evidence=evidence,
         key_context=llm_context.best_or_key_move,
@@ -830,6 +856,10 @@ def _matching_candidate_for_key_context(
 
 def _concept_claim_key(claim: ConceptClaim) -> tuple[str, str, str, str, str | None]:
     return (claim.kind, claim.subject, claim.claim, claim.source, claim.move_san)
+
+
+def _diagnostic_tag_key(tag: MoveDiagnosticTag) -> tuple[str, str, str, str]:
+    return (tag.tag, tag.kind, tag.source, tag.claim)
 
 
 def _fail_if_mismatch(

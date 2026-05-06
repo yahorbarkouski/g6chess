@@ -98,7 +98,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v17"
+    assert result.prompt_version == "single_move_coach.v18"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload
@@ -128,6 +128,8 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "For unplayed alternatives" in prompt_payload
     assert "Use better-move wording only when" in prompt_payload
     assert "traded or exchanged material" in prompt_payload
+    assert "diagnostic_tags are deterministic review" in prompt_payload
+    assert "Use time-pressure, clock, fast-move" in prompt_payload
     assert "For low-significance best" in prompt_payload
     assert "Do not call a practical_alternative a better move" in prompt_payload
     assert "Do not expose internal wording" in prompt_payload

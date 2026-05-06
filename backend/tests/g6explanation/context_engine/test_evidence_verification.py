@@ -228,6 +228,20 @@ def test_verifier_rejects_mismatched_llm_human_note() -> None:
     assert _issue_codes(verification) == {"llm_context_inconsistent"}
 
 
+def test_verifier_rejects_mismatched_llm_diagnostic_tags() -> None:
+    result = _valid_result()
+    diagnostic_tags = [
+        tag
+        for tag in result.llm_context.diagnostic_tags
+        if tag.tag != "coach:no-unsupported-opening-name"
+    ]
+    llm_context = result.llm_context.model_copy(update={"diagnostic_tags": diagnostic_tags})
+
+    verification = EvidenceVerifier().verify(result.evidence, llm_context)
+
+    assert _issue_codes(verification) == {"llm_context_inconsistent"}
+
+
 def _valid_result() -> ContextResult:
     board = chess.Board()
     engine_analysis = analysis(

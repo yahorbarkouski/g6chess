@@ -148,6 +148,7 @@ def explain_move(
     time_control: str = "unknown",
     clock_before_seconds: float | None = None,
     increment_seconds: float | None = None,
+    think_time_seconds: float | None = None,
     context_builder: MoveContextBuilder | None = None,
     coach_provider: CoachModelProvider | None = None,
 ) -> str:
@@ -162,6 +163,7 @@ def explain_move(
         time_control=time_control,
         clock_before_seconds=clock_before_seconds,
         increment_seconds=increment_seconds,
+        think_time_seconds=think_time_seconds,
     )
     service = ExplanationService(
         context_builder=context_builder or MoveContextBuilder(StockfishAnalysisProvider()),
@@ -180,6 +182,7 @@ def _public_move_context_request(
     time_control: str,
     clock_before_seconds: float | None,
     increment_seconds: float | None,
+    think_time_seconds: float | None,
 ) -> MoveContextRequest:
     if isinstance(game_context, MoveContextRequest):
         if (
@@ -192,6 +195,7 @@ def _public_move_context_request(
                     pgn_ply,
                     clock_before_seconds,
                     increment_seconds,
+                    think_time_seconds,
                 )
             )
             or time_control != "unknown"
@@ -216,6 +220,7 @@ def _public_move_context_request(
             time_control=time_control,
             clock_before_seconds=clock_before_seconds,
             increment_seconds=increment_seconds,
+            think_time_seconds=think_time_seconds,
         )
     if played_move is None:
         raise ExplanationInputError(
@@ -230,6 +235,7 @@ def _public_move_context_request(
         time_control=time_control,
         clock_before_seconds=clock_before_seconds,
         increment_seconds=increment_seconds,
+        think_time_seconds=think_time_seconds,
     )
 
 

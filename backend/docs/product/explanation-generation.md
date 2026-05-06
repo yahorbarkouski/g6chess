@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v17`. Current explanation schema
+Current prompt version: `single_move_coach.v18`. Current explanation schema
 version: `explanation_output.v4`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
@@ -116,6 +116,11 @@ the model does not invent notation-heavy "after move, move" summaries.
 Version 17 removes "better idea" from generic alternative line-card wording and
 from unplayed-alternative examples unless verified better-move evidence supports
 that stronger label. Practical alternatives should stay practical alternatives.
+Version 18 adds deterministic `diagnostic_tags` to the prompt payload for
+review and coach-wording guidance: WDL edge cases, fast sound moves, time
+scramble misses, slow blunders, increment context, no-blame forced moves, and
+rating-level wording. These tags do not override objective quality,
+significance, beauty, candidates, or typed concept claims.
 
 ## Contracts
 

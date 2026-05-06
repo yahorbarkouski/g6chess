@@ -176,6 +176,7 @@ def test_game_ply_requests_parses_chess_com_clock_comments() -> None:
 
     assert [item.request.clock_before_seconds for item in ply_requests] == [180.0, 180.0, 181.0]
     assert [item.request.increment_seconds for item in ply_requests] == [2.0, 2.0, 2.0]
+    assert [item.request.think_time_seconds for item in ply_requests] == [1.0, 3.0, 5.0]
     assert [item.clock_after_seconds for item in ply_requests] == [181.0, 179.0, 178.0]
     assert [item.think_time_seconds for item in ply_requests] == [1.0, 3.0, 5.0]
 

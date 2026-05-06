@@ -170,6 +170,17 @@ def build_coach_prompt(
                 "hidden idea is the central lesson."
             ),
             (
+                "diagnostic_tags are deterministic review and wording guidance, not new "
+                "chess lines. Use them to decide whether to credit fast moves, caveat "
+                "time pressure, describe WDL edge cases, or avoid blame for forced moves; "
+                "the objective quality, significance, and concept_claims remain the truth."
+            ),
+            (
+                "Use time-pressure, clock, fast-move, increment, or spent-time wording "
+                "only when time_situation, think_time_seconds, clock fields, or "
+                "diagnostic_tags explicitly support it."
+            ),
+            (
                 "For low-significance best, excellent, good, or neutral moves, do not "
                 "mention hidden resources, hard-to-find language, or comparison "
                 "alternatives. One supported purpose for the played move is enough."
