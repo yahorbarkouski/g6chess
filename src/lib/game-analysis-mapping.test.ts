@@ -80,6 +80,7 @@ describe("mapGameAnalysisSnapshot", () => {
               text: "e4 was strong.",
               line_card_id: "central-line",
               line_card_anchor: "e4",
+              highlight_color: "green",
             },
           ],
           explanationLineCards: [
@@ -148,7 +149,12 @@ describe("mapGameAnalysisSnapshot", () => {
     });
     expect(mapped.move_markers[0]?.explanation).toBe("e4 was strong.");
     expect(mapped.move_markers[0]?.explanation_segments).toEqual([
-      { text: "e4 was strong.", line_card_id: "central-line", line_card_anchor: "e4" },
+      {
+        text: "e4 was strong.",
+        line_card_id: "central-line",
+        line_card_anchor: "e4",
+        highlight_color: "green",
+      },
     ]);
     expect(mapped.move_markers[0]?.explanation_line_cards).toEqual([
       {
@@ -164,6 +170,7 @@ describe("mapGameAnalysisSnapshot", () => {
         text: "e5 missed the stronger central resource.",
         line_card_id: null,
         line_card_anchor: null,
+        highlight_color: null,
       },
     ]);
     expect(mapped.move_markers[1]?.best_lines[0]?.pv_uci).toEqual(["e7e5", "g1f3"]);

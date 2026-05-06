@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight, X } from "lucide-react";
 import {
   type FocusEvent,
   Fragment,
+  type KeyboardEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -19,6 +20,7 @@ import { cn } from "../../lib/utils";
 import type {
   AnalysisMoveMarker,
   BoardSide,
+  ExplanationHighlightColor,
   ExplanationLineCard,
   ExplanationSegment,
   GameMove,
@@ -45,7 +47,6 @@ interface PositionInfoProps {
 
 const SAN_PATTERN = /\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b/g;
 const SHOW_ENGINE_DETAIL_PANEL: boolean = false;
-type LineCardTone = "good" | "bad";
 type LineCardMoveClick = (rootFen: string, moves: string[], step: number) => void;
 
 export function PositionInfo({
@@ -432,7 +433,14 @@ function renderExplanationContent(
   const segments =
     marker.explanation_segments.length > 0
       ? marker.explanation_segments
-      : [{ text: marker.explanation, line_card_id: null, line_card_anchor: null }];
+      : [
+          {
+            text: marker.explanation,
+            line_card_id: null,
+            line_card_anchor: null,
+            highlight_color: null,
+          },
+        ];
   const renderedSegments = segments.map((segment, index) => ({
     key: `${segment.line_card_id ?? "text"}-${segment.text}`,
     needsLeadingSpace: index > 0,
@@ -475,7 +483,8 @@ function renderLineCardSegment({
   segment: ExplanationSegment;
 }): ReactNode {
   const anchor = segment.line_card_anchor;
-  const tone = lineCardTone(marker, segment, card);
+  const highlightColor =
+    segment.highlight_color ?? lineCardFallbackHighlightColor(marker, segment, card);
   if (!anchor || !segment.text.includes(anchor)) {
     return (
       <LineCardAnchor
@@ -483,7 +492,7 @@ function renderLineCardSegment({
         card={card}
         onMoveClick={onMoveClick}
         rootFen={rootFen}
-        tone={tone}
+        highlightColor={highlightColor}
         triggerText={segment.text}
       />
     );
@@ -501,7 +510,7 @@ function renderLineCardSegment({
         card={card}
         onMoveClick={onMoveClick}
         rootFen={rootFen}
-        tone={tone}
+        highlightColor={highlightColor}
         triggerText={anchor}
       />
       {parseExplanationWithMoves(after, marker, rootFen, onMoveClick)}
@@ -514,14 +523,14 @@ function LineCardAnchor({
   card,
   onMoveClick,
   rootFen,
-  tone,
+  highlightColor,
   triggerText,
 }: {
   boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
   onMoveClick: ((rootFen: string, moves: string[], step: number) => void) | undefined;
   rootFen: string;
-  tone: LineCardTone;
+  highlightColor: ExplanationHighlightColor;
   triggerText: string;
 }) {
   const isCoarsePointer = useCoarsePointer();
@@ -567,6 +576,13 @@ function LineCardAnchor({
       onMoveClick(rootFen, card.moves, card.moves.length);
     }
   };
+  const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    handleClick();
+  };
   const showHoverCard = hoverCardOpen && !isCoarsePointer;
 
   useEffect(
@@ -580,7 +596,7 @@ function LineCardAnchor({
   );
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: the actual control is the button; this wrapper keeps its hover preview interactive.
+    // biome-ignore lint/a11y/noStaticElementInteractions: the role=button text span is the actual control; this wrapper keeps its hover preview interactive.
     <div
       className="relative inline align-baseline"
       onBlur={handleRootBlur}
@@ -588,19 +604,20 @@ function LineCardAnchor({
       onPointerEnter={openHoverCard}
       onPointerLeave={closeHoverCardSoon}
     >
-      <button
+      {/* biome-ignore lint/a11y/useSemanticElements: native buttons are atomic in line layout here; this inline trigger must fragment so the highlight background wraps with text. */}
+      <span
         aria-label={`${triggerText}: ${card.title}`}
         className={cn(
-          "inline cursor-pointer box-decoration-clone rounded-sm px-0.5 py-0.5 text-left text-sm transition-colors",
-          tone === "good"
-            ? "bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/50 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-900/55"
-            : "bg-amber-50/80 text-stone-800 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500/50 dark:bg-amber-950/45 dark:text-stone-200 dark:hover:bg-amber-900/50",
+          "inline cursor-pointer whitespace-normal box-decoration-clone rounded-sm px-0.5 py-0.5 text-left text-sm transition-colors",
+          lineCardHighlightClass(highlightColor),
         )}
         onClick={handleClick}
-        type="button"
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
       >
         {triggerText}
-      </button>
+      </span>
       {showHoverCard ? (
         <LineCardPreviewShell
           boardOrientation={boardOrientation}
@@ -769,32 +786,58 @@ function LineCardPreview({
   );
 }
 
-function lineCardTone(
+function lineCardHighlightClass(color: ExplanationHighlightColor): string {
+  switch (color) {
+    case "red":
+      return "bg-red-50/85 text-red-950 hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500/50 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-900/55";
+    case "orange":
+      return "bg-orange-50/85 text-orange-950 hover:bg-orange-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500/50 dark:bg-orange-950/50 dark:text-orange-100 dark:hover:bg-orange-900/55";
+    case "green":
+      return "bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/50 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-900/55";
+    case "blue":
+      return "bg-blue-50/85 text-blue-950 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500/50 dark:bg-blue-950/55 dark:text-blue-100 dark:hover:bg-blue-900/60";
+  }
+}
+
+function lineCardFallbackHighlightColor(
   marker: AnalysisMoveMarker,
   segment: ExplanationSegment,
   card: ExplanationLineCard,
-): LineCardTone {
+): ExplanationHighlightColor {
   const cardText = `${card.id} ${card.title}`.toLowerCase();
   const segmentText = segment.text.toLowerCase();
   const combined = `${cardText} ${segmentText} ${card.why}`.toLowerCase();
+  if (
+    /\b(brilliant|great|beautiful|sacrifice|very strong|decisive resource)\b/.test(combined) ||
+    ["brilliant", "great"].includes(marker.primary_class)
+  ) {
+    return "blue";
+  }
   if (
     /\b(better|best|excellent|good|strong|works|defen[sc](?:e|ive)?|saves?|keeps?|calmer)\b/.test(
       combined,
     )
   ) {
-    return "good";
+    return "green";
+  }
+  if (
+    /\b(cannot|can't|not simply free|capture fails|why .* fails|objection|does not work)\b/.test(
+      combined,
+    )
+  ) {
+    return "orange";
   }
   if (
     /\b(blunder|mistake|inaccuracy|missed|bad|allows?|allowed|punish(?:es|ed)?|loses?|fails?|problem)\b/.test(
       combined,
     )
   ) {
-    return "bad";
+    return "red";
   }
   if (["best", "excellent", "good"].includes(marker.primary_class)) {
-    return "good";
+    return "green";
   }
-  return "bad";
+  return "red";
 }
 
 function otherBoardSide(side: BoardSide): BoardSide {

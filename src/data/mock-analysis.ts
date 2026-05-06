@@ -279,7 +279,9 @@ function marker({
     eval_after_cp,
     drop_cp,
     explanation,
-    explanation_segments: [{ text: explanation, line_card_id: null, line_card_anchor: null }],
+    explanation_segments: [
+      { text: explanation, line_card_id: null, line_card_anchor: null, highlight_color: null },
+    ],
     explanation_line_cards: [],
     best_lines: [bestLine],
   };

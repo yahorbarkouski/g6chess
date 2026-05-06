@@ -339,7 +339,10 @@ export interface ExplanationSegment {
   text: string;
   line_card_id: string | null;
   line_card_anchor?: string | null;
+  highlight_color?: ExplanationHighlightColor | null;
 }
+
+export type ExplanationHighlightColor = "red" | "orange" | "green" | "blue";
 
 export interface ExplanationLineCard {
   id: string;

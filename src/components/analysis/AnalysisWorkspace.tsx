@@ -113,6 +113,7 @@ interface StoredGameAnalysisJob {
   status_url: string;
   source: ImportedGameMetadata | null;
   game: GameAnalysisGame | null;
+  boardOrientation: ExternalGameOrientation | null;
 }
 
 interface AnalysisImportHomeProps {
@@ -135,6 +136,7 @@ interface AnalysisGameWorkspaceProps {
   analysis: AnalysisResponse;
   initialPly: number | null;
   initialBoardOrientation: ExternalGameOrientation | null;
+  activeBoardOrientation: ExternalGameOrientation | null;
   moveLoadingIndicator: MoveLoadingIndicatorState;
   onOpenImport: () => void;
   shareTarget: SharedAnalysisTarget | null;
@@ -175,6 +177,7 @@ export function AnalysisWorkspace() {
       : null;
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
+  const activeBoardOrientation = route.boardOrientation ?? activeJob?.boardOrientation ?? null;
   const [importStatus, setImportStatus] = useState<ImportPanelStatus>(
     initialJob ? "polling" : isExternalGameRoute(initialRoute) ? "submitting" : "idle",
   );
@@ -223,6 +226,23 @@ export function AnalysisWorkspace() {
       replacePath(route.canonicalPath);
     }
   }, [replacePath, route.canonicalPath]);
+
+  useEffect(() => {
+    const target = externalTargetFromRoute(route);
+    if (target === null || target.boardOrientation !== null || activeBoardOrientation === null) {
+      return;
+    }
+    const nextPath = canonicalPathForRoute({
+      analysisId: route.analysisId,
+      externalSource: target.source,
+      externalGameId: target.externalGameId,
+      boardOrientation: activeBoardOrientation,
+      ply: route.ply,
+    });
+    if (nextPath !== null && nextPath !== currentBrowserPath()) {
+      replacePath(nextPath);
+    }
+  }, [activeBoardOrientation, replacePath, route]);
 
   useEffect(() => {
     if (route.kind === "home") {
@@ -364,7 +384,19 @@ export function AnalysisWorkspace() {
       setAnalysis(null);
       try {
         const response = await startImportedGameAnalysis(request);
+        const requestTarget =
+          request.url === undefined || request.url === null
+            ? null
+            : extractGameImportTarget(request.url);
+        const target = mergeExternalTargetHints(
+          mergeExternalTargetHints(
+            mergeExternalTargetHints(externalTargetFromSource(response.source), requestTarget),
+            hintedTarget,
+          ),
+          routeExternalTarget,
+        );
         const nextJob = activateImportedGameResponse(response, {
+          boardOrientation: target?.boardOrientation ?? null,
           setActiveJob,
           writeStorage: true,
         });
@@ -379,17 +411,6 @@ export function AnalysisWorkspace() {
         }
         setImportStatus("polling");
 
-        const requestTarget =
-          request.url === undefined || request.url === null
-            ? null
-            : extractGameImportTarget(request.url);
-        const target = mergeExternalTargetHints(
-          mergeExternalTargetHints(
-            mergeExternalTargetHints(externalTargetFromSource(nextJob.source), requestTarget),
-            hintedTarget,
-          ),
-          routeExternalTarget,
-        );
         navigateToImportedGamePath(
           nextJob.analysis_id,
           target,
@@ -431,6 +452,7 @@ export function AnalysisWorkspace() {
           return;
         }
         const nextJob = activateImportedGameResponse(response, {
+          boardOrientation: importTarget.boardOrientation,
           setActiveJob,
           writeStorage: true,
         });
@@ -513,6 +535,7 @@ export function AnalysisWorkspace() {
             ...current,
             source: response.source,
             game: current.game ?? response.game ?? null,
+            boardOrientation: current.boardOrientation ?? hydrateTarget.boardOrientation,
           };
           writeStoredGameAnalysisJob(nextJob);
           return nextJob;
@@ -637,10 +660,11 @@ export function AnalysisWorkspace() {
 
   return (
     <AnalysisGameWorkspace
+      activeBoardOrientation={activeBoardOrientation}
       analysis={analysis}
       initialBoardOrientation={route.boardOrientation}
       initialPly={route.ply}
-      key={`${analysis.id}:${route.boardOrientation ?? ""}`}
+      key={`${analysis.id}:${activeBoardOrientation ?? ""}`}
       moveLoadingIndicator={buildMoveLoadingIndicator(importStatus, importSnapshot)}
       onOpenImport={handleOpenImport}
       shareTarget={shareTarget}
@@ -682,6 +706,7 @@ function AnalysisImportHome({
 }
 
 function AnalysisGameWorkspace({
+  activeBoardOrientation,
   analysis,
   initialBoardOrientation,
   initialPly,
@@ -791,7 +816,8 @@ function AnalysisGameWorkspace({
     [board.handlePreview],
   );
   const material = useMemo(() => computeCapturedMaterial(currentFen), [currentFen]);
-  const baseBoardOrientation = initialBoardOrientation ?? analysis.player_side;
+  const baseBoardOrientation =
+    activeBoardOrientation ?? initialBoardOrientation ?? analysis.player_side;
   const boardOrientation = flippedBoard ? oppositeSide(baseBoardOrientation) : baseBoardOrientation;
   const boardTransitionMove = useMemo<BoardTransitionMove | null>(() => {
     const previousPly = previousPlyRef.current;
@@ -1903,12 +1929,21 @@ function selectInitialJob(
           : analysisStatusUrl(route.analysisId),
       source: sourceForRoute(route, storedJob),
       game: storedJob?.analysis_id === route.analysisId ? storedJob.game : null,
+      boardOrientation:
+        route.boardOrientation ??
+        (storedJob?.analysis_id === route.analysisId ? storedJob.boardOrientation : null),
     };
   }
 
   const target = externalTargetFromRoute(route);
   if (target !== null) {
-    return externalTargetMatchesSource(target, storedJob?.source ?? null) ? storedJob : null;
+    if (!externalTargetMatchesSource(target, storedJob?.source ?? null) || storedJob === null) {
+      return null;
+    }
+    return {
+      ...storedJob,
+      boardOrientation: target.boardOrientation ?? storedJob.boardOrientation,
+    };
   }
 
   return null;
@@ -1993,9 +2028,11 @@ function activateImportedGameResponse(
     game?: GameAnalysisGame | null;
   },
   {
+    boardOrientation,
     setActiveJob,
     writeStorage,
   }: {
+    boardOrientation?: ExternalGameOrientation | null;
     setActiveJob: (job: StoredGameAnalysisJob) => void;
     writeStorage: boolean;
   },
@@ -2005,6 +2042,7 @@ function activateImportedGameResponse(
     status_url: response.status_url,
     source: response.source,
     game: response.game ?? null,
+    boardOrientation: boardOrientation ?? null,
   };
   if (writeStorage) {
     writeStoredGameAnalysisJob(nextJob);
@@ -2023,6 +2061,7 @@ function areStoredJobsEqual(
     current.status_url === next.status_url &&
     current.source?.source === next.source?.source &&
     current.source?.external_game_id === next.source?.external_game_id &&
+    current.boardOrientation === next.boardOrientation &&
     current.game?.total_plies === next.game?.total_plies
   );
 }
@@ -2035,7 +2074,7 @@ function buildShareTarget(
     return null;
   }
   const target = mergeExternalTargetHints(
-    externalTargetFromSource(job.source),
+    externalTargetFromJob(job),
     externalTargetFromRoute(route),
   );
   return {
@@ -2069,6 +2108,17 @@ function externalTargetFromSource(source: ImportedGameMetadata | null): External
     source: source.source,
     externalGameId: source.external_game_id,
     boardOrientation: null,
+  };
+}
+
+function externalTargetFromJob(job: StoredGameAnalysisJob | null): ExternalGameTarget | null {
+  const target = externalTargetFromSource(job?.source ?? null);
+  if (target === null || job === null) {
+    return target;
+  }
+  return {
+    ...target,
+    boardOrientation: job.boardOrientation,
   };
 }
 
@@ -2111,7 +2161,7 @@ function mergeExternalTargetHints(
   }
   return {
     ...sourceTarget,
-    boardOrientation: hintedTarget.boardOrientation,
+    boardOrientation: hintedTarget.boardOrientation ?? sourceTarget.boardOrientation,
   };
 }
 
@@ -2143,6 +2193,10 @@ function readStoredGameAnalysisJob(): StoredGameAnalysisJob | null {
       status_url: parsed.status_url,
       source: parsed.source ?? null,
       game: parsed.game ?? null,
+      boardOrientation:
+        parsed.boardOrientation === "white" || parsed.boardOrientation === "black"
+          ? parsed.boardOrientation
+          : null,
     };
   } catch {
     return null;

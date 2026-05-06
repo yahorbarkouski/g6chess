@@ -333,7 +333,15 @@ function mapExplanationSegments(
         segment.line_card_id && cardIds.has(segment.line_card_id) ? segment.line_card_id : null;
       const anchor = segment.line_card_anchor?.trim() ?? null;
       const lineCardAnchor = lineCardId && anchor && text.includes(anchor) ? anchor : null;
-      return { text, line_card_id: lineCardId, line_card_anchor: lineCardAnchor };
+      const highlightColor = isExplanationHighlightColor(segment.highlight_color)
+        ? segment.highlight_color
+        : null;
+      return {
+        text,
+        line_card_id: lineCardId,
+        line_card_anchor: lineCardAnchor,
+        highlight_color: lineCardId ? highlightColor : null,
+      };
     })
     .filter((segment): segment is ExplanationSegment => segment !== null);
 
@@ -342,7 +350,13 @@ function mapExplanationSegments(
   }
 
   const text = fallbackExplanation.trim();
-  return text ? [{ text, line_card_id: null, line_card_anchor: null }] : [];
+  return text ? [{ text, line_card_id: null, line_card_anchor: null, highlight_color: null }] : [];
+}
+
+function isExplanationHighlightColor(
+  value: unknown,
+): value is ExplanationSegment["highlight_color"] {
+  return value === "red" || value === "orange" || value === "green" || value === "blue";
 }
 
 function mapExplanationLineCards(

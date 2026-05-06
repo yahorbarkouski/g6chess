@@ -82,7 +82,8 @@ describe("PositionInfo", () => {
     const betterAnchor = screen.getByRole("button", { name: /Kd8: The calmer defense/i });
 
     expect(playedAnchor).toHaveTextContent("key reply Nxb5");
-    expect(playedAnchor.className).toContain("bg-amber");
+    expect(playedAnchor.className).toContain("bg-red");
+    expect(playedAnchor.className).toContain("whitespace-normal");
     expect(playedAnchor.className).toContain("box-decoration-clone");
     expect(playedAnchor.parentElement?.className).toContain("inline");
     expect(playedAnchor.parentElement?.className).not.toContain("inline-block");
@@ -316,6 +317,7 @@ describe("PositionInfo", () => {
     const brilliantBadges = screen.getAllByText("Brilliant");
 
     expect(brilliantBadges).toHaveLength(1);
+    expect(brilliantBadges[0]).toHaveClass("bg-purple-100", "text-purple-800");
   });
 
   it("does not show notable metadata as a selected move highlight", () => {
@@ -384,11 +386,13 @@ function markerWithRichExplanation(): AnalysisMoveMarker {
         text: "b5 was a blunder because it allowed the key reply Nxb5, opening the b-file.",
         line_card_id: "played-line",
         line_card_anchor: "key reply Nxb5",
+        highlight_color: "red",
       },
       {
         text: "Kd8 was the better idea because Black keeps the king connected to c7.",
         line_card_id: "better-line",
         line_card_anchor: "Kd8",
+        highlight_color: "green",
       },
     ],
     explanation_line_cards: [

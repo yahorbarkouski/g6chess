@@ -341,6 +341,27 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
+  it("restores a stored Lichess black-side orientation after backend metadata is canonical", async () => {
+    window.history.replaceState(null, "", "/lichess/fY44h4OY?analysis=analysis-1");
+    window.localStorage.setItem(
+      "g6explanation.currentGameAnalysis",
+      JSON.stringify({
+        analysis_id: "analysis-1",
+        status_url: "/api/game-analysis/analysis-1",
+        source: lichessSource(),
+        boardOrientation: "black",
+      }),
+    );
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
+    expect(window.location.pathname).toBe("/lichess/fY44h4OY/black");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
   it("keeps a pasted Lichess black-side URL oriented to black", async () => {
     const user = userEvent.setup();
     apiMocks.startImportedGameAnalysis.mockResolvedValue({

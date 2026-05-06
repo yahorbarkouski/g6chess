@@ -92,6 +92,23 @@ describe("MoveList", () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
+
+  it("renders brilliant moves like great moves but with a purple double-exclamation badge", () => {
+    const moves = buildMoves(2);
+    const onSelectPly = vi.fn();
+
+    render(
+      <MoveList
+        currentPly={1}
+        moveMarkers={[buildMarker({ ply: 1, primary_class: "brilliant" })]}
+        moves={moves}
+        onSelectPly={onSelectPly}
+      />,
+    );
+
+    expect(screen.getByText("!!")).toHaveClass("bg-purple-600", "text-white", "size-3.5");
+    expect(screen.getByRole("button", { name: /1\. M1 Brilliant/ })).toHaveClass("bg-stone-100");
+  });
 });
 
 function setScrollMetrics(
@@ -135,4 +152,35 @@ function buildMoves(count: number): GameMove[] {
       remaining_clock_seconds: 600 - ply,
     };
   });
+}
+
+function buildMarker({
+  ply,
+  primary_class,
+}: {
+  ply: number;
+  primary_class: AnalysisMoveMarker["primary_class"];
+}): AnalysisMoveMarker {
+  return {
+    rank_order: 1,
+    ply,
+    move_number: Math.ceil(ply / 2),
+    side: ply % 2 === 1 ? "white" : "black",
+    san: `M${ply}`,
+    uci: `m${ply}`,
+    best_move_san: null,
+    best_move_uci: null,
+    natural_move_san: null,
+    natural_move_uci: null,
+    primary_class,
+    tags: [],
+    label_metadata: { requires_explanation: true },
+    eval_before_cp: 0,
+    eval_after_cp: 0,
+    drop_cp: 0,
+    explanation: "",
+    explanation_segments: [],
+    explanation_line_cards: [],
+    best_lines: [],
+  };
 }

@@ -190,7 +190,7 @@ const MoveCell = memo(function MoveCell({
           {token ? (
             <span
               className={cn(
-                "inline-flex size-3.5 items-center justify-center rounded-full text-[9px] font-semibold",
+                "inline-flex size-3.5 items-center justify-center rounded-full text-[9px] font-semibold leading-none",
                 token.className,
               )}
             >
@@ -285,9 +285,10 @@ function buildMoveRows(
   });
 }
 
-function qualityToken(
-  marker: AnalysisMoveMarker | undefined,
-): { content: ReactNode; className: string } | null {
+function qualityToken(marker: AnalysisMoveMarker | undefined): {
+  content: ReactNode;
+  className: string;
+} | null {
   if (!marker) {
     return null;
   }
@@ -301,7 +302,10 @@ function qualityToken(
   if (pc === "inaccuracy") {
     return { content: "?!", className: "bg-yellow-400 text-stone-900" };
   }
-  if (pc === "brilliant" || pc === "great") {
+  if (pc === "brilliant") {
+    return { content: "!!", className: "bg-purple-600 text-white" };
+  }
+  if (pc === "great") {
     return { content: "!", className: "bg-blue-500 text-white" };
   }
   if (pc === "best") {

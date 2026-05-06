@@ -37,7 +37,10 @@ export function primaryClassClass(
   if (pc === "inaccuracy") {
     return "border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-900/60 dark:bg-yellow-950/40 dark:text-yellow-300";
   }
-  if (pc === "brilliant" || pc === "great") {
+  if (pc === "brilliant") {
+    return "border-purple-200 bg-purple-100 text-purple-800 dark:border-purple-800/70 dark:bg-purple-950/55 dark:text-purple-200";
+  }
+  if (pc === "great") {
     return "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200";
   }
   if (pc === "best" || pc === "excellent") {
