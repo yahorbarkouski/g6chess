@@ -98,12 +98,18 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v14"
+    assert result.prompt_version == "single_move_coach.v17"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "exact short phrase the UI should highlight" in prompt_payload
     assert "Do not split sentences into tiny text fragments" in prompt_payload
     assert "line_evidence" in prompt_payload
+    assert "do not repeat the visible segment" in prompt_payload
+    assert "Do not shorten long supplied move sequences" in prompt_payload
+    assert "Avoid notation-heavy prose" in prompt_payload
+    assert "The moves array is for board visualization" in prompt_payload
+    assert "Do not describe a variation as 'after MOVE, MOVE...'" in prompt_payload
+    assert "Copy the supplied line_evidence title and why exactly" in prompt_payload
     assert "roughly 35 to 90 visible words" in prompt_payload
     assert "why that reply is good for" in prompt_payload
     assert "Use a neutral explanatory voice" in prompt_payload
@@ -120,6 +126,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "opening a diagonal" in prompt_payload
     assert "Do not name opening systems" in prompt_payload
     assert "For unplayed alternatives" in prompt_payload
+    assert "Use better-move wording only when" in prompt_payload
     assert "traded or exchanged material" in prompt_payload
     assert "For low-significance best" in prompt_payload
     assert "Do not call a practical_alternative a better move" in prompt_payload

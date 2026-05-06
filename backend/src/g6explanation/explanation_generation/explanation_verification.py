@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v3"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v4"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -97,7 +97,7 @@ TACTIC_TERMS = {
 ATTACK_TARGET_RE = re.compile(
     r"\b(?:attacks|attacked|attacking|threatens?|threatened|threatening)\b"
     r"[^.?!;]{0,100}"
-    r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b",
+    r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b(?!\s+moves?\b)",
     re.IGNORECASE,
 )
 ATTACK_TERM_ALIASES: dict[str, tuple[str, ...]] = {
@@ -310,6 +310,18 @@ def _verify_line_cards(
                 "line_card_move_mismatch",
                 f"$.line_cards[{index}].moves",
                 f"Line card {card.id!r} changed the supplied move sequence.",
+            )
+        if card.title != evidence.title:
+            issues.fail(
+                "line_card_unsupported",
+                f"$.line_cards[{index}].title",
+                f"Line card {card.id!r} changed the supplied title.",
+            )
+        if card.why != evidence.why:
+            issues.fail(
+                "line_card_unsupported",
+                f"$.line_cards[{index}].why",
+                f"Line card {card.id!r} changed the supplied explanation.",
             )
         for move_index, move in enumerate(card.moves):
             for alias in _san_aliases(move):
@@ -798,6 +810,8 @@ def _unsupported_concept_claim(
             continue
         if kind == "critical_best_move" and _has_critical_best_move_support(context_result):
             continue
+        if kind == "capture" and _has_capture_support(context_result):
+            continue
         if not has_structured_concepts and any(
             _contains_phrase(support, alias) for alias in aliases
         ):
@@ -818,6 +832,15 @@ def _unsupported_named_opening_label(explanation: str, support: str) -> str | No
 
 def _trusted_concept_kinds(context_result: ContextResult) -> set[str]:
     return {claim.kind for claim in _trusted_concept_claims(context_result)}
+
+
+def _has_capture_support(context_result: ContextResult) -> bool:
+    if any(
+        claim.kind in {"capture", "recapture", "material"}
+        for claim in _trusted_concept_claims(context_result)
+    ):
+        return True
+    return any("x" in move for line in build_line_evidence(context_result) for move in line.moves)
 
 
 def _trusted_claim_text(context_result: ContextResult, kinds: set[str]) -> str:
@@ -935,7 +958,7 @@ def _unsupported_attack_claim(text: str, attack_support: str) -> str | None:
 
 def _unsupported_attack_term(text: str, attack_support: str) -> str | None:
     for term, aliases in ATTACK_TERM_ALIASES.items():
-        if not any(_contains_phrase(text, alias) for alias in aliases):
+        if not any(_contains_attack_target_phrase(text, alias) for alias in aliases):
             continue
         if term == "piece" and _has_any_concrete_attack_target(attack_support):
             continue
@@ -943,6 +966,16 @@ def _unsupported_attack_term(text: str, attack_support: str) -> str | None:
             continue
         return term
     return None
+
+
+def _contains_attack_target_phrase(text: str, phrase: str) -> bool:
+    pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])")
+    for match in pattern.finditer(text):
+        suffix = text[match.end() : match.end() + 8]
+        if re.match(r"\s+moves?\b", suffix):
+            continue
+        return True
+    return False
 
 
 def _has_any_concrete_attack_target(attack_support: str) -> bool:

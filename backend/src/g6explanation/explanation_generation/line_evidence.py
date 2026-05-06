@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
-from g6explanation.context_engine.contracts import CandidateMove, ContextResult, KeyMoveContext
+from g6explanation.context_engine.contracts import (
+    CandidateMove,
+    ContextResult,
+    EngineLine,
+    KeyMoveContext,
+)
 from g6explanation.explanation_generation.contracts import (
+    MAX_LINE_CARD_PLIES,
     ExplanationLineCard,
     ExplanationLineEvidence,
 )
@@ -54,7 +60,7 @@ def _played_line_evidence(context_result: ContextResult) -> ExplanationLineEvide
         id="played-line",
         role="played_line",
         moves=moves,
-        title=f"Why {context.played} gets punished" if is_bad else f"Why {context.played} works",
+        title="How the mistake gets punished" if is_bad else "How the idea plays out",
         why=_played_line_why(context_result, is_bad=is_bad),
     )
 
@@ -71,15 +77,18 @@ def _better_line_evidence(context_result: ContextResult) -> ExplanationLineEvide
         candidate = _candidate_for_move_context(context_result, move_context)
         if candidate is None:
             continue
-        moves = _line_moves(candidate.pv_short_san)
+        engine_line = _engine_line_for_candidate(context_result, candidate)
+        moves = _line_moves(
+            engine_line.pv_san if engine_line is not None else candidate.pv_short_san
+        )
         if moves is None:
             continue
         return ExplanationLineEvidence(
             id="better-line",
             role="better_line",
             moves=moves,
-            title=f"Why {move_context.move} works",
-            why=_better_line_why(context_result, move_context),
+            title="How the alternative works",
+            why=_better_line_why(move_context),
         )
     return None
 
@@ -98,6 +107,16 @@ def _candidate_for_move_context(
     )
 
 
+def _engine_line_for_candidate(
+    context_result: ContextResult,
+    candidate: CandidateMove,
+) -> EngineLine | None:
+    for line in context_result.evidence.engine.top_lines:
+        if line.move_uci == candidate.uci:
+            return line
+    return None
+
+
 def _line_moves(
     moves: list[str],
     fallback: list[str] | None = None,
@@ -105,37 +124,25 @@ def _line_moves(
     line = moves if len(moves) >= 2 else fallback
     if line is None or len(line) < 2:
         return None
-    return line[:5]
+    return line[:MAX_LINE_CARD_PLIES]
 
 
-def _played_line_why(context_result: ContextResult, *, is_bad: bool) -> str:
-    context = context_result.llm_context
-    reply = context_result.evidence.engine.after_line
-    if not is_bad:
-        return f"{context.main_point} This supplied line shows the continuation behind the move."
-    if reply is None:
-        return context.main_point
-    return (
-        f"{context.main_point} The line starts with {reply.move_san}, "
-        "the supplied reply that shows how the opponent can punish the move."
-    )
-
-
-def _better_line_why(
+def _played_line_why(
     context_result: ContextResult,
-    move_context: KeyMoveContext,
+    *,
+    is_bad: bool,
 ) -> str:
-    reply = context_result.evidence.engine.after_line
-    if context_result.llm_context.quality in BAD_QUALITY_LABELS and reply is not None:
-        base = (
-            f"{move_context.move} avoids the immediate {reply.move_san} resource "
-            "from the played-move line."
-        )
-    else:
-        base = move_context.reason
+    if context_result.evidence.engine.played_line.score.kind == "mate":
+        return "The full line shows the forcing pattern all the way to mate."
+    if is_bad:
+        return "The follow-up shows the opponent keeping pressure after the mistake."
+    return "The follow-up shows how the move's idea keeps working after the first response."
+
+
+def _better_line_why(move_context: KeyMoveContext) -> str:
     if move_context.findability in HARD_FINDABILITY:
         return (
-            f"{base} It is marked {move_context.findability}, "
-            "so the line is a review point rather than obvious advice."
+            "The follow-up shows the idea, but it is hard to find, so it is a "
+            "review point rather than obvious advice."
         )
-    return base
+    return "The follow-up shows how the alternative develops after the first response."

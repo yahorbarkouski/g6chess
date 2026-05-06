@@ -8,9 +8,10 @@ from pydantic import Field, field_validator, model_validator
 
 from g6explanation.context_engine.contracts import ContextContract
 
-EXPLANATION_SCHEMA_VERSION = "explanation_output.v3"
+EXPLANATION_SCHEMA_VERSION = "explanation_output.v4"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v14"
+PROMPT_VERSION = "single_move_coach.v17"
+MAX_LINE_CARD_PLIES = 16
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
     "empty_explanation",
@@ -86,7 +87,7 @@ class ExplanationLineCard(ContextContract):
     """Hover data for one verified tactical or strategic line."""
 
     id: str = Field(min_length=1, max_length=80)
-    moves: list[str] = Field(min_length=2, max_length=8)
+    moves: list[str] = Field(min_length=2, max_length=MAX_LINE_CARD_PLIES)
     title: str = Field(min_length=1, max_length=100)
     why: str = Field(min_length=1, max_length=320)
 

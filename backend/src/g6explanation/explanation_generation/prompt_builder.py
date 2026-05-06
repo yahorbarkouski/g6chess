@@ -48,20 +48,38 @@ def build_coach_prompt(
                 "line_card_anchor is the exact short phrase the UI should highlight "
                 "inside that segment text. It must be an exact substring of text, "
                 "no more than 60 characters, no more than 8 words, and not the "
-                "whole sentence. Prefer move phrases such as 'key reply Nxb5', "
-                "'Kd8', or 'the forcing check Qb4+'."
+                "whole sentence. Prefer plain idea phrases such as 'the follow-up', "
+                "'the longer line', or 'the mating pattern' over notation-heavy anchors."
             ),
             (
                 "line_cards are optional hover cards for supplied line_evidence only. "
-                "Use at most two cards unless the context clearly needs more."
+                "Use at most two cards unless the context clearly needs more. "
+                "The card why should add the follow-through or deeper point from "
+                "the variation; do not repeat the visible segment in different words. "
+                "Do not read the move sequence aloud in the card why. Copy the "
+                "supplied line_evidence title and why exactly."
             ),
             (
                 "If you use a line card, copy its id and moves exactly from line_evidence. "
-                "Do not create new line-card ids or new move sequences."
+                "Do not shorten long supplied move sequences, and do not create new "
+                "line-card ids or new move sequences. The moves array is for board "
+                "visualization; the visible text should explain the idea simply."
             ),
             (
                 "Keep the visible explanation compact but not thin: usually two to five "
                 "segments and roughly 35 to 90 visible words."
+            ),
+            (
+                "Avoid notation-heavy prose. Mention the played move and at most one "
+                "key reply or alternative when needed; otherwise describe the idea in "
+                "plain language such as the knight forks both rooks, the bishop gets a "
+                "diagonal, or the king is left exposed."
+            ),
+            (
+                "Do not describe a variation as 'after MOVE, MOVE...' in visible text "
+                "or card prose. Avoid generic capture/takes wording in line-card prose; "
+                "use follow-up, pressure, idea, or mating pattern unless a supplied "
+                "claim makes the capture itself the lesson."
             ),
             (
                 "Use a neutral explanatory voice. Do not address the player directly, "
@@ -136,9 +154,11 @@ def build_coach_prompt(
             ),
             (
                 "For unplayed alternatives, use counterfactual review wording such as "
-                "'MOVE would have been better', 'the better idea was MOVE', or "
-                "'MOVE would trade ...'. Do not phrase an unplayed alternative as if "
-                "the player actually made it."
+                "'MOVE was the practical alternative', 'MOVE would have kept more "
+                "pressure', or 'MOVE would trade ...'. Use better-move wording only "
+                "when a supplied better_alternative claim or direct recommendation "
+                "policy supports it. Do not phrase an unplayed alternative as if the "
+                "player actually made it."
             ),
             (
                 "When a bad move allows a key reply, explain why that reply is good for "

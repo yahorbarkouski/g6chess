@@ -38,13 +38,23 @@ The static prompt should say:
 - Keep segments as natural sentence-sized prose. Do not split prose into tiny
   text fragments just to create a highlight.
 - If a segment references a line card, include `line_card_anchor`: the exact
-  short phrase inside `text` that the UI should highlight. It should usually be
-  a move phrase such as `key reply Nxb5`, `Kd8`, or `the forcing check Qb4+`.
+  short phrase inside `text` that the UI should highlight. Prefer plain idea
+  phrases such as "the follow-up", "the longer line", or "the mating pattern"
+  over notation-heavy anchors.
 - Keep the visible text compact but useful, usually two to five segments and
   roughly 35 to 90 words.
-- Use a line card only when supplied `line_evidence` makes a short hidden line
-  helpful; copy line-card ids and move sequences exactly from the supplied
+- Use a line card only when supplied `line_evidence` makes a hidden variation
+  helpful; copy line-card ids and full move sequences exactly from the supplied
   evidence.
+- The line-card `why` should add a deeper look at the variation's follow-through
+  instead of repeating the visible segment in different words. Do not read the
+  move sequence aloud in the card prose; the move array is for board playback.
+  Copy the supplied line-evidence title and `why` exactly.
+- Avoid notation-heavy prose. Mention the played move and at most one key reply
+  or alternative when needed, then describe the idea in plain language.
+- Do not describe variations as "after MOVE, MOVE..." in visible text or card
+  prose. Avoid generic capture/takes wording in line-card prose unless the
+  supplied claim makes the capture itself the lesson.
 - Use a concise, neutral explanatory voice rather than direct address or
   broadcast commentary.
 - Write like a compact game-review note that explains the chess reason, not like
@@ -96,9 +106,11 @@ The static prompt should say:
   coaching option; do not collapse the two when both are supplied.
 - Do not call a `practical_alternative` a better move unless typed
   `better_alternative` evidence supports that wording.
-- For unplayed alternatives, use counterfactual wording such as "would have
-  been better" or "the better idea was MOVE"; do not phrase the alternative as
-  if it was actually played.
+- For unplayed alternatives, use counterfactual wording, but keep the label
+  aligned with the verified policy. Say "practical alternative" or "practical
+  try" for `practical_alternative`; reserve "better move" or "better idea" for
+  typed `better_alternative` evidence or direct-recommendation support. Do not
+  phrase the alternative as if it was actually played.
 - Respect recommendation policy fields; do not tell the player to play a
   `do_not_recommend` move.
 - Add a caveat when the context marks the key move as hard to find.

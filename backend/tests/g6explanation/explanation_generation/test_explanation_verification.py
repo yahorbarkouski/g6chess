@@ -22,6 +22,10 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationVerificationResult,
 )
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
+from g6explanation.explanation_generation.line_evidence import (
+    build_line_evidence,
+    line_card_from_evidence,
+)
 from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 from tests.g6explanation.explanation_generation.helpers import (
     best_context,
@@ -118,6 +122,7 @@ def test_verifier_rejects_unsupported_mate_claim() -> None:
 
 def test_verifier_accepts_verified_line_card_segments() -> None:
     context = mistake_context_with_practical_alternative()
+    line = build_line_evidence(context)[0]
     output = ExplanationOutput(
         segments=[
             ExplanationSegment(
@@ -126,14 +131,51 @@ def test_verifier_accepts_verified_line_card_segments() -> None:
                 line_card_anchor="e5",
             )
         ],
-        line_cards=[
-            ExplanationLineCard(
-                id="played-line",
-                moves=["g4", "e5"],
-                title="Why g4 gets punished",
-                why="g4 was a mistake because it let the opponent improve with e5.",
+        line_cards=[line_card_from_evidence(line)],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_copied_practical_alternative_line_card_text() -> None:
+    context = mistake_context_with_practical_alternative()
+    candidate = _candidate(context.evidence.candidates, "g1f3").model_copy(
+        update={"pv_short_san": ["Nf3", "e5"]}
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={
+                    "candidates": [
+                        candidate if existing.uci == candidate.uci else existing
+                        for existing in context.evidence.candidates
+                    ],
+                    "engine": context.evidence.engine.model_copy(
+                        update={
+                            "top_lines": [
+                                line.model_copy(update={"pv_san": ["Nf3", "e5"]})
+                                if line.move_uci == "g1f3"
+                                else line
+                                for line in context.evidence.engine.top_lines
+                            ]
+                        }
+                    ),
+                }
+            )
+        }
+    )
+    line = next(line for line in build_line_evidence(context) if line.id == "better-line")
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="g4 was a mistake, and Nf3 was a practical alternative.",
+                line_card_id="better-line",
+                line_card_anchor="practical alternative",
             )
         ],
+        line_cards=[line_card_from_evidence(line)],
     )
 
     verification = ExplanationVerifier().verify(context, output)
@@ -143,6 +185,7 @@ def test_verifier_accepts_verified_line_card_segments() -> None:
 
 def test_verifier_rejects_line_card_with_changed_moves() -> None:
     context = mistake_context_with_practical_alternative()
+    line = build_line_evidence(context)[0]
     output = ExplanationOutput(
         segments=[
             ExplanationSegment(
@@ -155,8 +198,8 @@ def test_verifier_rejects_line_card_with_changed_moves() -> None:
             ExplanationLineCard(
                 id="played-line",
                 moves=["g4", "Nc6"],
-                title="Why g4 gets punished",
-                why="g4 was a mistake because it let the opponent improve with e5.",
+                title=line.title,
+                why=line.why,
             )
         ],
     )
@@ -165,6 +208,33 @@ def test_verifier_rejects_line_card_with_changed_moves() -> None:
 
     assert not verification.passed
     assert "line_card_move_mismatch" in _failure_codes(verification)
+
+
+def test_verifier_rejects_line_card_with_changed_text() -> None:
+    context = mistake_context_with_practical_alternative()
+    line = build_line_evidence(context)[0]
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="g4 was a mistake because e5 is the reply that lets Black improve.",
+                line_card_id="played-line",
+                line_card_anchor="e5",
+            )
+        ],
+        line_cards=[
+            ExplanationLineCard(
+                id="played-line",
+                moves=line.moves,
+                title=line.title,
+                why="After e5, the follow-up starts with more notation.",
+            )
+        ],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "line_card_unsupported" in _failure_codes(verification)
 
 
 def test_verifier_rejects_mating_move_claim_from_position_mate_evidence_only() -> None:
@@ -688,6 +758,31 @@ def test_verifier_accepts_supported_rook_fork_and_square_references() -> None:
         "Nb6 forked both rooks: the rook on d7 and the rook on a8. "
         "It also attacked the bishop on c8, so the multi-piece attack is the "
         "concrete point of the move."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_does_not_treat_attacker_piece_move_as_attack_target() -> None:
+    context = _rook_fork_context()
+    output = rich_output(
+        "Nb6 forked both rooks: the rook on d7 and the rook on a8. "
+        "It also attacks the bishop on c8, so one knight move creates several "
+        "immediate problems at once."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_generic_capture_wording_from_verified_line_evidence() -> None:
+    context = _rook_fork_context()
+    output = rich_output(
+        "Nb6 forked both rooks: the rook on d7 and the rook on a8. "
+        "The follow-up shows how the first capture keeps the idea concrete."
     )
 
     verification = ExplanationVerifier().verify(context, output)

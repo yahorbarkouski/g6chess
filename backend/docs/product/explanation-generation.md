@@ -63,7 +63,8 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v14`. Version 2 made
+Current prompt version: `single_move_coach.v17`. Current explanation schema
+version: `explanation_output.v4`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
 `do_not_recommend` moves are never described as recommendations. Version 3 adds
@@ -102,7 +103,19 @@ material wins. Version 13 tells the model to prefer supplied concrete
 board-feature facts over generic continuation wording. Version 14 removes
 named-opening preparation concepts from the prompt contract: without explicit
 opening metadata, the model should explain board geometry such as attacked
-pieces, forks, center control, bishop diagonals, and open routes.
+pieces, forks, center control, bishop diagonals, and open routes. Version 15
+makes line cards less repetitive and more complete: line-card `why` text should
+add the follow-through behind the visible segment, and verified line cards may
+carry up to 16 SAN plies so longer forcing ideas, including mate nets, can be
+shown without the old five-ply truncation. Version 16 keeps those full move
+arrays for board visualization but asks visible text and card notes to avoid
+reading out notation-heavy lines; explanations should mention only the move
+notation needed for orientation and describe the rest as plain chess ideas. It
+also requires card prose to copy the supplied line-evidence title and note so
+the model does not invent notation-heavy "after move, move" summaries.
+Version 17 removes "better idea" from generic alternative line-card wording and
+from unplayed-alternative examples unless verified better-move evidence supports
+that stronger label. Practical alternatives should stay practical alternatives.
 
 ## Contracts
 
@@ -112,17 +125,17 @@ The raw model response must validate against:
 {
   "segments": [
     {
-      "text": "b5 was a blunder because it allowed the key reply Nxb5, opening lines before Black's king could settle.",
+      "text": "b5 was a blunder because it gave Black a forcing follow-up before the king could settle.",
       "line_card_id": "played-line",
-      "line_card_anchor": "key reply Nxb5"
+      "line_card_anchor": "forcing follow-up"
     }
   ],
   "line_cards": [
     {
       "id": "played-line",
-      "moves": ["b5", "Bxf3", "gxf3", "Rxb5"],
-      "title": "Why b5 gets punished",
-      "why": "Hover-card explanation of why the supplied line matters."
+      "moves": ["b5", "Bxf3", "gxf3", "Rxb5", "Qd2", "Rh5", "h4", "Rxh4"],
+      "title": "How the mistake gets punished",
+      "why": "The follow-up shows the opponent keeping pressure after the mistake."
     }
   ]
 }
@@ -131,8 +144,10 @@ The raw model response must validate against:
 `line_card_id` and `line_card_anchor` may be `null`. When a segment references a
 line card, `line_card_anchor` is required, must be an exact short substring of
 that segment text, and must not be a whole long sentence. Every line-card id and
-move sequence must match supplied verified line evidence exactly. The derived
-public string is the joined segment text.
+move sequence must match supplied verified line evidence exactly. Line cards are
+bounded at 16 SAN plies; their prose should explain the idea, not read the move
+list aloud. The line-card title and `why` must also match supplied line evidence
+exactly. The derived public string is the joined segment text.
 
 The generation layer includes contracts for:
 

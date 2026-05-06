@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from g6explanation.explanation_generation.contracts import (
+    MAX_LINE_CARD_PLIES,
     ExplanationLineCard,
     ExplanationOutput,
     ExplanationSegment,
@@ -164,4 +165,36 @@ def test_explanation_output_rejects_unreferenced_line_card() -> None:
                     why="The line shows the central reply.",
                 )
             ],
+        )
+
+
+def test_explanation_line_card_accepts_full_sixteen_ply_line() -> None:
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text="e4 works because the full line carries the idea.",
+                line_card_id="main",
+                line_card_anchor="full line",
+            )
+        ],
+        line_cards=[
+            ExplanationLineCard(
+                id="main",
+                moves=[f"M{index}" for index in range(MAX_LINE_CARD_PLIES)],
+                title="Full line",
+                why="The continuation shows the follow-through.",
+            )
+        ],
+    )
+
+    assert len(output.line_cards[0].moves) == MAX_LINE_CARD_PLIES
+
+
+def test_explanation_line_card_rejects_more_than_sixteen_plies() -> None:
+    with pytest.raises(ValidationError):
+        ExplanationLineCard(
+            id="main",
+            moves=[f"M{index}" for index in range(MAX_LINE_CARD_PLIES + 1)],
+            title="Too long",
+            why="The continuation is over the card limit.",
         )

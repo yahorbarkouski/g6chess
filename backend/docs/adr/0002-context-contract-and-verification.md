@@ -71,8 +71,13 @@ product-ready.
   before any model output is product-ready.
 - Line cards may only reference move sequences supplied as verified line
   evidence; models may write visible prose, short highlight anchors, and
-  hover-card wording, but they may not invent card ids or alter the supplied
-  moves.
+  hover-card wording, but they may not invent card ids, alter supplied moves, or
+  shorten the supplied line. Verified line cards are bounded at 16 SAN plies and
+  should add follow-through beyond the visible segment instead of duplicating it.
+  Full move arrays are for board visualization; explanation prose should avoid
+  reading out long notation lines. Line-card title and `why` text must match the
+  supplied line evidence exactly, and generic alternative line cards must not
+  call an idea "better" unless verified better-move evidence supports that label.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
 - Real eval records used for future training manifests must store source-rights
