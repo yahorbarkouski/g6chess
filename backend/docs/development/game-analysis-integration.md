@@ -8,7 +8,7 @@ without making the user wait for a long synchronous request.
 The intended product flow is:
 
 ```text
-Frontend submits Chess.com live-game URL or PGN
+Frontend submits Chess.com URL, Lichess URL, or PGN
   -> backend import layer resolves canonical PGN + source metadata
   -> backend starts analysis
   -> API returns analysis_id immediately
@@ -20,12 +20,12 @@ Frontend submits Chess.com live-game URL or PGN
 This API is not a separate chess engine. It repeats the verified one-move
 pipeline for every ply and stores the latest job snapshot in Redis.
 
-Chess.com import belongs in the Python API, not the browser. The browser starts
-from a user-provided URL, but the API owns URL validation, callback/archive
-resolution, PGN parsing, cache policy, retry/backoff, and source-rights
-metadata. The frontend must keep a PGN paste fallback for cases where Chess.com
+URL import belongs in the Python API, not the browser. The browser starts from a
+user-provided Chess.com or Lichess URL, but the API owns URL validation,
+provider resolution, PGN parsing, cache policy, retry/backoff, and source-rights
+metadata. The frontend must keep a PGN paste fallback for cases where a provider
 cannot be reached, rate-limits the import, the game is unfinished, or the
-archive record cannot be resolved.
+provider record cannot be resolved.
 
 ## Runtime Components
 
@@ -86,6 +86,10 @@ G6EXPLANATION_CHESS_COM_USER_AGENT=g6explanation-local/0.1
 G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS=20
 G6EXPLANATION_CHESS_COM_MAX_RETRIES=2
 G6EXPLANATION_CHESS_COM_RETRY_BACKOFF_SECONDS=0.5
+G6EXPLANATION_LICHESS_USER_AGENT=g6explanation-local/0.1
+G6EXPLANATION_LICHESS_TIMEOUT_SECONDS=20
+G6EXPLANATION_LICHESS_MAX_RETRIES=2
+G6EXPLANATION_LICHESS_RETRY_BACKOFF_SECONDS=0.5
 G6EXPLANATION_GAME_IMPORT_REDIS_PREFIX=g6:game_import
 G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS=86400
 ```
@@ -168,8 +172,43 @@ The response mirrors `POST /api/game-analysis` and includes source metadata:
 
 The frontend integration should set `include_context=true` while it still needs
 FENs and principal variation data to hydrate the existing board UI. It should
-not send a default `player_level`; Chess.com imports derive both side ratings
-from Chess.com payloads and fail if those source ratings are unavailable.
+not send a default `player_level`; provider URL imports derive both side ratings
+from source payloads and fail if those ratings are unavailable.
+
+## Import A Lichess Game
+
+Use the same import endpoint with `source: "lichess_game_url"`:
+
+```text
+curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source": "lichess_game_url",
+    "url": "https://lichess.org/fY44h4OY",
+    "time_control": "rapid",
+    "explain_significance": ["critical"],
+    "include_context": true,
+    "use_baseline_fallback": false
+  }'
+```
+
+The response mirrors the Chess.com import response, with source metadata such as:
+
+```json
+{
+  "source": {
+    "source": "lichess_game_url",
+    "source_url": "https://lichess.org/fY44h4OY",
+    "external_game_id": "fY44h4OY",
+    "title": "White vs Black",
+    "allows_global_training": false
+  }
+}
+```
+
+Lichess imports use the public one-game export API, request JSON with a full PGN
+field and clock comments, and accept only finished standard games. They use the
+same import cache and analysis pipeline as other import sources.
 
 If URL import fails, reveal the PGN paste fallback and submit the same endpoint
 with `source: "pgn"`:
@@ -189,10 +228,10 @@ Pasted PGNs must contain both `WhiteElo` and `BlackElo` headers unless the
 caller provides explicit `white_player_level` and `black_player_level`. The
 import endpoint must not invent fallback ratings.
 
-When the PGN includes Chess.com clock comments, for example
-`1. e4 {[%clk 0:03:01]}`, the API parses them during game analysis. Each
-completed move snapshot includes the clock before the move, remaining clock
-after the move, and computed think time when enough clock data is available.
+When the PGN includes clock comments, for example `1. e4 {[%clk 0:03:01]}`, the
+API parses them during game analysis. Each completed move snapshot includes the
+clock before the move, remaining clock after the move, and computed think time
+when enough clock data is available.
 
 ## Poll A Job
 
@@ -272,7 +311,7 @@ Recommended frontend behavior:
 - Store `analysis_id` and `status_url` in local storage so refreshes can resume
   polling while the single API process still owns the job.
 - Reveal the PGN paste fallback when URL import returns invalid URL, unresolved
-  archive, unfinished game, Chess.com unavailable, timeout, or rate-limit.
+  provider record, unfinished game, provider unavailable, timeout, or rate-limit.
 - Overlay classification badges as `moves` arrive.
 - Show explanation placeholders only for moves where `requires_explanation` is
   true.
@@ -290,7 +329,8 @@ Recommended responsibilities:
 - enforce PGN size and ply-count limits
 - rate-limit job creation
 - reject unsupported data sources for training
-- preserve `allows_global_training=false` for Chess.com and manual PGN imports
+- preserve `allows_global_training=false` for Chess.com, Lichess, and manual PGN
+  imports
 - decide whether user games may be stored and for how long
 - proxy the polling endpoint or expose it only to authorized users
 
@@ -304,13 +344,14 @@ HTTP failures:
 
 - `400`: bad PGN or invalid request shape
 - `404`: unknown `analysis_id`
-- `404`: Chess.com URL is syntactically supported but cannot be resolved
-- `409`: Chess.com live game exists but is unfinished
+- `404`: Chess.com or Lichess URL is syntactically supported but cannot be
+  resolved
+- `409`: Chess.com or Lichess game exists but is unfinished
 - `422`: unsupported URL shape, invalid pasted PGN, unresolved archive match, or
-  non-chess archive record
+  non-chess/non-standard provider record
 - `503`: Redis or local provider setup is unavailable
-- `503`: Chess.com callback/archive is temporarily unavailable, timed out,
-  rate-limited after retries, or malformed
+- `503`: Chess.com callback/archive or Lichess export is temporarily
+  unavailable, timed out, rate-limited after retries, or malformed
 
 Snapshot failures:
 
@@ -379,6 +420,13 @@ Run the opt-in real Chess.com import smoke without Stockfish/OpenRouter:
 ```text
 G6EXPLANATION_RUN_CHESSCOM_IMPORT=1 \
 uv run pytest tests/g6explanation/game_imports/test_chess_com_live_games.py -q -s
+```
+
+Run the opt-in real Lichess import smoke without Stockfish/OpenRouter:
+
+```text
+G6EXPLANATION_RUN_LICHESS_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_lichess_games.py -q -s
 ```
 
 Run the no-mock real endpoint gate:

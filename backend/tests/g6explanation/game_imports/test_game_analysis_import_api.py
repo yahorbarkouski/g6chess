@@ -29,6 +29,7 @@ from g6explanation.game_imports import (
     ChessComLiveGameResolver,
     GameImportService,
     InMemoryGameAnalysisImportIndex,
+    LichessGameResolver,
 )
 from g6explanation.security import (
     ApiProtection,
@@ -40,6 +41,7 @@ from g6explanation.security import (
 from g6explanation.visualization.http_api import create_app
 
 GAME_ID = "168193636078"
+LICHESS_GAME_ID = "fY44h4OY"
 TINY_PGN = """
 [Event "Tiny"]
 [Site "Chess.com"]
@@ -52,6 +54,23 @@ TINY_PGN = """
 [BlackElo "1500"]
 [TimeControl "180+2"]
 [Link "https://www.chess.com/game/live/168193636078"]
+
+1. e4 {[%clk 0:03:01]} 1... e5 {[%clk 0:02:59]} 2. Nf3 {[%clk 0:02:58]} 1-0
+""".strip()
+
+LICHESS_TINY_PGN = """
+[Event "rated blitz game"]
+[Site "https://lichess.org/fY44h4OY"]
+[Date "2018.03.29"]
+[Round "-"]
+[White "Alpha"]
+[Black "Beta"]
+[Result "1-0"]
+[GameId "fY44h4OY"]
+[WhiteElo "1600"]
+[BlackElo "1500"]
+[Variant "Standard"]
+[TimeControl "180+2"]
 
 1. e4 {[%clk 0:03:01]} 1... e5 {[%clk 0:02:59]} 2. Nf3 {[%clk 0:02:58]} 1-0
 """.strip()
@@ -217,6 +236,76 @@ def test_import_api_starts_analysis_from_pasted_pgn() -> None:
     assert snapshot["status"] == "succeeded"
 
 
+def test_import_api_starts_analysis_from_lichess_url() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        lichess_resolver=LichessGameResolver(
+            transport=FakeLichessTransport(),
+            sleep=lambda _: None,
+        ),
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "lichess_game_url",
+            "url": f"https://lichess.org/{LICHESS_GAME_ID}/black#56",
+            "explain_significance": ["low", "moderate", "high", "critical"],
+            "include_context": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"]["source"] == "lichess_game_url"
+    assert payload["source"]["external_game_id"] == LICHESS_GAME_ID
+    assert payload["source"]["allows_global_training"] is False
+    assert payload["game"]["total_plies"] == 3
+    assert [move["san"] for move in payload["game"]["moves"]] == ["e4", "e5", "Nf3"]
+    snapshot = client.get(payload["status_url"]).json()
+    assert snapshot["status"] == "succeeded"
+    requests = [move["context"]["evidence"]["request"] for move in snapshot["moves"]]
+    assert [request["player_level"]["value"] for request in requests] == [1600, 1500, 1600]
+    assert [request["player_level"]["system"] for request in requests] == [
+        "lichess",
+        "lichess",
+        "lichess",
+    ]
+
+
+def test_cached_import_lookup_returns_existing_lichess_analysis() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        lichess_resolver=LichessGameResolver(
+            transport=FakeLichessTransport(),
+            sleep=lambda _: None,
+        ),
+        analysis_index=InMemoryGameAnalysisImportIndex(),
+    )
+
+    import_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "lichess_game_url",
+            "url": f"https://lichess.org/{LICHESS_GAME_ID}",
+            "explain_significance": ["critical"],
+            "include_context": True,
+        },
+    )
+    lookup_response = client.get(f"/api/game-analysis/import/lichess/{LICHESS_GAME_ID}")
+
+    assert lookup_response.status_code == 200
+    assert lookup_response.json()["analysis_id"] == import_response.json()["analysis_id"]
+    assert lookup_response.json()["status_url"] == import_response.json()["status_url"]
+    assert lookup_response.json()["source"]["external_game_id"] == LICHESS_GAME_ID
+
+
 def test_import_api_rejects_pgn_without_ratings_instead_of_defaulting() -> None:
     client = _client(
         ChessComLiveGameResolver(
@@ -367,6 +456,7 @@ def test_import_api_requires_turnstile_before_chess_com_resolution() -> None:
 def _client(
     resolver: ChessComLiveGameResolver,
     *,
+    lichess_resolver: LichessGameResolver | None = None,
     analysis_index: InMemoryGameAnalysisImportIndex | None = None,
     api_protection: ApiProtection | None = None,
 ) -> TestClient:
@@ -385,6 +475,7 @@ def _client(
         analysis_index=analysis_index,
         analysis_service=analysis_service,
         chess_com_resolver=resolver,
+        lichess_resolver=lichess_resolver,
     )
     return TestClient(
         create_app(
@@ -445,6 +536,33 @@ class CountingChessComTransport(FakeChessComTransport):
     ) -> tuple[int, bytes]:
         self.request_count += 1
         return super().__call__(url, headers, timeout_seconds)
+
+
+class FakeLichessTransport:
+    def __call__(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout_seconds: float,
+    ) -> tuple[int, bytes]:
+        del timeout_seconds
+        assert headers["Accept"] == "application/json"
+        if url.startswith(f"https://lichess.org/game/export/{LICHESS_GAME_ID}?"):
+            return 200, _json_bytes(
+                {
+                    "id": LICHESS_GAME_ID,
+                    "variant": "standard",
+                    "status": "resign",
+                    "players": {
+                        "white": {"user": {"name": "Alpha"}, "rating": 1600},
+                        "black": {"user": {"name": "Beta"}, "rating": 1500},
+                    },
+                    "winner": "white",
+                    "clock": {"initial": 180, "increment": 2, "totalTime": 180},
+                    "pgn": LICHESS_TINY_PGN,
+                }
+            )
+        return 404, b"{}"
 
 
 class RequiredTurnstileVerifier:

@@ -24,6 +24,10 @@ from g6explanation.game_imports.contracts import (
     ImportedGameMetadata,
     metadata_title,
 )
+from g6explanation.game_imports.lichess_games import (
+    LichessGameResolver,
+    extract_lichess_game_id,
+)
 
 DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS = 24 * 60 * 60
 
@@ -136,6 +140,7 @@ class GameImportService:
         analysis_index: GameAnalysisImportIndex | None = None,
         analysis_index_ttl_seconds: int = DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS,
         chess_com_resolver: ChessComLiveGameResolver | None = None,
+        lichess_resolver: LichessGameResolver | None = None,
     ) -> None:
         if analysis_index_ttl_seconds <= 0:
             raise ValueError("analysis_index_ttl_seconds must be positive.")
@@ -143,6 +148,7 @@ class GameImportService:
         self._analysis_index = analysis_index
         self._analysis_index_ttl_seconds = analysis_index_ttl_seconds
         self._chess_com_resolver = chess_com_resolver or ChessComLiveGameResolver.from_env()
+        self._lichess_resolver = lichess_resolver or LichessGameResolver.from_env()
 
     def start(self, request: GameAnalysisImportRequest) -> GameAnalysisImportResponse:
         cached_response = self._cached_response_for_request(request)
@@ -173,10 +179,26 @@ class GameImportService:
             return None
         return self._cached_index_response(_chess_com_live_analysis_key(normalized))
 
+    def cached_lichess_game_analysis(
+        self,
+        external_game_id: str,
+    ) -> GameAnalysisImportResponse | None:
+        """Return an existing non-failed analysis pointer for a Lichess game."""
+
+        normalized = external_game_id.strip()
+        try:
+            normalized = extract_lichess_game_id(f"https://lichess.org/{normalized}")
+        except ValueError:
+            return None
+        return self._cached_index_response(_lichess_analysis_key(normalized))
+
     def _imported_game(self, request: GameAnalysisImportRequest) -> ImportedGame:
         if request.source == "chess_com_live_url":
             assert request.url is not None
             return self._chess_com_resolver.resolve(request.url)
+        if request.source == "lichess_game_url":
+            assert request.url is not None
+            return self._lichess_resolver.resolve(request.url)
         assert request.pgn is not None
         return imported_game_from_pgn(request.pgn)
 
@@ -300,9 +322,12 @@ def _level_for_imported_side(
     )
     if rating is not None:
         return _level_from_source_rating(rating, imported_game.metadata.source)
-    if imported_game.metadata.source == "chess_com_live_url":
+    if imported_game.metadata.source in {"chess_com_live_url", "lichess_game_url"}:
+        source_name = (
+            "Chess.com" if imported_game.metadata.source == "chess_com_live_url" else "Lichess"
+        )
         raise GameImportError(
-            f"Chess.com import did not include a {side} rating; cannot analyze without "
+            f"{source_name} import did not include a {side} rating; cannot analyze without "
             "source-derived ratings."
         )
 
@@ -322,7 +347,12 @@ def _level_for_imported_side(
 def _level_from_source_rating(value: int, source: str) -> PlayerLevel:
     if value <= 0:
         raise GameImportError("Imported ratings must be positive integers.")
-    system = "chess.com" if source == "chess_com_live_url" else "pgn"
+    if source == "chess_com_live_url":
+        system = "chess.com"
+    elif source == "lichess_game_url":
+        system = "lichess"
+    else:
+        system = "pgn"
     return PlayerLevel.rating(value, system)
 
 
@@ -370,11 +400,19 @@ def _chess_com_live_analysis_key(external_game_id: str) -> str:
     return f"chess_com_live:{external_game_id}"
 
 
+def _lichess_analysis_key(external_game_id: str) -> str:
+    return f"lichess_game:{external_game_id}"
+
+
 def _analysis_key_for_request(request: GameAnalysisImportRequest) -> str | None:
     if request.source == "chess_com_live_url":
         if request.url is None:
             return None
         return _chess_com_live_analysis_key(extract_chess_com_live_game_id(request.url))
+    if request.source == "lichess_game_url":
+        if request.url is None:
+            return None
+        return _lichess_analysis_key(extract_lichess_game_id(request.url))
     if request.pgn is None:
         return None
     payload = {

@@ -21,12 +21,13 @@ define separate move-quality, significance, beauty, candidate, concept, or
 explanation policy.
 
 The game-analysis import API may acquire a canonical PGN from a user-submitted
-Chess.com live-game URL or pasted PGN before starting that same orchestration.
+Chess.com live-game URL, Lichess game URL, or pasted PGN before starting that
+same orchestration.
 This import layer is source acquisition only; it does not create chess truth or
 new training rights. Imported player levels are derived from source ratings:
-Chess.com imports require both side ratings from Chess.com data, and pasted PGNs
-use Elo headers unless the caller provides explicit side ratings. The import
-layer must not invent fallback ratings.
+Chess.com and Lichess imports require both side ratings from source data, and
+pasted PGNs use Elo headers unless the caller provides explicit side ratings.
+The import layer must not invent fallback ratings.
 
 ## Rules
 
@@ -43,8 +44,9 @@ layer must not invent fallback ratings.
   quality or explanation-verification policy.
 - Do not train global models on user-imported games or Chess.com-derived data
   without explicit rights or prior written authorization.
-- Mark Chess.com and manual PGN imports as `allows_global_training=false` in
-  source metadata.
+- Mark Chess.com, Lichess, and manual PGN imports as
+  `allows_global_training=false` in source metadata unless a future explicit
+  source-rights policy authorizes a narrower use.
 
 ## Validation
 

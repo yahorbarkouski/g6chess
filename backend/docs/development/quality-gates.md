@@ -181,6 +181,18 @@ The real import smoke does not use Stockfish or OpenRouter. It does use
 Chess.com's live public surfaces, so failures can reflect network, rate-limit,
 or upstream availability issues.
 
+Run the real Lichess import smoke when changing Lichess URL parsing, export
+resolution, retry behavior, or source metadata:
+
+```text
+G6EXPLANATION_RUN_LICHESS_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_lichess_games.py -q -s
+```
+
+The real Lichess smoke does not use Stockfish or OpenRouter. It does use
+Lichess's public export API, so failures can reflect network, rate-limit, or
+upstream availability issues.
+
 ## Completion Note
 
 Report checks run, gates passed, skipped gates with reasons, and residual risk.

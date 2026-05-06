@@ -112,9 +112,12 @@ Game imports:
 - Chess.com live callback/archive behavior is opt-in with
   `G6EXPLANATION_RUN_CHESSCOM_IMPORT=1`; use it only when changing real import
   behavior or validating integration drift.
-- Chess.com and user-pasted PGNs are user-requested analysis inputs only. They
-  are not global training data unless a future source-rights policy explicitly
-  allows it.
+- Lichess one-game export behavior is opt-in with
+  `G6EXPLANATION_RUN_LICHESS_IMPORT=1`; use it only when changing real Lichess
+  import behavior or validating integration drift.
+- Chess.com, Lichess, and user-pasted PGNs are user-requested analysis inputs
+  only. They are not global training data unless a future source-rights policy
+  explicitly allows it.
 
 ## Unit Tests
 
@@ -169,6 +172,17 @@ uv run pytest tests/g6explanation/game_imports/test_chess_com_live_games.py -q -
 It exercises live import resolution without Stockfish or OpenRouter. Treat
 network, rate-limit, and upstream failures as integration evidence, not unit-test
 failures.
+
+Real Lichess import smoke is opt-in:
+
+```text
+G6EXPLANATION_RUN_LICHESS_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_lichess_games.py -q -s
+```
+
+It exercises live one-game export without Stockfish or OpenRouter. Treat
+network, rate-limit, and upstream failures as integration evidence, not
+unit-test failures.
 
 ## Golden Tests
 

@@ -23,8 +23,9 @@ Implemented:
 - `g6explanation.game_analysis`: starts Redis-backed asynchronous full-game
   jobs, classifies every completed ply, and adds verified GPT explanations for
   configured criticality labels.
-- `g6explanation.game_imports`: resolves user-requested Chess.com URLs or pasted
-  PGN into canonical PGN plus source-rights metadata for game analysis.
+- `g6explanation.game_imports`: resolves user-requested Chess.com URLs, Lichess
+  URLs, or pasted PGN into canonical PGN plus source-rights metadata for game
+  analysis.
 - `g6explanation.real_game_evaluation`: no-mock real Stockfish, Maia, and
   OpenRouter explanation evals with JSONL records.
 - `g6explanation.visualization`: local inspection API for real-game experiment
@@ -112,11 +113,15 @@ Redis game analysis:
 
 Game imports:
 
-- Chess.com URL imports are user-requested acquisition only, not training data.
+- Chess.com and Lichess URL imports are user-requested acquisition only, not
+  training data.
 - Useful overrides include `G6EXPLANATION_CHESS_COM_USER_AGENT`,
-  `G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS`, and
+  `G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS`,
+  `G6EXPLANATION_LICHESS_USER_AGENT`,
+  `G6EXPLANATION_LICHESS_TIMEOUT_SECONDS`, and
   `G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS`.
 - Run the opt-in live import smoke with `G6EXPLANATION_RUN_CHESSCOM_IMPORT=1`.
+- Run the opt-in Lichess import smoke with `G6EXPLANATION_RUN_LICHESS_IMPORT=1`.
 
 Visualization API:
 

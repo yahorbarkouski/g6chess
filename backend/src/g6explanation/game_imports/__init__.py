@@ -27,6 +27,15 @@ from g6explanation.game_imports.import_service import (
     game_import_service_from_env,
     imported_game_from_pgn,
 )
+from g6explanation.game_imports.lichess_games import (
+    LichessGameError,
+    LichessGameInvalidPgnError,
+    LichessGameNotFinishedError,
+    LichessGameNotFoundError,
+    LichessGameResolver,
+    LichessGameUnavailableError,
+    extract_lichess_game_id,
+)
 
 __all__ = [
     "ChessComLiveGameError",
@@ -45,9 +54,16 @@ __all__ = [
     "ImportedGameMetadata",
     "InMemoryGameAnalysisImportIndex",
     "InMemoryGameImportCache",
+    "LichessGameError",
+    "LichessGameInvalidPgnError",
+    "LichessGameNotFinishedError",
+    "LichessGameNotFoundError",
+    "LichessGameResolver",
+    "LichessGameUnavailableError",
     "RedisGameAnalysisImportIndex",
     "RedisGameImportCache",
     "extract_chess_com_live_game_id",
+    "extract_lichess_game_id",
     "game_import_service_from_env",
     "imported_game_from_pgn",
 ]

@@ -13,6 +13,7 @@ from fastapi import Request
 from g6explanation.game_analysis.contracts import GameAnalysisStartRequest
 from g6explanation.game_imports.chess_com_live_games import extract_chess_com_live_game_id
 from g6explanation.game_imports.contracts import GameAnalysisImportRequest
+from g6explanation.game_imports.lichess_games import extract_lichess_game_id
 from g6explanation.security.client_identity import ClientIdentity, client_identity
 from g6explanation.security.rate_limiter import (
     FixedWindowRateLimiter,
@@ -196,7 +197,7 @@ class ApiProtection:
                     ),
                 ]
             )
-        else:
+        elif payload.source == "chess_com_live_url":
             rules.extend(
                 [
                     RateLimitRule(
@@ -212,6 +213,26 @@ class ApiProtection:
                     RateLimitRule(
                         "global:chesscom_egress",
                         _int_env("G6EXPLANATION_LIMIT_GLOBAL_CHESSCOM_MINUTE", 30),
+                        60,
+                    ),
+                ]
+            )
+        else:
+            rules.extend(
+                [
+                    RateLimitRule(
+                        f"ip:{identity.ip}:lichess_start",
+                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_HOUR", 10),
+                        60 * 60,
+                    ),
+                    RateLimitRule(
+                        f"ip:{identity.ip}:lichess_start_day",
+                        _int_env("G6EXPLANATION_LIMIT_LICHESS_START_DAY", 40),
+                        24 * 60 * 60,
+                    ),
+                    RateLimitRule(
+                        "global:lichess_egress",
+                        _int_env("G6EXPLANATION_LIMIT_GLOBAL_LICHESS_MINUTE", 20),
                         60,
                     ),
                 ]
@@ -321,6 +342,13 @@ def _source_key_for_import(request: GameAnalysisImportRequest) -> str:
         except ValueError:
             return f"chess_com_live:invalid:{_short_hash(request.url)}"
         return f"chess_com_live:{external_game_id}"
+    if request.source == "lichess_game_url":
+        assert request.url is not None
+        try:
+            external_game_id = extract_lichess_game_id(request.url)
+        except ValueError:
+            return f"lichess_game:invalid:{_short_hash(request.url)}"
+        return f"lichess_game:{external_game_id}"
     assert request.pgn is not None
     return f"pgn:{_short_hash(_normalized_pgn(request.pgn))}"
 

@@ -13,7 +13,8 @@ from g6explanation.context_engine.contracts import (
 )
 from g6explanation.game_analysis.contracts import GameAnalysisGame
 
-GameImportSource: TypeAlias = Literal["chess_com_live_url", "pgn"]
+GameImportSource: TypeAlias = Literal["chess_com_live_url", "lichess_game_url", "pgn"]
+URL_GAME_IMPORT_SOURCES = frozenset({"chess_com_live_url", "lichess_game_url"})
 
 
 def _default_critical_significance() -> list[SignificanceLabel]:
@@ -68,9 +69,9 @@ class GameAnalysisImportRequest(ContextContract):
     def _validate_source_payload(self) -> GameAnalysisImportRequest:
         if not self.explain_significance:
             raise ValueError("explain_significance must include at least one label.")
-        if self.source == "chess_com_live_url":
+        if self.source in URL_GAME_IMPORT_SOURCES:
             if self.url is None or not self.url.strip():
-                raise ValueError("url is required for chess_com_live_url imports.")
+                raise ValueError(f"url is required for {self.source} imports.")
             return self
         if self.pgn is None or not self.pgn.strip():
             raise ValueError("pgn is required for pgn imports.")
