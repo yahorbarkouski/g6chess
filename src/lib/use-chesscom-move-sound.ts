@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { triggerHaptic, warmupHaptics } from "./haptics";
 
 const MOVE_SOUND_MIN_INTERVAL_MS = 28;
 const MOVE_SOUND_POOL_SIZE = 4;
@@ -15,6 +16,15 @@ const CHESS_COM_SOUND_URLS = {
 } as const;
 
 type MoveSoundKey = keyof typeof CHESS_COM_SOUND_URLS;
+
+const MOVE_SOUND_HAPTIC: Record<MoveSoundKey, Parameters<typeof triggerHaptic>[0]> = {
+  moveSelf: "selection",
+  moveOpponent: "selection",
+  capture: "medium",
+  castle: "medium",
+  moveCheck: "success",
+  promote: "success",
+};
 
 function resolveMoveSoundKey(san: string | null, movedByPlayer: boolean): MoveSoundKey {
   if (!san) {
@@ -33,6 +43,33 @@ function resolveMoveSoundKey(san: string | null, movedByPlayer: boolean): MoveSo
     return "capture";
   }
   return movedByPlayer ? "moveSelf" : "moveOpponent";
+}
+
+function unlockAudioPool(audios: HTMLAudioElement[]): void {
+  for (const audio of audios) {
+    const previousVolume = audio.volume;
+    audio.muted = true;
+    audio.volume = 0;
+    const playResult = audio.play();
+    if (playResult instanceof Promise) {
+      playResult
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+          audio.volume = previousVolume;
+        })
+        .catch(() => {
+          audio.muted = false;
+          audio.volume = previousVolume;
+        });
+    } else {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      audio.volume = previousVolume;
+    }
+  }
 }
 
 export function useChessComMoveSound(
@@ -72,9 +109,33 @@ export function useChessComMoveSound(
       promote: 0,
     };
 
+    let unlocked = false;
+    const unlock = () => {
+      if (unlocked) {
+        return;
+      }
+      unlocked = true;
+      warmupHaptics();
+      const pools = poolsRef.current;
+      if (pools) {
+        for (const audios of Object.values(pools)) {
+          unlockAudioPool(audios);
+        }
+      }
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, passive: true });
+    window.addEventListener("touchstart", unlock, { capture: true, passive: true });
+    window.addEventListener("keydown", unlock, { capture: true });
+
     return () => {
       poolsRef.current = null;
       indicesRef.current = null;
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
     };
   }, []);
 
@@ -97,6 +158,7 @@ export function useChessComMoveSound(
     lastPlayAtRef.current = nowMs;
 
     const key = resolveMoveSoundKey(san, movedByPlayer);
+    triggerHaptic(MOVE_SOUND_HAPTIC[key]);
     const pools = poolsRef.current;
     const indices = indicesRef.current;
     if (!pools || !indices) {

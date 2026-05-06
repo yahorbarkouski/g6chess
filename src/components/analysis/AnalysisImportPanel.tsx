@@ -570,7 +570,9 @@ function MorphField({
         autoCorrect="off"
         className={cn(
           "block h-full w-full resize-none bg-transparent px-3 py-2.5 pr-14 text-stone-900 outline-none ring-0 [box-shadow:none!important] placeholder:text-stone-400 focus:[box-shadow:none!important] focus-visible:[box-shadow:none!important] disabled:opacity-60 dark:text-stone-100 dark:placeholder:text-stone-500",
-          mode === "url" ? "font-sans text-[15px] leading-6" : "font-mono text-xs leading-relaxed",
+          mode === "url"
+            ? "font-sans text-base leading-6 sm:text-[15px]"
+            : "font-mono text-base leading-relaxed sm:text-xs",
         )}
         data-1p-ignore="true"
         data-enable-grammarly="false"

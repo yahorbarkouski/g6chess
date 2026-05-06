@@ -9,7 +9,7 @@ function getInstance(): WebHaptics | null {
   if (cached !== undefined) {
     return cached;
   }
-  if (typeof window === "undefined" || !WebHaptics.isSupported) {
+  if (typeof window === "undefined") {
     cached = null;
     return cached;
   }
@@ -27,4 +27,8 @@ export function triggerHaptic(input?: HapticInput, options?: HapticOptions): voi
     return;
   }
   void instance.trigger(input, options);
+}
+
+export function warmupHaptics(): void {
+  getInstance();
 }

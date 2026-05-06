@@ -876,7 +876,6 @@ function AnalysisGameWorkspace({
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(ply);
-      triggerHaptic("selection");
     },
     [board.clearDiscovery, board.clearPreview],
   );
@@ -884,12 +883,10 @@ function AnalysisGameWorkspace({
   const stepPly = useCallback(
     (delta: number) => {
       if (board.stepInDiscovery(delta)) {
-        triggerHaptic("selection");
         return;
       }
       board.clearPreview();
       setCurrentPly((ply) => Math.max(1, Math.min(analysis.moves.length, ply + delta)));
-      triggerHaptic("selection");
     },
     [analysis.moves.length, board.clearPreview, board.stepInDiscovery],
   );
@@ -1329,8 +1326,8 @@ function MobileLayout({
   onSetMobileTab,
 }: MobileLayoutProps) {
   return (
-    <div className="relative mx-auto max-w-[760px] space-y-2.5 pb-24">
-      <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-22rem)))] space-y-2.5">
+    <div className="relative mx-auto max-w-[760px] space-y-2.5 pb-10 md:pb-24">
+      <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-22rem)))] space-y-1 md:space-y-2.5">
         <MobileBoardControls
           analysisFen={analysisFen}
           boardOrientation={boardOrientation}
