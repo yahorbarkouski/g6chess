@@ -1,7 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { Profiler, type ProfilerOnRenderCallback, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BestLine, BoardSide } from "../../types/analysis";
+import type { BestLine } from "../../types/analysis";
 import type { GameAnalysisSnapshot } from "../../types/api";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 
@@ -115,7 +115,6 @@ vi.mock("../../lib/game-analysis-mapping", async () => {
   };
 });
 
-vi.mock("../../lib/use-move-haptics", () => ({ useMoveHaptics: vi.fn() }));
 vi.mock("../../lib/use-chesscom-move-sound", () => ({ useChessComMoveSound: vi.fn() }));
 vi.mock("../../lib/haptics", () => ({ triggerHaptic: vi.fn(), warmupHaptics: vi.fn() }));
 
@@ -163,8 +162,7 @@ vi.mock("./PositionInfo", async () => {
 });
 
 vi.mock("./EngineLinesView", async () => {
-  const actual =
-    await vi.importActual<typeof import("./EngineLinesView")>("./EngineLinesView");
+  const actual = await vi.importActual<typeof import("./EngineLinesView")>("./EngineLinesView");
   return {
     ...actual,
     EngineLinesView: (props: Parameters<typeof actual.EngineLinesView>[0]) => {
@@ -218,17 +216,6 @@ interface ProfilerSample {
   baseDuration: number;
 }
 
-function captureProfile(
-  ui: (record: ProfilerOnRenderCallback) => ReactNode,
-): { samples: ProfilerSample[] } {
-  const samples: ProfilerSample[] = [];
-  const onRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration) => {
-    samples.push({ id, phase, actualDuration, baseDuration });
-  };
-  render(<>{ui(onRender)}</>);
-  return { samples };
-}
-
 function installMatchMedia(isDesktop: boolean): void {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query === "(min-width: 1100px)" ? isDesktop : false,
@@ -270,16 +257,6 @@ function clickNextMove(): void {
   });
 }
 
-function clickPrevMove(): void {
-  const button = screen.getAllByRole("button", { name: /previous move/i })[0];
-  if (!button) {
-    throw new Error("Could not find Previous move button");
-  }
-  act(() => {
-    button.click();
-  });
-}
-
 function publishStockfish(next: Partial<StockfishSnapshot>): void {
   act(() => stockfishStore.emit(next));
 }
@@ -315,8 +292,10 @@ function logExperiment(name: string, payload: Record<string, unknown>): void {
     return;
   }
   const line = `[experiment] ${name} ${JSON.stringify(payload)}\n`;
-  if (typeof process !== "undefined" && process.stderr?.write) {
-    process.stderr.write(line);
+  const proc = (globalThis as { process?: { stderr?: { write?: (data: string) => void } } })
+    .process;
+  if (proc?.stderr?.write) {
+    proc.stderr.write(line);
   } else {
     console.warn(line);
   }
@@ -450,6 +429,87 @@ describe("AnalysisWorkspace experiments — mobile", () => {
 
     const summary = summarize(samples);
     logExperiment("mobile tab toggle x4", {
+      profilerSummary: summary,
+      counters: { ...renderCounters.counts },
+    });
+  });
+
+  it("settings popover open/close (mobile)", async () => {
+    const samples: ProfilerSample[] = [];
+    renderWorkspace("mobile-settings-toggle", (_id, phase, actualDuration, baseDuration) =>
+      samples.push({ id: _id, phase, actualDuration, baseDuration }),
+    );
+    await waitForBoard();
+    renderCounters.reset();
+    samples.length = 0;
+
+    for (let i = 0; i < 4; i += 1) {
+      const settings = screen.getByRole("button", { name: /board settings/i });
+      act(() => {
+        settings.click();
+      });
+    }
+
+    const summary = summarize(samples);
+    logExperiment("mobile settings popover toggle x4", {
+      profilerSummary: summary,
+      counters: { ...renderCounters.counts },
+    });
+  });
+
+  it("rapid stepping (mobile, 30 next clicks)", async () => {
+    const samples: ProfilerSample[] = [];
+    renderWorkspace("mobile-rapid-step", (_id, phase, actualDuration, baseDuration) =>
+      samples.push({ id: _id, phase, actualDuration, baseDuration }),
+    );
+    await waitForBoard();
+    renderCounters.reset();
+    samples.length = 0;
+    const start = performance.now();
+
+    for (let i = 0; i < 30; i += 1) {
+      clickNextMove();
+    }
+
+    const wallClockMs = performance.now() - start;
+    const summary = summarize(samples);
+    logExperiment("mobile rapid stepping x30", {
+      wallClockMs: Number(wallClockMs.toFixed(2)),
+      profilerSummary: summary,
+      rendersPerStep: {
+        HorizontalEvalBar: (renderCounters.counts.HorizontalEvalBar ?? 0) / 30,
+        PlayerBar: (renderCounters.counts.PlayerBar ?? 0) / 30,
+        UltraAnalysisBoard: (renderCounters.counts.UltraAnalysisBoard ?? 0) / 30,
+        PositionInfo: (renderCounters.counts.PositionInfo ?? 0) / 30,
+        EngineLinesView: (renderCounters.counts.EngineLinesView ?? 0) / 30,
+        MorphText: (renderCounters.counts.MorphText ?? 0) / 30,
+      },
+      counters: { ...renderCounters.counts },
+    });
+  });
+
+  it("change engine arrow count from popover (mobile)", async () => {
+    const samples: ProfilerSample[] = [];
+    renderWorkspace("mobile-arrow-change", (_id, phase, actualDuration, baseDuration) =>
+      samples.push({ id: _id, phase, actualDuration, baseDuration }),
+    );
+    await waitForBoard();
+
+    const settings = screen.getByRole("button", { name: /board settings/i });
+    act(() => settings.click());
+    renderCounters.reset();
+    samples.length = 0;
+
+    const arrowOptions = ["0", "1", "2", "3"];
+    for (const value of arrowOptions) {
+      const button = screen.queryByRole("button", { name: `Best line arrows: ${value}` });
+      if (button) {
+        act(() => button.click());
+      }
+    }
+
+    const summary = summarize(samples);
+    logExperiment("mobile arrow count change x4", {
       profilerSummary: summary,
       counters: { ...renderCounters.counts },
     });
