@@ -11,6 +11,8 @@ interface BoardSidebarProps {
   onFlipBoard: () => void;
   arrowCount: number;
   onArrowCountChange: (value: number) => void;
+  engineLineCount: number;
+  onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
@@ -25,6 +27,8 @@ export function BoardSidebar({
   onFlipBoard,
   arrowCount,
   onArrowCountChange,
+  engineLineCount,
+  onEngineLineCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
@@ -38,6 +42,8 @@ export function BoardSidebar({
       <AnalysisSettingsPopover
         arrowCount={arrowCount}
         buttonClassName="relative after:absolute after:-inset-2"
+        engineLineCount={engineLineCount}
+        onEngineLineCountChange={onEngineLineCountChange}
         onArrowCountChange={onArrowCountChange}
         onMarkerDisplayModeChange={onMarkerDisplayModeChange}
         onShowMaiaArrowChange={onShowMaiaArrowChange}

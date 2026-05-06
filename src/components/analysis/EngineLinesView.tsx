@@ -21,11 +21,19 @@ interface PreviewState {
   step: number;
 }
 
+export interface EngineContinuationLine {
+  fen: string;
+  line: BestLine;
+}
+
 interface EngineLinesViewProps {
   rootFen: string;
   lines: BestLine[];
   onPreview: (rootFen: string, moves: string[], step: number) => void;
   activePreview?: PreviewState | null;
+  continuationLine?: EngineContinuationLine | null;
+  bestMatchesContinuation?: boolean;
+  maxLines?: number;
   playerSide?: BoardSide;
   className?: string;
 }
@@ -35,23 +43,43 @@ export function EngineLinesView({
   lines,
   onPreview,
   activePreview = null,
+  continuationLine = null,
+  bestMatchesContinuation = false,
+  maxLines = 2,
   playerSide = "white",
   className,
 }: EngineLinesViewProps) {
-  if (lines.length === 0) {
+  if (lines.length === 0 && continuationLine === null) {
     return null;
   }
+
+  const merged = bestMatchesContinuation && continuationLine !== null;
+  const continuationRowCount = continuationLine === null ? 0 : 1;
+  const visibleLineCount = Math.max(0, maxLines - continuationRowCount);
+  const visibleLineStart = merged ? 1 : 0;
+  const visibleLines = lines.slice(visibleLineStart, visibleLineStart + visibleLineCount);
 
   return (
     <section className={cn("space-y-2", className)}>
       <h3 className="font-serif text-lg text-stone-900 dark:text-stone-100">Engine lines</h3>
       <div className="space-y-1.5">
-        {lines.slice(0, 2).map((line, index) => (
+        {continuationLine ? (
+          <LineRow
+            activePreview={activePreview}
+            fen={continuationLine.fen}
+            label={merged ? "Best continuation" : "Continuation"}
+            line={continuationLine.line}
+            onPreview={onPreview}
+            playerSide={playerSide}
+            variant={merged ? "best-continuation" : "continuation"}
+          />
+        ) : null}
+        {visibleLines.map((line, index) => (
           <LineRow
             activePreview={activePreview}
             fen={rootFen}
             key={`${line.uci}-${line.san}`}
-            label={index === 0 ? "Best line" : `Line ${index + 1}`}
+            label={!merged && index === 0 ? "Best" : "Alternative"}
             line={line}
             onPreview={onPreview}
             playerSide={playerSide}
@@ -169,6 +197,7 @@ function LineRow({
   activePreview,
   label,
   playerSide,
+  variant = "default",
 }: {
   line: BestLine;
   fen: string;
@@ -176,24 +205,40 @@ function LineRow({
   activePreview: PreviewState | null;
   label: string;
   playerSide: BoardSide;
+  variant?: "default" | "continuation" | "best-continuation";
 }) {
   const rootSide = sideToMoveFromFen(fen);
   const moves = line.pv_san.length <= 15 ? line.pv_san : line.pv_san.slice(0, 8);
+  const isContinuation = variant === "continuation";
+  const isBestContinuation = variant === "best-continuation";
 
   return (
-    <div className="rounded bg-stone-100/80 px-2 py-1.5 dark:bg-stone-800/40">
+    <div
+      className={cn(
+        "rounded px-2 py-1.5",
+        isBestContinuation
+          ? "bg-emerald-50/80 dark:bg-emerald-950/30"
+          : isContinuation
+            ? "bg-sky-50/80 dark:bg-sky-950/30"
+            : "bg-stone-100/80 dark:bg-stone-800/40",
+      )}
+    >
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+        <span
+          className={cn(
+            "text-[10px] font-medium uppercase tracking-wide",
+            isBestContinuation
+              ? "text-emerald-500 dark:text-emerald-400"
+              : isContinuation
+                ? "text-sky-500 dark:text-sky-400"
+                : "text-stone-400 dark:text-stone-500",
+          )}
+        >
           <MorphText>{label}</MorphText>
         </span>
         <span className={cn("font-mono text-[11px]", evalColorClass(line.eval_cp, playerSide))}>
           <MorphText>{formatEvalLong(line.eval_cp)}</MorphText>
         </span>
-        {typeof line.expectation === "number" ? (
-          <span className={cn("font-mono text-[11px]", evalColorClass(line.eval_cp, playerSide))}>
-            <MorphText>{(line.expectation * 100).toFixed(0)}%</MorphText>
-          </span>
-        ) : null}
       </div>
       <div className="scrollbar-hide flex items-center gap-1 overflow-x-auto">
         {moves.map((san, stepIndex) => {
@@ -205,8 +250,16 @@ function LineRow({
               className={cn(
                 "inline-flex shrink-0 items-center rounded border px-1 py-0.5 transition-colors",
                 isActive
-                  ? "border-stone-300 bg-stone-100 dark:border-stone-500/50 dark:bg-stone-700"
-                  : "border-stone-200 bg-white/60 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900/60 dark:hover:border-stone-600",
+                  ? isBestContinuation
+                    ? "border-emerald-400/50 bg-emerald-100 dark:border-emerald-500/50 dark:bg-emerald-900/60"
+                    : isContinuation
+                      ? "border-sky-400/50 bg-sky-100 dark:border-sky-500/50 dark:bg-sky-900/60"
+                      : "border-stone-300 bg-stone-100 dark:border-stone-500/50 dark:bg-stone-700"
+                  : isBestContinuation
+                    ? "border-emerald-200/60 bg-white/60 hover:border-emerald-300 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:hover:border-emerald-700"
+                    : isContinuation
+                      ? "border-sky-200/60 bg-white/60 hover:border-sky-300 dark:border-sky-800/40 dark:bg-sky-950/40 dark:hover:border-sky-700"
+                      : "border-stone-200 bg-white/60 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900/60 dark:hover:border-stone-600",
               )}
               key={moveKey}
               onClick={() => onPreview(fen, moves, stepIndex + 1)}

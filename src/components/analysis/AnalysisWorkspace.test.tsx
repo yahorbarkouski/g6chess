@@ -14,6 +14,7 @@ import { AnalysisWorkspace } from "./AnalysisWorkspace";
 
 const apiMocks = vi.hoisted(() => ({
   getCachedChessComLiveGameAnalysis: vi.fn(),
+  getCachedLichessGameAnalysis: vi.fn(),
   startImportedGameAnalysis: vi.fn(),
   pollGameAnalysis: vi.fn(),
 }));
@@ -28,6 +29,7 @@ vi.mock("../../lib/api", async () => {
   return {
     ...actual,
     getCachedChessComLiveGameAnalysis: apiMocks.getCachedChessComLiveGameAnalysis,
+    getCachedLichessGameAnalysis: apiMocks.getCachedLichessGameAnalysis,
     startImportedGameAnalysis: apiMocks.startImportedGameAnalysis,
     pollGameAnalysis: apiMocks.pollGameAnalysis,
   };
@@ -82,6 +84,10 @@ describe("AnalysisWorkspace imports", () => {
     apiMocks.getCachedChessComLiveGameAnalysis.mockRejectedValue(
       new ApiError(404, "Cached game analysis not found."),
     );
+    apiMocks.getCachedLichessGameAnalysis.mockReset();
+    apiMocks.getCachedLichessGameAnalysis.mockRejectedValue(
+      new ApiError(404, "Cached game analysis not found."),
+    );
     apiMocks.startImportedGameAnalysis.mockReset();
     apiMocks.pollGameAnalysis.mockReset();
     stockfishMocks.analyze.mockReset();
@@ -111,10 +117,7 @@ describe("AnalysisWorkspace imports", () => {
 
     expect(screen.queryByTestId("analysis-board")).toBeNull();
 
-    await user.type(
-      screen.getByLabelText("Chess.com URL"),
-      "https://www.chess.com/game/168193636078",
-    );
+    await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     await waitFor(() =>
@@ -135,7 +138,7 @@ describe("AnalysisWorkspace imports", () => {
 
     expect(await screen.findByText("1. a4")).toBeTruthy();
     expect(screen.getByText("Alpha")).toBeTruthy();
-    expect(screen.queryByLabelText("Chess.com URL")).toBeNull();
+    expect(screen.queryByLabelText("Game URL")).toBeNull();
     expect(screen.getAllByTestId("analysis-board")).toHaveLength(1);
     expect(window.localStorage.getItem("g6explanation.currentGameAnalysis")).toContain(
       "analysis-1",
@@ -161,14 +164,11 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    await user.type(
-      screen.getByLabelText("Chess.com URL"),
-      "https://www.chess.com/game/168193636078",
-    );
+    await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(await screen.findByText("1. a4")).toBeTruthy();
-    expect(screen.queryByLabelText("Chess.com URL")).toBeNull();
+    expect(screen.queryByLabelText("Game URL")).toBeNull();
     expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
     await waitFor(() =>
       expect(apiMocks.pollGameAnalysis).toHaveBeenCalledWith(
@@ -193,7 +193,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    expect(screen.getByLabelText("Chess.com URL")).toBeTruthy();
+    expect(screen.getByLabelText("Game URL")).toBeTruthy();
     expect(screen.queryByTestId("analysis-board")).toBeNull();
     expect(apiMocks.pollGameAnalysis).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/");
@@ -213,7 +213,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    expect(screen.getByLabelText("Chess.com URL")).toHaveValue(
+    expect(screen.getByLabelText("Game URL")).toHaveValue(
       "https://www.chess.com/game/live/168193636078",
     );
     await waitFor(() =>
@@ -235,7 +235,40 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
-  it("waits for Turnstile before starting an uncached Chess.com route import", async () => {
+  it("starts a Lichess route import from a production-domain game path", async () => {
+    window.history.replaceState(null, "", "/lichess/fY44h4OY");
+    const source = lichessSource();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(screen.getByLabelText("Game URL")).toHaveValue("https://lichess.org/fY44h4OY");
+    await waitFor(() =>
+      expect(apiMocks.getCachedLichessGameAnalysis).toHaveBeenCalledWith(
+        "fY44h4OY",
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "lichess_game_url",
+          url: "https://lichess.org/fY44h4OY",
+        }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/lichess/fY44h4OY");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("shows Turnstile after an uncached Chess.com route import requires verification", async () => {
     vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
     window.history.replaceState(null, "", "/game/live/168193636078");
     const source = importedSource();
@@ -249,12 +282,16 @@ describe("AnalysisWorkspace imports", () => {
       }),
       remove: vi.fn(),
     };
-    apiMocks.startImportedGameAnalysis.mockResolvedValue({
-      analysis_id: "analysis-1",
-      status: "pending",
-      status_url: "/api/game-analysis/analysis-1",
-      source,
-    });
+    apiMocks.startImportedGameAnalysis
+      .mockRejectedValueOnce(
+        new ApiError(403, "Turnstile validation failed.", { code: "turnstile_failed" }),
+      )
+      .mockResolvedValue({
+        analysis_id: "analysis-1",
+        status: "pending",
+        status_url: "/api/game-analysis/analysis-1",
+        source,
+      });
     apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
 
     render(<AnalysisWorkspace />);
@@ -265,8 +302,15 @@ describe("AnalysisWorkspace imports", () => {
         expect.any(AbortSignal),
       ),
     );
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "chess_com_live_url",
+          url: "https://www.chess.com/game/live/168193636078",
+        }),
+      ),
+    );
     expect(await screen.findByTestId("turnstile-widget")).toBeTruthy();
-    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
 
     act(() => {
       verifyTurnstile?.("route-turnstile-token");
@@ -299,7 +343,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    expect(screen.getByLabelText("Chess.com URL")).toHaveValue(
+    expect(screen.getByLabelText("Game URL")).toHaveValue(
       "https://www.chess.com/game/live/168193636078",
     );
     await waitFor(() =>
@@ -441,10 +485,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    await user.type(
-      screen.getByLabelText("Chess.com URL"),
-      "https://www.chess.com/game/168193636078",
-    );
+    await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(await screen.findByTestId("analysis-board")).toBeTruthy();
@@ -452,7 +493,7 @@ describe("AnalysisWorkspace imports", () => {
     await user.click(screen.getByRole("button", { name: "Back to import" }));
 
     expect(screen.queryByTestId("analysis-board")).toBeNull();
-    expect(screen.getByLabelText("Chess.com URL")).toBeTruthy();
+    expect(screen.getByLabelText("Game URL")).toBeTruthy();
     expect(window.localStorage.getItem("g6explanation.currentGameAnalysis")).toBeNull();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
@@ -471,10 +512,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    await user.type(
-      screen.getByLabelText("Chess.com URL"),
-      "https://www.chess.com/game/168193636078",
-    );
+    await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(await screen.findByTestId("analysis-board")).toBeTruthy();
@@ -541,6 +579,23 @@ function importedSource(): ImportedGameMetadata {
     source: "chess_com_live_url",
     source_url: "https://www.chess.com/game/live/168193636078",
     external_game_id: "168193636078",
+    title: "Alpha vs Beta",
+    white_username: "Alpha",
+    black_username: "Beta",
+    white_rating: 1600,
+    black_rating: 1500,
+    time_control: "180+2",
+    result: "1-0",
+    allows_global_training: false,
+    rights_basis: "User-requested analysis input only.",
+  };
+}
+
+function lichessSource(): ImportedGameMetadata {
+  return {
+    source: "lichess_game_url",
+    source_url: "https://lichess.org/fY44h4OY",
+    external_game_id: "fY44h4OY",
     title: "Alpha vs Beta",
     white_username: "Alpha",
     black_username: "Beta",
@@ -733,6 +788,7 @@ function moveAnalysis({
           concept: "space",
           claim: "a4 gains useful queenside space.",
         },
+        concept_claims: [],
         allowed_claims: ["space"],
       },
       llm_context: {
@@ -746,6 +802,7 @@ function moveAnalysis({
         main_point: "a4 gains useful queenside space.",
         best_or_key_move: null,
         human_note: null,
+        concept_claims: [],
         allowed_claims: ["space"],
       },
       verification: {

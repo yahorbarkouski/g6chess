@@ -8,6 +8,8 @@ import type { MarkerDisplayMode } from "./MoveList";
 interface AnalysisSettingsPopoverProps {
   arrowCount: number;
   onArrowCountChange: (value: number) => void;
+  engineLineCount: number;
+  onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
@@ -20,6 +22,12 @@ interface AnalysisSettingsPopoverProps {
 
 const ARROW_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 0, label: "Off" },
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+];
+
+const ENGINE_LINE_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: "1" },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
@@ -39,7 +47,9 @@ export function AnalysisSettingsPopover({
   arrowCount,
   buttonClassName,
   className,
+  engineLineCount,
   onArrowCountChange,
+  onEngineLineCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
@@ -126,6 +136,19 @@ export function AnalysisSettingsPopover({
                   label: option.label,
                   active: option.value === arrowCount,
                   onSelect: () => onArrowCountChange(option.value),
+                }))}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </SettingsRow>
+            <SettingsRow label="Engine lines">
+              <SegmentedControl
+                ariaLabel="Shown engine lines"
+                layoutId={`${popoverId}-engine-lines`}
+                options={ENGINE_LINE_OPTIONS.map((option) => ({
+                  key: String(option.value),
+                  label: option.label,
+                  active: option.value === engineLineCount,
+                  onSelect: () => onEngineLineCountChange(option.value),
                 }))}
                 prefersReducedMotion={prefersReducedMotion}
               />
@@ -242,7 +265,9 @@ function SegmentedControl({
           onClick={option.onSelect}
           type="button"
         >
-          {option.active ? <ActiveSegmentBackground layoutId={layoutId} animated={!prefersReducedMotion} /> : null}
+          {option.active ? (
+            <ActiveSegmentBackground layoutId={layoutId} animated={!prefersReducedMotion} />
+          ) : null}
           <span className="relative z-10">{option.label}</span>
         </button>
       ))}

@@ -5,7 +5,14 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!dist", "!public/stockfish"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!dist",
+      "!.vercel",
+      "!.playwright-mcp",
+      "!public/stockfish"
+    ]
   },
   "formatter": {
     "enabled": true,

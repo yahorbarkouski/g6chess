@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type ApiError, getCachedChessComLiveGameAnalysis, startImportedGameAnalysis } from "./api";
+import {
+  type ApiError,
+  getCachedChessComLiveGameAnalysis,
+  getCachedLichessGameAnalysis,
+  startImportedGameAnalysis,
+} from "./api";
 
 describe("startImportedGameAnalysis", () => {
   afterEach(() => {
@@ -77,6 +82,42 @@ describe("startImportedGameAnalysis", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8001/api/game-analysis/import/chess-com/live/168193636078",
+      {},
+    );
+  });
+
+  it("reads cached Lichess game analyses by external game id", async () => {
+    const responsePayload = {
+      analysis_id: "analysis-1",
+      status: "succeeded",
+      status_url: "/api/game-analysis/analysis-1",
+      source: {
+        source: "lichess_game_url",
+        source_url: "https://lichess.org/fY44h4OY",
+        external_game_id: "fY44h4OY",
+        title: "Alpha vs Beta",
+        white_username: "Alpha",
+        black_username: "Beta",
+        white_rating: 1600,
+        black_rating: 1500,
+        time_control: "180+2",
+        result: "1-0",
+        allows_global_training: false,
+        rights_basis: "User-requested analysis input only.",
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(responsePayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCachedLichessGameAnalysis("fY44h4OY");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8001/api/game-analysis/import/lichess/fY44h4OY",
       {},
     );
   });

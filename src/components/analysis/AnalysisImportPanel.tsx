@@ -9,8 +9,9 @@ import {
   useState,
 } from "react";
 import {
-  isSupportedChessComAnalysisUrl,
-  normalizeChessComImportUrl,
+  extractGameImportTarget,
+  isSupportedGameAnalysisUrl,
+  normalizeGameImportUrl,
 } from "../../lib/analysis-routing";
 import { ApiError } from "../../lib/api";
 import { cn } from "../../lib/utils";
@@ -26,6 +27,7 @@ interface AnalysisImportPanelProps {
   onClearError?: () => void;
   turnstileToken?: string | null;
   turnstileResetKey?: number;
+  turnstileRequired?: boolean;
   onTurnstileToken?: (token: string | null) => void;
   onTurnstileReset?: () => void;
 }
@@ -161,6 +163,7 @@ export function AnalysisImportPanel({
   onClearError,
   turnstileToken: controlledTurnstileToken,
   turnstileResetKey: controlledTurnstileResetKey,
+  turnstileRequired = false,
   onTurnstileToken,
   onTurnstileReset,
 }: AnalysisImportPanelProps) {
@@ -170,6 +173,9 @@ export function AnalysisImportPanel({
   const [localError, setLocalError] = useState<string | null>(null);
   const [localTurnstileToken, setLocalTurnstileToken] = useState<string | null>(null);
   const [localTurnstileResetKey, setLocalTurnstileResetKey] = useState(0);
+  const [pendingTurnstileRequest, setPendingTurnstileRequest] =
+    useState<GameAnalysisImportRequest | null>(null);
+  const [turnstilePrompted, setTurnstilePrompted] = useState(false);
   const lastRandomGameIndexRef = useRef<number | null>(null);
 
   const isBusy = status === "submitting" || status === "polling";
@@ -178,11 +184,11 @@ export function AnalysisImportPanel({
   const turnstileToken =
     controlledTurnstileToken === undefined ? localTurnstileToken : controlledTurnstileToken;
   const turnstileResetKey = controlledTurnstileResetKey ?? localTurnstileResetKey;
-  const shouldShowTurnstile = needsTurnstile && turnstileToken === null;
+  const shouldShowTurnstile =
+    needsTurnstile && turnstileToken === null && (turnstilePrompted || turnstileRequired);
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
-  const canSubmit =
-    !isBusy && isValidInput(mode, value) && (!needsTurnstile || turnstileToken !== null);
+  const canSubmit = !isBusy && isValidInput(mode, value);
   const setTurnstileToken = useCallback(
     (token: string | null) => {
       if (controlledTurnstileToken === undefined) {
@@ -201,6 +207,28 @@ export function AnalysisImportPanel({
   }, [controlledTurnstileResetKey, onTurnstileReset, setTurnstileToken]);
   const handleTurnstileExpire = useCallback(() => setTurnstileToken(null), [setTurnstileToken]);
 
+  function promptForTurnstile(request: GameAnalysisImportRequest) {
+    setPendingTurnstileRequest(request);
+    setTurnstilePrompted(true);
+  }
+
+  useEffect(() => {
+    if (!needsTurnstile || pendingTurnstileRequest === null || turnstileToken === null || isBusy) {
+      return;
+    }
+    const request = {
+      ...pendingTurnstileRequest,
+      turnstile_token: turnstileToken,
+    };
+    setPendingTurnstileRequest(null);
+    setLocalError(null);
+    void onImport(request).catch((err: unknown) => {
+      setLocalError(importErrorMessage(err));
+      setTurnstilePrompted(false);
+      resetTurnstile();
+    });
+  }, [isBusy, needsTurnstile, onImport, pendingTurnstileRequest, resetTurnstile, turnstileToken]);
+
   function clearErrors() {
     setLocalError(null);
     onClearError?.();
@@ -212,11 +240,17 @@ export function AnalysisImportPanel({
       return;
     }
     setLocalError(null);
+    const request = buildRequest(mode, { url: url.trim(), pgn, turnstileToken });
     try {
-      await onImport(buildRequest(mode, { url: url.trim(), pgn, turnstileToken }));
+      await onImport(request);
     } catch (err) {
+      if (needsTurnstile && isTurnstileFailure(err)) {
+        promptForTurnstile(request);
+        return;
+      }
       setLocalError(importErrorMessage(err));
       if (needsTurnstile) {
+        setTurnstilePrompted(false);
         resetTurnstile();
       }
     }
@@ -233,18 +267,21 @@ export function AnalysisImportPanel({
     }
     lastRandomGameIndexRef.current = index;
     clearErrors();
-    if (needsTurnstile && turnstileToken === null) {
-      if (mode !== "pgn") {
-        setMode("pgn");
-      }
-      setPgn(picked.pgn);
-      return;
-    }
+    const request = buildRequest("pgn", { url: "", pgn: picked.pgn, turnstileToken });
     try {
-      await onImport(buildRequest("pgn", { url: "", pgn: picked.pgn, turnstileToken }));
+      await onImport(request);
     } catch (err) {
+      if (needsTurnstile && isTurnstileFailure(err)) {
+        promptForTurnstile(request);
+        if (mode !== "pgn") {
+          setMode("pgn");
+        }
+        setPgn(picked.pgn);
+        return;
+      }
       setLocalError(importErrorMessage(err));
       if (needsTurnstile) {
+        setTurnstilePrompted(false);
         resetTurnstile();
       }
     }
@@ -270,8 +307,8 @@ export function AnalysisImportPanel({
         Paste your game link
       </h1>
       <p className="text-center text-stone-500 text-sm dark:text-stone-500 mt-3">
-        or replace chess.com with{" "}
-        <span className="text-stone-600 dark:text-stone-400">g6chess.com</span>
+        or simply add <span className="text-stone-600 dark:text-stone-400">g6</span> before your
+        chess.com / lichess.org game url and press enter
       </p>
 
       <form className="mt-8" onSubmit={handleSubmit}>
@@ -319,7 +356,7 @@ function RightStatus({ error, mode }: { error: string | null; mode: Mode }) {
   if (!error) {
     return null;
   }
-  const text = mode === "url" ? "chess.com import failed" : error;
+  const text = mode === "url" ? "link import failed" : error;
   return (
     <span className="max-w-[60%] truncate text-right text-rose-600 text-xs dark:text-rose-400">
       {text}
@@ -474,7 +511,7 @@ function MorphField({
       style={{ height: targetHeight }}
     >
       <textarea
-        aria-label={mode === "url" ? "Chess.com URL" : "PGN fallback"}
+        aria-label={mode === "url" ? "Game URL" : "PGN fallback"}
         autoCapitalize="off"
         autoComplete="off"
         autoCorrect="off"
@@ -591,11 +628,11 @@ function stripNewlines(value: string): string {
 }
 
 function isValidInput(mode: Mode, value: string): boolean {
-  return mode === "url" ? isValidChessComUrl(value) : isValidPgn(value);
+  return mode === "url" ? isValidGameUrl(value) : isValidPgn(value);
 }
 
-function isValidChessComUrl(value: string): boolean {
-  return isSupportedChessComAnalysisUrl(value);
+function isValidGameUrl(value: string): boolean {
+  return isSupportedGameAnalysisUrl(value);
 }
 
 function isValidPgn(value: string): boolean {
@@ -610,9 +647,13 @@ function buildRequest(
   mode: Mode,
   values: { url: string; pgn: string; turnstileToken: string | null },
 ): GameAnalysisImportRequest {
+  const target = mode === "url" ? extractGameImportTarget(values.url) : null;
   const sourceFields =
     mode === "url"
-      ? ({ source: "chess_com_live_url", url: normalizeChessComImportUrl(values.url) } as const)
+      ? ({
+          source: target?.source ?? "chess_com_live_url",
+          url: normalizeGameImportUrl(values.url),
+        } as const)
       : ({ source: "pgn", pgn: values.pgn } as const);
   const request: GameAnalysisImportRequest = {
     ...sourceFields,
@@ -634,6 +675,10 @@ function importErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Import failed.";
+}
+
+function isTurnstileFailure(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "turnstile_failed";
 }
 
 interface TurnstileApi {

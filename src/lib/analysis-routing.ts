@@ -1,10 +1,20 @@
 const CHESS_COM_HOSTS = new Set(["chess.com", "www.chess.com"]);
+const LICHESS_HOSTS = new Set(["lichess.org", "www.lichess.org"]);
 const G6_HOSTS = new Set(["g6chess.com", "www.g6chess.com"]);
 const ANALYSIS_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const NUMERIC_ID_PATTERN = /^\d+$/;
+const LICHESS_ID_PATTERN = /^[A-Za-z0-9]{8}$/;
+
+export type ExternalGameSource = "chess_com_live_url" | "lichess_game_url";
+
+export interface ExternalGameTarget {
+  source: ExternalGameSource;
+  externalGameId: string;
+}
 
 export interface AnalysisRouteState {
-  kind: "home" | "chess_com_live" | "analysis";
+  kind: "home" | "chess_com_live" | "lichess_game" | "analysis";
+  externalSource: ExternalGameSource | null;
   externalGameId: string | null;
   analysisId: string | null;
   ply: number | null;
@@ -13,6 +23,7 @@ export interface AnalysisRouteState {
 
 export interface SharedAnalysisTarget {
   analysisId: string;
+  externalSource: ExternalGameSource | null;
   externalGameId: string | null;
 }
 
@@ -28,15 +39,38 @@ export function parseAnalysisRoute(pathname: string, search = ""): AnalysisRoute
   const ply = parsePly(params.get("ply"));
   const queryAnalysisId = parseAnalysisId(params.get("analysis"));
   const parts = pathParts(pathname);
-  const externalGameId = matchChessComRouteParts(parts);
+  const chessComGameId = matchChessComRouteParts(parts);
 
-  if (externalGameId !== null) {
+  if (chessComGameId !== null) {
     return {
       kind: "chess_com_live",
-      externalGameId,
+      externalSource: "chess_com_live_url",
+      externalGameId: chessComGameId,
       analysisId: queryAnalysisId,
       ply,
-      canonicalPath: canonicalPathForRoute({ analysisId: queryAnalysisId, externalGameId, ply }),
+      canonicalPath: canonicalPathForRoute({
+        analysisId: queryAnalysisId,
+        externalSource: "chess_com_live_url",
+        externalGameId: chessComGameId,
+        ply,
+      }),
+    };
+  }
+
+  const lichessGameId = matchLichessRouteParts(parts);
+  if (lichessGameId !== null) {
+    return {
+      kind: "lichess_game",
+      externalSource: "lichess_game_url",
+      externalGameId: lichessGameId,
+      analysisId: queryAnalysisId,
+      ply,
+      canonicalPath: canonicalPathForRoute({
+        analysisId: queryAnalysisId,
+        externalSource: "lichess_game_url",
+        externalGameId: lichessGameId,
+        ply,
+      }),
     };
   }
 
@@ -45,10 +79,16 @@ export function parseAnalysisRoute(pathname: string, search = ""): AnalysisRoute
     if (analysisId !== null) {
       return {
         kind: "analysis",
+        externalSource: null,
         externalGameId: null,
         analysisId,
         ply,
-        canonicalPath: canonicalPathForRoute({ analysisId, externalGameId: null, ply }),
+        canonicalPath: canonicalPathForRoute({
+          analysisId,
+          externalSource: null,
+          externalGameId: null,
+          ply,
+        }),
       };
     }
   }
@@ -57,6 +97,16 @@ export function parseAnalysisRoute(pathname: string, search = ""): AnalysisRoute
 }
 
 export function extractChessComLiveGameId(value: string): string | null {
+  const target = extractGameImportTarget(value);
+  return target?.source === "chess_com_live_url" ? target.externalGameId : null;
+}
+
+export function extractLichessGameId(value: string): string | null {
+  const target = extractGameImportTarget(value);
+  return target?.source === "lichess_game_url" ? target.externalGameId : null;
+}
+
+export function extractGameImportTarget(value: string): ExternalGameTarget | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
@@ -68,15 +118,28 @@ export function extractChessComLiveGameId(value: string): string | null {
   }
 
   const host = parsed.hostname.toLowerCase();
-  if (!CHESS_COM_HOSTS.has(host) && !G6_HOSTS.has(host)) {
-    return null;
+  if (CHESS_COM_HOSTS.has(host)) {
+    return targetFromId("chess_com_live_url", matchChessComPath(parsed.pathname));
   }
-
-  return matchChessComPath(parsed.pathname);
+  if (LICHESS_HOSTS.has(host)) {
+    return targetFromId("lichess_game_url", matchLichessPath(parsed.pathname));
+  }
+  if (G6_HOSTS.has(host)) {
+    const parts = pathParts(parsed.pathname);
+    return (
+      targetFromId("lichess_game_url", matchLichessRouteParts(parts)) ??
+      targetFromId("chess_com_live_url", matchChessComRouteParts(parts))
+    );
+  }
+  return null;
 }
 
 export function isSupportedChessComAnalysisUrl(value: string): boolean {
   return extractChessComLiveGameId(value) !== null;
+}
+
+export function isSupportedGameAnalysisUrl(value: string): boolean {
+  return extractGameImportTarget(value) !== null;
 }
 
 export function normalizeChessComImportUrl(value: string): string {
@@ -84,8 +147,22 @@ export function normalizeChessComImportUrl(value: string): string {
   return externalGameId === null ? value.trim() : chessComLiveGameUrl(externalGameId);
 }
 
+export function normalizeGameImportUrl(value: string): string {
+  const target = extractGameImportTarget(value);
+  if (target === null) {
+    return value.trim();
+  }
+  return target.source === "lichess_game_url"
+    ? lichessGameUrl(target.externalGameId)
+    : chessComLiveGameUrl(target.externalGameId);
+}
+
 export function chessComLiveGameUrl(externalGameId: string): string {
   return `https://www.chess.com/game/live/${externalGameId}`;
+}
+
+export function lichessGameUrl(externalGameId: string): string {
+  return `https://lichess.org/${externalGameId}`;
 }
 
 export function analysisStatusUrl(analysisId: string): string {
@@ -94,15 +171,22 @@ export function analysisStatusUrl(analysisId: string): string {
 
 export function canonicalPathForRoute({
   analysisId,
+  externalSource,
   externalGameId,
   ply,
 }: {
   analysisId: string | null;
+  externalSource?: ExternalGameSource | null;
   externalGameId: string | null;
   ply: number | null;
 }): string | null {
   if (externalGameId !== null) {
-    return withAnalysisQuery(`/game/live/${externalGameId}`, analysisId, ply);
+    const source = externalSource ?? "chess_com_live_url";
+    const path =
+      source === "lichess_game_url"
+        ? `/lichess/${encodeURIComponent(externalGameId)}`
+        : `/game/live/${externalGameId}`;
+    return withAnalysisQuery(path, analysisId, ply);
   }
   if (analysisId !== null) {
     return withAnalysisQuery(`/analysis/${encodeURIComponent(analysisId)}`, null, ply);
@@ -116,6 +200,7 @@ export function replaceAnalysisUrl(target: SharedAnalysisTarget, ply: number | n
   }
   const path = canonicalPathForRoute({
     analysisId: target.analysisId,
+    externalSource: target.externalSource,
     externalGameId: target.externalGameId,
     ply,
   });
@@ -155,6 +240,7 @@ export function currentBrowserPath(): string {
 function homeRoute(): AnalysisRouteState {
   return {
     kind: "home",
+    externalSource: null,
     externalGameId: null,
     analysisId: null,
     ply: null,
@@ -228,11 +314,30 @@ function matchChessComRouteParts(parts: string[]): string | null {
   return null;
 }
 
+function matchLichessRouteParts(parts: string[]): string | null {
+  if (parts[0] === "lichess") {
+    return normalizeLichessId(parts[1]);
+  }
+  return null;
+}
+
 function matchChessComPath(pathname: string): string | null {
   const parts = pathParts(pathname);
   return (
     matchChessComRouteParts(parts) ?? (parts[0] === "game" ? normalizeNumericId(parts[1]) : null)
   );
+}
+
+function matchLichessPath(pathname: string): string | null {
+  const parts = pathParts(pathname);
+  if (parts[0] === "game" && parts[1] === "export") {
+    return normalizeLichessId(parts[2]);
+  }
+  return normalizeLichessId(parts[0]);
+}
+
+function targetFromId(source: ExternalGameSource, externalGameId: string | null) {
+  return externalGameId === null ? null : { source, externalGameId };
 }
 
 function parsePly(value: string | null): number | null {
@@ -257,4 +362,12 @@ function normalizeNumericId(value: string | undefined): string | null {
   }
   const trimmed = value.trim();
   return NUMERIC_ID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+function normalizeLichessId(value: string | undefined): string | null {
+  if (value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return LICHESS_ID_PATTERN.test(trimmed) ? trimmed : null;
 }

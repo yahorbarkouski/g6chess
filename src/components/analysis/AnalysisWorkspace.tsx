@@ -12,7 +12,10 @@ import {
   canonicalPathForRoute,
   chessComLiveGameUrl,
   currentBrowserPath,
-  extractChessComLiveGameId,
+  type ExternalGameSource,
+  type ExternalGameTarget,
+  extractGameImportTarget,
+  lichessGameUrl,
   pushWithPath,
   readAnalysisRoute,
   replaceAnalysisUrl,
@@ -22,6 +25,7 @@ import {
 import {
   ApiError,
   getCachedChessComLiveGameAnalysis,
+  getCachedLichessGameAnalysis,
   pollGameAnalysis,
   startImportedGameAnalysis,
 } from "../../lib/api";
@@ -63,7 +67,7 @@ import { AnalysisNavigationBar } from "./AnalysisNavigationBar";
 import { AnalysisSettingsPopover } from "./AnalysisSettingsPopover";
 import { BoardSidebar } from "./BoardSidebar";
 import { DiscoveryLineBar, DiscoveryLineSidebar } from "./DiscoveryLine";
-import { BookLinesView, EngineLinesView } from "./EngineLinesView";
+import { BookLinesView, type EngineContinuationLine, EngineLinesView } from "./EngineLinesView";
 import { type MarkerDisplayMode, MoveList } from "./MoveList";
 import { PlayerBar } from "./PlayerBar";
 import { PositionInfo } from "./PositionInfo";
@@ -114,6 +118,7 @@ interface AnalysisImportHomeProps {
   onClearError: () => void;
   turnstileToken: string | null;
   turnstileResetKey: number;
+  turnstileRequired: boolean;
   onTurnstileToken: (token: string | null) => void;
   onTurnstileReset: () => void;
 }
@@ -152,19 +157,21 @@ export function AnalysisWorkspace() {
     [initialRoute, storedJob],
   );
   const routeImportUrl =
-    route.kind === "chess_com_live" && route.externalGameId !== null
-      ? chessComLiveGameUrl(route.externalGameId)
+    route.externalSource !== null && route.externalGameId !== null
+      ? sourceUrlForTarget({ source: route.externalSource, externalGameId: route.externalGameId })
       : null;
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [activeJob, setActiveJob] = useState<StoredGameAnalysisJob | null>(initialJob);
   const [importStatus, setImportStatus] = useState<ImportPanelStatus>(
-    initialJob ? "polling" : initialRoute.kind === "chess_com_live" ? "submitting" : "idle",
+    initialJob ? "polling" : isExternalGameRoute(initialRoute) ? "submitting" : "idle",
   );
   const [importSnapshot, setImportSnapshot] = useState<GameAnalysisSnapshot | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [pendingRouteImportId, setPendingRouteImportId] = useState<string | null>(null);
+  const [pendingRouteImportTarget, setPendingRouteImportTarget] =
+    useState<ExternalGameTarget | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileRequired, setTurnstileRequired] = useState(false);
   const currentRouteJobIdRef = useRef(initialJob?.analysis_id ?? null);
   const routeImportStartedRef = useRef<string | null>(null);
 
@@ -213,7 +220,8 @@ export function AnalysisWorkspace() {
       setImportSnapshot(null);
       setImportError(null);
       setImportStatus("idle");
-      setPendingRouteImportId(null);
+      setPendingRouteImportTarget(null);
+      setTurnstileRequired(false);
       return;
     }
 
@@ -222,7 +230,8 @@ export function AnalysisWorkspace() {
       const jobChanged = currentRouteJobIdRef.current !== nextJob.analysis_id;
       currentRouteJobIdRef.current = nextJob.analysis_id;
       routeImportStartedRef.current = null;
-      setPendingRouteImportId(null);
+      setPendingRouteImportTarget(null);
+      setTurnstileRequired(false);
       if (jobChanged) {
         setAnalysis(null);
         setImportSnapshot(null);
@@ -238,8 +247,9 @@ export function AnalysisWorkspace() {
     setAnalysis(null);
     setImportSnapshot(null);
     setImportError(null);
-    setPendingRouteImportId(null);
-    setImportStatus(route.kind === "chess_com_live" ? "submitting" : "idle");
+    setPendingRouteImportTarget(null);
+    setTurnstileRequired(false);
+    setImportStatus(isExternalGameRoute(route) ? "submitting" : "idle");
   }, [route]);
 
   useEffect(() => {
@@ -308,11 +318,16 @@ export function AnalysisWorkspace() {
   const navigateToImportedGamePath = useCallback(
     (
       analysisId: string,
-      externalGameId: string | null,
+      target: ExternalGameTarget | null,
       ply: number | null,
       mode: "push" | "replace",
     ) => {
-      const nextPath = canonicalPathForRoute({ analysisId, externalGameId, ply });
+      const nextPath = canonicalPathForRoute({
+        analysisId,
+        externalSource: target?.source ?? null,
+        externalGameId: target?.externalGameId ?? null,
+        ply,
+      });
       if (nextPath === null) {
         return;
       }
@@ -345,17 +360,18 @@ export function AnalysisWorkspace() {
         }
         if (request.turnstile_token) {
           setTurnstileToken(null);
+          setTurnstileRequired(false);
         }
         setImportStatus("polling");
 
-        const externalGameId =
-          nextJob.source?.external_game_id ??
+        const target =
+          externalTargetFromSource(nextJob.source) ??
           (request.url === undefined || request.url === null
             ? null
-            : extractChessComLiveGameId(request.url));
+            : extractGameImportTarget(request.url));
         navigateToImportedGamePath(
           nextJob.analysis_id,
-          externalGameId,
+          target,
           route.ply,
           route.kind === "home" ? "push" : "replace",
         );
@@ -369,18 +385,17 @@ export function AnalysisWorkspace() {
   );
 
   useEffect(() => {
-    if (route.kind !== "chess_com_live" || route.analysisId !== null || activeJob !== null) {
+    const target = externalTargetFromRoute(route);
+    if (target === null || route.analysisId !== null || activeJob !== null) {
       return;
     }
-    if (route.externalGameId === null) {
-      return;
-    }
-    if (routeImportStartedRef.current === route.externalGameId) {
+    const importTarget = target;
+    const routeImportKey = externalTargetKey(importTarget);
+    if (routeImportStartedRef.current === routeImportKey) {
       return;
     }
 
-    const externalGameId = route.externalGameId;
-    routeImportStartedRef.current = externalGameId;
+    routeImportStartedRef.current = routeImportKey;
     let cancelled = false;
     const abortController = new AbortController();
 
@@ -390,10 +405,7 @@ export function AnalysisWorkspace() {
       setImportSnapshot(null);
       setAnalysis(null);
       try {
-        const response = await getCachedChessComLiveGameAnalysis(
-          externalGameId,
-          abortController.signal,
-        );
+        const response = await getCachedImportedGameAnalysis(importTarget, abortController.signal);
         if (cancelled) {
           return;
         }
@@ -407,10 +419,11 @@ export function AnalysisWorkspace() {
           setAnalysis(importedAnalysis);
         }
         setTurnstileToken(null);
+        setTurnstileRequired(false);
         setImportStatus("polling");
         navigateToImportedGamePath(
           nextJob.analysis_id,
-          nextJob.source?.external_game_id ?? externalGameId,
+          externalTargetFromSource(nextJob.source) ?? importTarget,
           route.ply,
           "replace",
         );
@@ -419,7 +432,7 @@ export function AnalysisWorkspace() {
           return;
         }
         if (error instanceof ApiError && error.status === 404) {
-          setPendingRouteImportId(externalGameId);
+          setPendingRouteImportTarget(importTarget);
           setImportStatus("submitting");
           setImportError(null);
           return;
@@ -435,19 +448,12 @@ export function AnalysisWorkspace() {
       cancelled = true;
       abortController.abort();
     };
-  }, [
-    activeJob,
-    navigateToImportedGamePath,
-    route.analysisId,
-    route.externalGameId,
-    route.kind,
-    route.ply,
-  ]);
+  }, [activeJob, navigateToImportedGamePath, route]);
 
   useEffect(() => {
+    const target = externalTargetFromRoute(route);
     if (
-      route.kind !== "chess_com_live" ||
-      route.externalGameId === null ||
+      target === null ||
       route.analysisId === null ||
       activeJob === null ||
       activeJob.analysis_id !== route.analysisId ||
@@ -455,21 +461,18 @@ export function AnalysisWorkspace() {
     ) {
       return;
     }
+    const hydrateTarget = target;
 
-    const externalGameId = route.externalGameId;
     const analysisId = route.analysisId;
     let cancelled = false;
     const abortController = new AbortController();
 
     async function hydrateSharedRouteSource() {
       try {
-        const response = await getCachedChessComLiveGameAnalysis(
-          externalGameId,
-          abortController.signal,
-        );
+        const response = await getCachedImportedGameAnalysis(hydrateTarget, abortController.signal);
         if (
           cancelled ||
-          response.source.external_game_id !== externalGameId ||
+          !externalTargetMatchesSource(hydrateTarget, response.source) ||
           !hasPlayerIdentity(response.source)
         ) {
           return;
@@ -503,34 +506,35 @@ export function AnalysisWorkspace() {
       cancelled = true;
       abortController.abort();
     };
-  }, [activeJob, route.analysisId, route.externalGameId, route.kind]);
+  }, [activeJob, route]);
 
   useEffect(() => {
-    if (pendingRouteImportId === null) {
+    if (pendingRouteImportTarget === null) {
       return;
     }
+    const routeTarget = externalTargetFromRoute(route);
     if (
-      route.kind !== "chess_com_live" ||
-      route.externalGameId !== pendingRouteImportId ||
+      routeTarget === null ||
+      !externalTargetsEqual(routeTarget, pendingRouteImportTarget) ||
       route.analysisId !== null ||
       activeJob !== null
     ) {
       return;
     }
     const needsTurnstile = isTurnstileEnabled();
-    if (needsTurnstile && turnstileToken === null) {
+    if (needsTurnstile && turnstileToken === null && turnstileRequired) {
       return;
     }
 
-    const externalGameId = pendingRouteImportId;
+    const target = pendingRouteImportTarget;
     const token = turnstileToken;
     let cancelled = false;
 
     async function startPendingRouteImport() {
       try {
-        await handleImportedGameAnalysis(buildChessComRouteImportRequest(externalGameId, token));
+        await handleImportedGameAnalysis(buildRouteImportRequest(target, token));
         if (!cancelled) {
-          setPendingRouteImportId(null);
+          setPendingRouteImportTarget(null);
         }
       } catch (error) {
         if (cancelled) {
@@ -539,8 +543,10 @@ export function AnalysisWorkspace() {
         if (needsTurnstile) {
           resetTurnstile();
         }
-        if (!(error instanceof ApiError && error.code === "turnstile_failed")) {
-          setPendingRouteImportId(null);
+        if (error instanceof ApiError && error.code === "turnstile_failed") {
+          setTurnstileRequired(true);
+        } else {
+          setPendingRouteImportTarget(null);
         }
       }
     }
@@ -553,12 +559,11 @@ export function AnalysisWorkspace() {
   }, [
     activeJob,
     handleImportedGameAnalysis,
-    pendingRouteImportId,
+    pendingRouteImportTarget,
     resetTurnstile,
-    route.analysisId,
-    route.externalGameId,
-    route.kind,
+    route,
     turnstileToken,
+    turnstileRequired,
   ]);
 
   const handleOpenImport = useCallback(() => {
@@ -568,6 +573,8 @@ export function AnalysisWorkspace() {
     setImportSnapshot(null);
     setImportError(null);
     setImportStatus("idle");
+    setPendingRouteImportTarget(null);
+    setTurnstileRequired(false);
     pushPath("/");
   }, [pushPath]);
 
@@ -594,6 +601,7 @@ export function AnalysisWorkspace() {
         onTurnstileReset={resetTurnstile}
         onTurnstileToken={setTurnstileToken}
         status={importStatus}
+        turnstileRequired={turnstileRequired}
         turnstileResetKey={turnstileResetKey}
         turnstileToken={turnstileToken}
       />
@@ -619,6 +627,7 @@ function AnalysisImportHome({
   onTurnstileReset,
   onTurnstileToken,
   status,
+  turnstileRequired,
   turnstileResetKey,
   turnstileToken,
 }: AnalysisImportHomeProps) {
@@ -633,6 +642,7 @@ function AnalysisImportHome({
           onTurnstileReset={onTurnstileReset}
           onTurnstileToken={onTurnstileToken}
           status={status}
+          turnstileRequired={turnstileRequired}
           turnstileResetKey={turnstileResetKey}
           turnstileToken={turnstileToken}
         />
@@ -654,6 +664,7 @@ function AnalysisGameWorkspace({
   );
   const [flippedBoard, setFlippedBoard] = useState(false);
   const [arrowCount, setArrowCount] = useState(1);
+  const [engineLineCount, setEngineLineCount] = useState(2);
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
@@ -663,6 +674,9 @@ function AnalysisGameWorkspace({
   const currentMove = indexes.moveByPly.get(currentPly) ?? null;
   const currentMarker = indexes.markerByPly.get(currentPly) ?? null;
   const currentTimelinePoint = indexes.timelineByPly.get(currentPly) ?? null;
+  const nextMove = indexes.moveByPly.get(currentPly + 1) ?? null;
+  const nextMarker = indexes.markerByPly.get(currentPly + 1) ?? null;
+  const nextTimelinePoint = indexes.timelineByPly.get(currentPly + 1) ?? null;
   const currentFen = currentMove?.fen_after ?? analysis.moves[0]?.fen_before ?? "";
   const previousPlyRef = useRef(currentPly);
   const routePlyRef = useRef(initialPly);
@@ -691,6 +705,21 @@ function AnalysisGameWorkspace({
     }
     return null;
   }, [currentFen, currentMarker, currentMove?.fen_before, currentTimelinePoint]);
+  const engineContinuationLine = useMemo<EngineContinuationLine | null>(() => {
+    const nextMarkerLine = nextMarker?.best_lines[0];
+    if (nextMove && nextMarkerLine) {
+      return { fen: nextMove.fen_before, line: nextMarkerLine };
+    }
+    const nextTimelineLine = nextTimelinePoint?.best_lines[0];
+    if (nextTimelineLine) {
+      return { fen: nextTimelinePoint.fen_before, line: nextTimelineLine };
+    }
+    return null;
+  }, [nextMarker, nextMove, nextTimelinePoint]);
+  const bestMatchesContinuation =
+    engineContinuationLine !== null &&
+    serverEngineLines?.lines[0]?.san !== undefined &&
+    currentTimelinePoint?.san === serverEngineLines.lines[0].san;
   const currentBookLineSet = useMemo<BookLineSet | null>(() => {
     if (currentMarker?.primary_class !== "book") {
       return null;
@@ -859,6 +888,8 @@ function AnalysisGameWorkspace({
               currentPly={currentPly}
               currentOpeningName={currentOpeningName}
               displayFen={displayFen}
+              engineContinuationLine={engineContinuationLine}
+              engineLineCount={engineLineCount}
               fallbackEvalCp={fallbackEvalCp}
               flippedBoard={flippedBoard}
               discovery={board.discovery}
@@ -868,6 +899,7 @@ function AnalysisGameWorkspace({
               highlightedMove={board.highlightedMove}
               materialAdvantage={material.advantage}
               onArrowCountChange={setArrowCount}
+              onEngineLineCountChange={setEngineLineCount}
               onMarkerDisplayModeChange={setMarkerDisplayMode}
               onExitPreview={exitPreviewOrDiscovery}
               onFlipBoard={handleFlipBoard}
@@ -882,6 +914,7 @@ function AnalysisGameWorkspace({
               preview={board.preview}
               markerDisplayMode={markerDisplayMode}
               serverEngineLines={serverEngineLines}
+              bestMatchesContinuation={bestMatchesContinuation}
               showMaiaArrow={showMaiaArrow}
               topSide={topSide}
             />
@@ -900,6 +933,8 @@ function AnalysisGameWorkspace({
               currentPly={currentPly}
               currentOpeningName={currentOpeningName}
               displayFen={displayFen}
+              engineContinuationLine={engineContinuationLine}
+              engineLineCount={engineLineCount}
               fallbackEvalCp={fallbackEvalCp}
               flippedBoard={flippedBoard}
               discovery={board.discovery}
@@ -910,6 +945,7 @@ function AnalysisGameWorkspace({
               materialAdvantage={material.advantage}
               mobileTab={mobileTab}
               onArrowCountChange={setArrowCount}
+              onEngineLineCountChange={setEngineLineCount}
               onMarkerDisplayModeChange={setMarkerDisplayMode}
               onExitPreview={exitPreviewOrDiscovery}
               onFlipBoard={handleFlipBoard}
@@ -925,6 +961,7 @@ function AnalysisGameWorkspace({
               preview={board.preview}
               markerDisplayMode={markerDisplayMode}
               serverEngineLines={serverEngineLines}
+              bestMatchesContinuation={bestMatchesContinuation}
               showMaiaArrow={showMaiaArrow}
               topSide={topSide}
             />
@@ -980,6 +1017,8 @@ function DesktopLayout({
   currentOpeningName,
   currentFen,
   displayFen,
+  engineContinuationLine,
+  engineLineCount,
   highlightedMove,
   boardOrientation,
   boardTransitionMove,
@@ -990,6 +1029,7 @@ function DesktopLayout({
   fallbackEvalCp,
   arrowCount,
   onArrowCountChange,
+  onEngineLineCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
@@ -997,6 +1037,7 @@ function DesktopLayout({
   flippedBoard,
   onFlipBoard,
   serverEngineLines,
+  bestMatchesContinuation,
   discovery,
   preview,
   dimmed,
@@ -1020,10 +1061,12 @@ function DesktopLayout({
               analysisFen={analysisFen}
               arrowCount={arrowCount}
               className="flex flex-col items-center gap-2.5 py-0.5"
+              engineLineCount={engineLineCount}
               fallbackEvalCp={fallbackEvalCp}
               flippedBoard={flippedBoard}
               preferBrowserEval={Boolean(discovery || preview)}
               onArrowCountChange={onArrowCountChange}
+              onEngineLineCountChange={onEngineLineCountChange}
               onFlipBoard={onFlipBoard}
               onMarkerDisplayModeChange={onMarkerDisplayModeChange}
               onShowMaiaArrowChange={onShowMaiaArrowChange}
@@ -1083,7 +1126,7 @@ function DesktopLayout({
         </div>
       </section>
 
-      <div className="flex max-h-[85vh] min-w-0 flex-col pl-5">
+      <div className="flex max-h-[87vh] min-w-0 flex-col pl-5">
         <aside className="shrink-0 space-y-4 pr-1">
           <PositionInfo
             boardOrientation={boardOrientation}
@@ -1114,6 +1157,9 @@ function DesktopLayout({
             onPreview={onPreview}
             previewActive={Boolean(preview)}
             serverEngineLines={serverEngineLines}
+            continuationLine={engineContinuationLine}
+            bestMatchesContinuation={bestMatchesContinuation}
+            maxLines={engineLineCount}
           />
         </aside>
         <MoveList
@@ -1138,6 +1184,7 @@ function MobileLayout({
   currentBookLineSet,
   currentOpeningName,
   displayFen,
+  engineContinuationLine,
   highlightedMove,
   boardOrientation,
   boardTransitionMove,
@@ -1147,7 +1194,9 @@ function MobileLayout({
   materialAdvantage,
   arrowCount,
   fallbackEvalCp,
+  engineLineCount,
   serverEngineLines,
+  bestMatchesContinuation,
   showMaiaArrow,
   flippedBoard,
   discovery,
@@ -1155,6 +1204,7 @@ function MobileLayout({
   dimmed,
   markerDisplayMode,
   onArrowCountChange,
+  onEngineLineCountChange,
   onMarkerDisplayModeChange,
   onFlipBoard,
   onShowMaiaArrowChange,
@@ -1179,10 +1229,12 @@ function MobileLayout({
           <MobileBoardControls
             analysisFen={analysisFen}
             arrowCount={arrowCount}
+            engineLineCount={engineLineCount}
             fallbackEvalCp={fallbackEvalCp}
             flippedBoard={flippedBoard}
             markerDisplayMode={markerDisplayMode}
             onArrowCountChange={onArrowCountChange}
+            onEngineLineCountChange={onEngineLineCountChange}
             onFlipBoard={onFlipBoard}
             onMarkerDisplayModeChange={onMarkerDisplayModeChange}
             onShowMaiaArrowChange={onShowMaiaArrowChange}
@@ -1285,6 +1337,9 @@ function MobileLayout({
             onPreview={onPreview}
             previewActive={Boolean(preview)}
             serverEngineLines={serverEngineLines}
+            continuationLine={engineContinuationLine}
+            bestMatchesContinuation={bestMatchesContinuation}
+            maxLines={engineLineCount}
           />
         </div>
       ) : null}
@@ -1331,7 +1386,9 @@ function MobileBoardControls({
   fallbackEvalCp,
   preferBrowserEval,
   arrowCount,
+  engineLineCount,
   onArrowCountChange,
+  onEngineLineCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
@@ -1343,7 +1400,9 @@ function MobileBoardControls({
   fallbackEvalCp: number | null;
   preferBrowserEval: boolean;
   arrowCount: number;
+  engineLineCount: number;
   onArrowCountChange: (value: number) => void;
+  onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
@@ -1359,8 +1418,10 @@ function MobileBoardControls({
         <AnalysisSettingsPopover
           arrowCount={arrowCount}
           buttonClassName="size-10 rounded-md"
+          engineLineCount={engineLineCount}
           markerDisplayMode={markerDisplayMode}
           onArrowCountChange={onArrowCountChange}
+          onEngineLineCountChange={onEngineLineCountChange}
           onMarkerDisplayModeChange={onMarkerDisplayModeChange}
           onShowMaiaArrowChange={onShowMaiaArrowChange}
           placement="bottom-start"
@@ -1408,6 +1469,8 @@ function EngineBoardSidebar({
   onFlipBoard: () => void;
   arrowCount: number;
   onArrowCountChange: (value: number) => void;
+  engineLineCount: number;
+  onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
@@ -1500,8 +1563,11 @@ function EngineLinesSlot({
   analysisFen,
   analysisPlayerSide,
   bookLineSet,
+  bestMatchesContinuation,
+  continuationLine,
   discoveryActive,
   displayFen,
+  maxLines,
   onBookPreview,
   onPreview,
   previewActive,
@@ -1511,8 +1577,11 @@ function EngineLinesSlot({
   analysisFen: string;
   analysisPlayerSide: BoardSide;
   bookLineSet: BookLineSet | null;
+  bestMatchesContinuation: boolean;
+  continuationLine: EngineContinuationLine | null;
   discoveryActive: boolean;
   displayFen: string;
+  maxLines: number;
   onBookPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   onPreview: (rootFen: string, lineMoves: string[], step: number) => void;
   previewActive: boolean;
@@ -1550,7 +1619,10 @@ function EngineLinesSlot({
     <EngineLinesView
       activePreview={activePreview}
       lines={engineLines.lines}
+      bestMatchesContinuation={bestMatchesContinuation}
+      continuationLine={continuationLine}
       onPreview={onPreview}
+      maxLines={maxLines}
       playerSide={playerSideForLines}
       rootFen={engineLines.fen}
     />
@@ -1681,6 +1753,7 @@ interface WorkspaceLayoutProps {
   currentOpeningName: string | null;
   currentFen: string;
   displayFen: string;
+  engineContinuationLine: EngineContinuationLine | null;
   highlightedMove: string | null;
   boardOrientation: BoardSide;
   boardTransitionMove: BoardTransitionMove | null;
@@ -1689,8 +1762,10 @@ interface WorkspaceLayoutProps {
   playerMeta: PlayerMeta;
   materialAdvantage: number;
   fallbackEvalCp: number | null;
+  engineLineCount: number;
   arrowCount: number;
   onArrowCountChange: (value: number) => void;
+  onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
@@ -1698,6 +1773,7 @@ interface WorkspaceLayoutProps {
   flippedBoard: boolean;
   onFlipBoard: () => void;
   serverEngineLines: EngineLineSet | null;
+  bestMatchesContinuation: boolean;
   discovery: DiscoveryState | null;
   preview: PreviewState | null;
   dimmed: boolean;
@@ -1749,8 +1825,9 @@ function selectInitialJob(
     };
   }
 
-  if (route.kind === "chess_com_live") {
-    return storedJob?.source?.external_game_id === route.externalGameId ? storedJob : null;
+  const target = externalTargetFromRoute(route);
+  if (target !== null) {
+    return externalTargetMatchesSource(target, storedJob?.source ?? null) ? storedJob : null;
   }
 
   return null;
@@ -1760,21 +1837,23 @@ function sourceForRoute(
   route: AnalysisRouteState,
   storedJob: StoredGameAnalysisJob | null,
 ): ImportedGameMetadata | null {
-  if (route.externalGameId === null) {
+  const target = externalTargetFromRoute(route);
+  if (target === null) {
     return storedJob?.analysis_id === route.analysisId ? storedJob.source : null;
   }
-  if (storedJob?.source?.external_game_id === route.externalGameId) {
+  if (storedJob !== null && externalTargetMatchesSource(target, storedJob.source)) {
     return storedJob.source;
   }
-  return sourceFromExternalGameId(route.externalGameId);
+  return sourceFromExternalTarget(target);
 }
 
-function sourceFromExternalGameId(externalGameId: string): ImportedGameMetadata {
+function sourceFromExternalTarget(target: ExternalGameTarget): ImportedGameMetadata {
+  const isLichess = target.source === "lichess_game_url";
   return {
-    source: "chess_com_live_url",
-    source_url: chessComLiveGameUrl(externalGameId),
-    external_game_id: externalGameId,
-    title: `Chess.com game ${externalGameId}`,
+    source: target.source,
+    source_url: sourceUrlForTarget(target),
+    external_game_id: target.externalGameId,
+    title: `${isLichess ? "Lichess" : "Chess.com"} game ${target.externalGameId}`,
     white_username: null,
     black_username: null,
     white_rating: null,
@@ -1782,7 +1861,7 @@ function sourceFromExternalGameId(externalGameId: string): ImportedGameMetadata 
     time_control: null,
     result: null,
     allows_global_training: false,
-    rights_basis: "Public Chess.com game link.",
+    rights_basis: `Public ${isLichess ? "Lichess" : "Chess.com"} game link.`,
   };
 }
 
@@ -1796,13 +1875,13 @@ function hasPlayerIdentity(source: ImportedGameMetadata | null): boolean {
   );
 }
 
-function buildChessComRouteImportRequest(
-  externalGameId: string,
+function buildRouteImportRequest(
+  target: ExternalGameTarget,
   turnstileToken: string | null,
 ): GameAnalysisImportRequest {
   const request: GameAnalysisImportRequest = {
-    source: "chess_com_live_url",
-    url: chessComLiveGameUrl(externalGameId),
+    source: target.source,
+    url: sourceUrlForTarget(target),
     explain_significance: ["critical"],
     include_context: true,
     use_baseline_fallback: false,
@@ -1811,6 +1890,18 @@ function buildChessComRouteImportRequest(
     request.turnstile_token = turnstileToken;
   }
   return request;
+}
+
+function sourceUrlForTarget(target: ExternalGameTarget): string {
+  return target.source === "lichess_game_url"
+    ? lichessGameUrl(target.externalGameId)
+    : chessComLiveGameUrl(target.externalGameId);
+}
+
+async function getCachedImportedGameAnalysis(target: ExternalGameTarget, signal: AbortSignal) {
+  return target.source === "lichess_game_url"
+    ? getCachedLichessGameAnalysis(target.externalGameId, signal)
+    : getCachedChessComLiveGameAnalysis(target.externalGameId, signal);
 }
 
 function activateImportedGameResponse(
@@ -1849,6 +1940,7 @@ function areStoredJobsEqual(
     current !== null &&
     current.analysis_id === next.analysis_id &&
     current.status_url === next.status_url &&
+    current.source?.source === next.source?.source &&
     current.source?.external_game_id === next.source?.external_game_id &&
     current.game?.total_plies === next.game?.total_plies
   );
@@ -1861,10 +1953,61 @@ function buildShareTarget(
   if (job === null) {
     return null;
   }
+  const target = externalTargetFromSource(job.source) ?? externalTargetFromRoute(route);
   return {
     analysisId: job.analysis_id,
-    externalGameId: job.source?.external_game_id ?? route.externalGameId,
+    externalSource: target?.source ?? null,
+    externalGameId: target?.externalGameId ?? null,
   };
+}
+
+function isExternalGameRoute(route: AnalysisRouteState): boolean {
+  return externalTargetFromRoute(route) !== null;
+}
+
+function externalTargetFromRoute(route: AnalysisRouteState): ExternalGameTarget | null {
+  if (route.externalSource === null || route.externalGameId === null) {
+    return null;
+  }
+  return {
+    source: route.externalSource,
+    externalGameId: route.externalGameId,
+  };
+}
+
+function externalTargetFromSource(source: ImportedGameMetadata | null): ExternalGameTarget | null {
+  if (source === null || source.external_game_id === null || !isExternalGameSource(source.source)) {
+    return null;
+  }
+  return {
+    source: source.source,
+    externalGameId: source.external_game_id,
+  };
+}
+
+function externalTargetMatchesSource(
+  target: ExternalGameTarget,
+  source: ImportedGameMetadata | null,
+): boolean {
+  return (
+    source !== null &&
+    source.source === target.source &&
+    source.external_game_id === target.externalGameId
+  );
+}
+
+function externalTargetsEqual(left: ExternalGameTarget, right: ExternalGameTarget): boolean {
+  return left.source === right.source && left.externalGameId === right.externalGameId;
+}
+
+function externalTargetKey(target: ExternalGameTarget): string {
+  return `${target.source}:${target.externalGameId}`;
+}
+
+function isExternalGameSource(
+  source: ImportedGameMetadata["source"],
+): source is ExternalGameSource {
+  return source === "chess_com_live_url" || source === "lichess_game_url";
 }
 
 function clampPly(ply: number, moveCount: number): number {

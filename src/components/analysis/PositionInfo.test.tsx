@@ -188,6 +188,58 @@ describe("PositionInfo", () => {
     expect(screen.getByText("King's Pawn Game")).toBeInTheDocument();
     expect(screen.queryByText("Book")).toBeNull();
   });
+
+  it("uses beautiful metadata to decorate the selected move badge", () => {
+    render(
+      <PositionInfo
+        currentMove={move()}
+        rootFen={ROOT_FEN}
+        selectedMarker={{
+          ...markerWithRichExplanation(),
+          primary_class: "best",
+          label_metadata: { beauty_label: "beautiful" },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("Beautiful")).toBeNull();
+    expect(screen.getByText("Best")).toBeInTheDocument();
+  });
+
+  it("uses brilliant metadata to decorate the selected move badge", () => {
+    render(
+      <PositionInfo
+        currentMove={move()}
+        rootFen={ROOT_FEN}
+        selectedMarker={{
+          ...markerWithRichExplanation(),
+          primary_class: "brilliant",
+          label_metadata: { beauty_label: "brilliant" },
+        }}
+      />,
+    );
+
+    const brilliantBadges = screen.getAllByText("Brilliant");
+
+    expect(brilliantBadges).toHaveLength(1);
+  });
+
+  it("does not show notable metadata as a selected move highlight", () => {
+    render(
+      <PositionInfo
+        currentMove={move()}
+        rootFen={ROOT_FEN}
+        selectedMarker={{
+          ...markerWithRichExplanation(),
+          primary_class: "good",
+          label_metadata: { beauty_label: "notable" },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("Notable")).toBeNull();
+    expect(screen.getByText("Good")).toBeInTheDocument();
+  });
 });
 
 function move(): GameMove {
@@ -276,7 +328,6 @@ function line(san: string, pvSan: string[]): BestLine {
     san,
     uci: "e8d8",
     eval_cp: 120,
-    expectation: 0.58,
     pv_san: pvSan,
     pv_uci: ["e8d8", "c4f7", "d8c7"],
   };

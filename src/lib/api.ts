@@ -26,6 +26,16 @@ export async function getCachedChessComLiveGameAnalysis(
   );
 }
 
+export async function getCachedLichessGameAnalysis(
+  externalGameId: string,
+  signal?: AbortSignal,
+): Promise<GameAnalysisImportResponse> {
+  return getJson<GameAnalysisImportResponse>(
+    `/api/game-analysis/import/lichess/${encodeURIComponent(externalGameId)}`,
+    signal,
+  );
+}
+
 export async function pollGameAnalysis(
   statusUrl: string,
   signal?: AbortSignal,

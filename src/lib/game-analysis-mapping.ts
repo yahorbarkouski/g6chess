@@ -12,7 +12,6 @@ import type {
 import type {
   ExplanationLineCard as ApiExplanationLineCard,
   ExplanationSegment as ApiExplanationSegment,
-  MoveQualityLabel as ApiMoveQualityLabel,
   CandidateMove,
   ColorName,
   ContextResult,
@@ -190,7 +189,7 @@ function mapMoveMarker(
     best_move_uci: topLine.move_uci,
     natural_move_san: naturalMove?.san ?? null,
     natural_move_uci: naturalMove?.uci ?? null,
-    primary_class: openingBook?.is_book_move ? "book" : primaryClassFromApi(move.quality),
+    primary_class: openingBook?.is_book_move ? "book" : primaryClassFromApi(move),
     tags,
     label_metadata: {
       state: move.state,
@@ -309,12 +308,12 @@ function mapExplanationLineCards(
 
 function mapBestLine(line: EngineLine, playerColor: ColorName): BestLine {
   const evalCp = scoreToWhitePovCp(line.score, playerColor) ?? 0;
-  const expectation = expectationFromWdl(line.wdl);
+  const winProbability = winProbabilityFromWdl(line.wdl, playerColor, evalCp);
   return {
     san: line.move_san,
     uci: line.move_uci,
     eval_cp: evalCp,
-    ...(expectation === null ? {} : { expectation }),
+    ...(winProbability === null ? {} : { win_probability: winProbability }),
     pv_san: line.pv_san,
     pv_uci: line.pv_uci,
   };
@@ -332,7 +331,11 @@ function scoreToPlayerPovCp(score: Score): number | null {
   return sign * Math.max(90_000, MATE_SCORE_BASE - distance);
 }
 
-function expectationFromWdl(wdl: Wdl | null): number | null {
+function winProbabilityFromWdl(
+  wdl: Wdl | null,
+  playerColor: ColorName,
+  evalCpWhitePov: number,
+): number | null {
   if (wdl === null) {
     return null;
   }
@@ -340,17 +343,49 @@ function expectationFromWdl(wdl: Wdl | null): number | null {
   if (total <= 0) {
     return null;
   }
-  return (wdl.win + wdl.draw * 0.5) / total;
+  const whiteWin = playerColor === "white" ? wdl.win : wdl.loss;
+  const blackWin = playerColor === "black" ? wdl.win : wdl.loss;
+  return (evalCpWhitePov >= 0 ? whiteWin : blackWin) / total;
 }
 
-function primaryClassFromApi(label: ApiMoveQualityLabel): MovePrimaryClass {
-  if (label === "forced") {
+function primaryClassFromApi(move: GameMoveAnalysis): MovePrimaryClass {
+  if (move.quality === "forced") {
     return "good";
   }
-  if (label === "missed_win") {
+  if (move.quality === "missed_win") {
     return "miss";
   }
-  return label;
+  if (isPositiveQuality(move.quality) && hasExceptionalPlayedMoveEvidence(move)) {
+    if (move.beauty.label === "brilliant") {
+      return "brilliant";
+    }
+    return "great";
+  }
+  return move.quality;
+}
+
+function isPositiveQuality(label: GameMoveAnalysis["quality"]): boolean {
+  return label === "best" || label === "excellent" || label === "good";
+}
+
+function hasExceptionalPlayedMoveEvidence(move: GameMoveAnalysis): boolean {
+  return hasPlayedMoveTacticClaim(move) || isPlayedMateForPlayer(move);
+}
+
+function hasPlayedMoveTacticClaim(move: GameMoveAnalysis): boolean {
+  const playedSan = move.context?.evidence.played.san || move.san;
+  return (move.context?.evidence.concept_claims ?? []).some(
+    (claim) =>
+      claim.kind === "tactic" &&
+      claim.subject === "played_move" &&
+      claim.source === "deterministic_detector" &&
+      (claim.move_san === null || claim.move_san === playedSan),
+  );
+}
+
+function isPlayedMateForPlayer(move: GameMoveAnalysis): boolean {
+  const score = move.context?.evidence.engine.played_line.score;
+  return score?.kind === "mate" && score.mate_for === "player";
 }
 
 function humanCommonCandidate(candidates: CandidateMove[]): CandidateMove | null {

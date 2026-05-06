@@ -36,7 +36,55 @@ export type PracticalityCategory =
 
 export type SignificanceLabel = "low" | "moderate" | "high" | "critical";
 
-export type GameImportSource = "chess_com_live_url" | "pgn";
+export type ConceptClaimKind =
+  | "move_quality"
+  | "forced_move"
+  | "forced_mate"
+  | "forcing_move"
+  | "critical_best_move"
+  | "capture"
+  | "recapture"
+  | "castling"
+  | "en_passant"
+  | "promotion"
+  | "practical_alternative"
+  | "better_alternative"
+  | "opponent_resource"
+  | "hidden_resource"
+  | "hard_to_find"
+  | "teachable_skill_gap"
+  | "material"
+  | "tactic"
+  | "king_safety"
+  | "center"
+  | "development"
+  | "initiative"
+  | "space"
+  | "pawn_structure"
+  | "passed_pawn"
+  | "open_file"
+  | "piece_activity"
+  | "weak_square";
+
+export type ConceptClaimSubject =
+  | "played_move"
+  | "key_move"
+  | "featured_move"
+  | "engine_best_move"
+  | "practical_alternative"
+  | "opponent_reply"
+  | "position";
+
+export type ConceptClaimSource =
+  | "quality_classification"
+  | "legal_move_count"
+  | "played_move_fact"
+  | "candidate_policy"
+  | "engine_line"
+  | "human_likelihood"
+  | "deterministic_detector";
+
+export type GameImportSource = "chess_com_live_url" | "lichess_game_url" | "pgn";
 
 export type GameAnalysisStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -59,6 +107,7 @@ export interface EvidencePacket {
   beauty: MoveSignal;
   candidates: CandidateMove[];
   main_point: MainPoint;
+  concept_claims: ConceptClaim[];
   allowed_claims: string[];
 }
 
@@ -169,7 +218,10 @@ export interface CandidateMove {
   pv_short_san: string[];
   player_level_probability: number | null;
   plus_400_probability: number | null;
+  player_level_bucket?: string | null;
+  plus_400_level_bucket?: string | null;
   time_adjusted_findability: FindabilityLabel;
+  forcing_tier?: string | null;
   findability_source: string;
   findability_confidence: string;
   teachable_skill_gap: boolean;
@@ -180,6 +232,14 @@ export interface CandidateMove {
 export interface MainPoint {
   concept: string;
   claim: string;
+}
+
+export interface ConceptClaim {
+  kind: ConceptClaimKind;
+  subject: ConceptClaimSubject;
+  claim: string;
+  source: ConceptClaimSource;
+  move_san: string | null;
 }
 
 export interface LLMContext {
@@ -193,6 +253,7 @@ export interface LLMContext {
   main_point: string;
   best_or_key_move: KeyMoveContext | null;
   human_note: string | null;
+  concept_claims: ConceptClaim[];
   allowed_claims: string[];
 }
 

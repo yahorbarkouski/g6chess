@@ -250,9 +250,8 @@ function materialValue(pieces: CapturedPieces): number {
 export function parseMateFromCp(cp: number): number | null {
   const abs = Math.abs(cp);
   if (abs >= 90000) {
-    const plies = 100000 - abs;
-    const moves = plies <= 0 ? 0 : Math.max(1, Math.floor((plies + 1) / 2));
-    return cp > 0 ? moves : -moves;
+    const distance = Math.max(0, 100000 - abs);
+    return cp > 0 ? distance : -distance;
   }
   if (abs >= 20000) {
     const n = Math.round((30000 - abs) / 100);

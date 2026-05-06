@@ -46,7 +46,7 @@ export interface BestLine {
   san: string;
   uci: string;
   eval_cp: number;
-  expectation?: number;
+  win_probability?: number;
   pv_san: string[];
   pv_uci: string[];
 }

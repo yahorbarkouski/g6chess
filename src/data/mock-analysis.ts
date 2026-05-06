@@ -120,7 +120,6 @@ function buildTimeline(moves: GameMove[]): AnalysisTimelinePoint[] {
         san: move.san,
         uci: move.uci,
         eval_cp: TIMELINE_EVALS[index] ?? 0,
-        expectation: expectationFromEval(TIMELINE_EVALS[index] ?? 0),
         pv_san: moves.slice(index, index + 4).map((lineMove) => lineMove.san),
         pv_uci: moves.slice(index, index + 4).map((lineMove) => lineMove.uci),
       },
@@ -291,16 +290,7 @@ function line(san: string, uci: string, eval_cp: number, pv_san: string[]): Best
     san,
     uci,
     eval_cp,
-    expectation: expectationFromEval(eval_cp),
     pv_san,
     pv_uci: [uci],
   };
-}
-
-function expectationFromEval(evalCp: number): number {
-  if (evalCp >= 90_000) {
-    return 1;
-  }
-  const pawns = evalCp / 100;
-  return 1 / (1 + Math.exp(-pawns / 2.6));
 }

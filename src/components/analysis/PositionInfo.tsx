@@ -1,3 +1,4 @@
+import { BorderBeam } from "border-beam";
 import { useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, X } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
@@ -52,6 +53,10 @@ export function PositionInfo({
     }
     return renderExplanationContent(selectedMarker, rootFen, boardOrientation, onMoveClick);
   }, [boardOrientation, onMoveClick, rootFen, selectedMarker]);
+  const selectedMoveBadge = selectedMarker
+    ? selectedMoveBadgeContent(selectedMarker, openingName)
+    : null;
+  const selectedMoveBeam = selectedMarker ? moveBeamVariant(selectedMarker) : null;
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -62,22 +67,8 @@ export function PositionInfo({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {selectedMarker?.tags.includes("forced") ? (
-            <Badge className="min-h-0 rounded border-none bg-stone-200 px-2 py-1 text-stone-600 dark:bg-stone-700 dark:text-stone-300">
-              <ArrowRight className="mr-1 inline size-3" />
-              Forced
-            </Badge>
-          ) : selectedMarker?.primary_class ? (
-            <Badge
-              className={cn(
-                "min-h-0 rounded border px-2 py-1",
-                primaryClassClass(selectedMarker.primary_class),
-              )}
-            >
-              {selectedMarker.primary_class === "book" && openingName
-                ? openingNameBase(openingName)
-                : primaryClassLabel(selectedMarker.primary_class)}
-            </Badge>
+          {selectedMoveBadge ? (
+            <SelectedMoveBadge badge={selectedMoveBadge} beamVariant={selectedMoveBeam} />
           ) : null}
         </div>
       </div>
@@ -112,6 +103,80 @@ export function PositionInfo({
       {SHOW_ENGINE_DETAIL_PANEL ? <AnalysisMarkerStack marker={selectedMarker} /> : null}
     </div>
   );
+}
+
+interface SelectedMoveBadgeContent {
+  label: string;
+  className: string;
+  icon?: ReactNode;
+}
+
+function SelectedMoveBadge({
+  badge,
+  beamVariant,
+}: {
+  badge: SelectedMoveBadgeContent;
+  beamVariant: "beautiful" | "brilliant" | null;
+}) {
+  const content = (
+    <Badge className={cn("min-h-0 rounded border px-2 py-1", badge.className)}>
+      {badge.icon}
+      {badge.label}
+    </Badge>
+  );
+
+  if (beamVariant === null) {
+    return content;
+  }
+
+  return (
+    <BorderBeam
+      borderRadius={4}
+      brightness={1.05}
+      className="inline-flex rounded [&_[data-beam-bloom]]:hidden"
+      colorVariant={beamVariant === "brilliant" ? "colorful" : "ocean"}
+      duration={1.96}
+      size="sm"
+      strength={0.48}
+      theme="auto"
+    >
+      {content}
+    </BorderBeam>
+  );
+}
+
+function selectedMoveBadgeContent(
+  marker: AnalysisMoveMarker,
+  openingName: string | null,
+): SelectedMoveBadgeContent | null {
+  if (marker.tags.includes("forced")) {
+    return {
+      label: "Forced",
+      className: "border-none bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300",
+      icon: <ArrowRight className="mr-1 inline size-3" />,
+    };
+  }
+
+  if (marker.primary_class === "book" && openingName) {
+    return {
+      label: openingNameBase(openingName),
+      className: primaryClassClass(marker.primary_class),
+    };
+  }
+
+  return {
+    label: primaryClassLabel(marker.primary_class),
+    className: primaryClassClass(marker.primary_class),
+  };
+}
+
+function moveBeamVariant(marker: AnalysisMoveMarker): "beautiful" | "brilliant" | null {
+  const beautyLabel = normalizedMeta(marker, "beauty_label");
+  if (beautyLabel === "brilliant" || beautyLabel === "beautiful") {
+    return beautyLabel;
+  }
+
+  return null;
 }
 
 function AnalysisMarkerStack({ marker }: { marker: AnalysisMoveMarker | null }) {
@@ -270,6 +335,10 @@ function labelWithScore(label: string | null, score: number | null): string | nu
 function stringMeta(marker: AnalysisMoveMarker, key: string): string | null {
   const value = marker.label_metadata[key];
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function normalizedMeta(marker: AnalysisMoveMarker, key: string): string | null {
+  return stringMeta(marker, key)?.trim().toLowerCase() ?? null;
 }
 
 function numberMeta(marker: AnalysisMoveMarker, key: string): number | null {

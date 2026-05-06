@@ -2,10 +2,11 @@
 
 Public frontend for g6, an evidence-grounded chess analysis product.
 
-The app lets someone paste a Chess.com game link, open a
-`g6chess.com/game/live/...` route, or paste PGN. It imports the game through the
-analysis API, polls for completed move analysis, and renders a board-first review
-with move labels, engine/book continuations, and coach-style explanations.
+The app lets someone paste a Chess.com or Lichess game link, open a
+`g6chess.com/game/live/...` or `g6chess.com/lichess/...` route, or paste PGN. It
+imports the game through the analysis API, polls for completed move analysis,
+and renders a board-first review with move labels, engine/book continuations,
+and coach-style explanations.
 
 This repository is intentionally just the public client. The private analysis
 engine owns the harder work: position reconstruction, Stockfish/Maia evidence,
@@ -34,7 +35,7 @@ board, and explore alternatives without losing the main game.
 ## What Is In This Repo
 
 - Vite + React + TypeScript frontend.
-- Chess.com URL and PGN import UI.
+- Chess.com URL, Lichess URL, and PGN import UI.
 - Route parsing for shareable game links and selected ply state.
 - Polling client for the game-analysis API.
 - Board-first analysis workspace with move list, eval bar, player bars,
@@ -95,10 +96,18 @@ Expected API shape today:
 
 - `POST /api/game-analysis/import`
 - `GET /api/game-analysis/import/chess-com/live/{externalGameId}`
+- `GET /api/game-analysis/import/lichess/{externalGameId}`
 - polling through the returned `status_url`
 - Import responses and game-analysis snapshots include a `game` skeleton with
   PGN-derived SAN/UCI/FEN move data. The client can render the board from that
   skeleton while deeper context and explanations are still pending.
+- Engine `top_lines` describe pre-move alternatives from `fen_before`. When the
+  played move matches the best line, the UI pairs that with the next ply's best
+  line as a `Best continuation` row and shows the remaining current-position
+  alternatives below. The visible row count defaults to two and can be changed
+  in board settings. Engine WDL and Maia move-choice probabilities are kept for
+  analysis data but are not shown as human win-probability percentages in the
+  engine-line list.
 
 ## Checks
 

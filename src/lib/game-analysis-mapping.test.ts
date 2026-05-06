@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   CandidateMove,
+  ConceptClaim,
   ContextResult,
   EngineLine,
   GameAnalysisSnapshot,
@@ -172,6 +173,85 @@ describe("mapGameAnalysisSnapshot", () => {
       verifier_version: "verifier.v1",
     });
   });
+
+  it("keeps beauty as metadata while promoting verified exceptional ideas", () => {
+    const snapshot: GameAnalysisSnapshot = {
+      snapshot_version: "game_analysis_snapshot.v1",
+      analysis_id: "analysis-strong-ideas",
+      status: "succeeded",
+      total_plies: 3,
+      context_completed: 3,
+      explanation_required: 3,
+      explanation_completed: 3,
+      explanation_failed: 0,
+      explain_significance: ["critical"],
+      created_at: "2026-05-04T10:00:00Z",
+      updated_at: "2026-05-04T10:00:01Z",
+      started_at: "2026-05-04T10:00:00Z",
+      completed_at: "2026-05-04T10:00:01Z",
+      error: null,
+      moves: [
+        moveAnalysis({
+          ply: 1,
+          moveNumber: 1,
+          playerColor: "white",
+          san: "h4",
+          uci: "h2h4",
+          fenBefore: "before h4",
+          fenAfter: "after h4",
+          quality: "best",
+          beauty: { label: "beautiful", score: 0.55 },
+          topScore: cp(80),
+          playedScore: cp(80),
+          explanation: "h4 was a strong idea.",
+        }),
+        moveAnalysis({
+          ply: 2,
+          moveNumber: 1,
+          playerColor: "black",
+          san: "Bxf4",
+          uci: "c7f4",
+          fenBefore: "before Bxf4",
+          fenAfter: "after Bxf4",
+          quality: "excellent",
+          topScore: cp(60),
+          playedScore: cp(55),
+          explanation: "Bxf4 forked two targets.",
+          conceptClaims: [
+            {
+              kind: "tactic",
+              subject: "played_move",
+              claim: "Bxf4 forked the queen and the knight",
+              source: "deterministic_detector",
+              move_san: "Bxf4",
+            },
+          ],
+        }),
+        moveAnalysis({
+          ply: 3,
+          moveNumber: 2,
+          playerColor: "white",
+          san: "Be7#",
+          uci: "d6e7",
+          fenBefore: "before Be7#",
+          fenAfter: "after Be7#",
+          quality: "best",
+          beauty: { label: "brilliant", score: 0.82 },
+          topScore: { kind: "mate", value: null, mate_in: 1, mate_for: "player" },
+          playedScore: { kind: "mate", value: null, mate_in: 1, mate_for: "player" },
+          explanation: "Be7# ended the game.",
+        }),
+      ],
+    };
+
+    const mapped = mapGameAnalysisSnapshot(snapshot);
+
+    expect(mapped.move_markers.map((marker) => marker.primary_class)).toEqual([
+      "best",
+      "great",
+      "brilliant",
+    ]);
+  });
 });
 
 describe("scoreToWhitePovCp", () => {
@@ -202,6 +282,8 @@ function moveAnalysis({
   explanationSegments,
   explanationLineCards,
   openingBook,
+  beauty,
+  conceptClaims,
 }: {
   ply: number;
   moveNumber: number;
@@ -219,7 +301,10 @@ function moveAnalysis({
   explanationSegments?: NonNullable<GameMoveAnalysis["explanation_segments"]>;
   explanationLineCards?: NonNullable<GameMoveAnalysis["explanation_line_cards"]>;
   openingBook?: NonNullable<GameMoveAnalysis["opening_book"]>;
+  beauty?: GameMoveAnalysis["beauty"];
+  conceptClaims?: ConceptClaim[];
 }): GameMoveAnalysis {
+  const moveBeauty = beauty ?? { label: "ordinary", score: 0 };
   return {
     ply,
     san,
@@ -229,7 +314,7 @@ function moveAnalysis({
     requires_explanation: true,
     quality,
     significance: { label: "critical", score: 1 },
-    beauty: { label: "ordinary", score: 0 },
+    beauty: moveBeauty,
     context_latency_seconds: 0.01,
     clock_before_seconds:
       remainingClockSeconds === undefined || thinkTimeSeconds === undefined
@@ -256,6 +341,8 @@ function moveAnalysis({
       quality,
       topScore,
       playedScore,
+      beauty: moveBeauty,
+      conceptClaims: conceptClaims ?? [],
     }),
   };
 }
@@ -271,6 +358,8 @@ function context({
   quality,
   topScore,
   playedScore,
+  beauty,
+  conceptClaims,
 }: {
   ply: number;
   moveNumber: number;
@@ -282,6 +371,8 @@ function context({
   quality: MoveQualityLabel;
   topScore: Score;
   playedScore: Score;
+  beauty: GameMoveAnalysis["beauty"];
+  conceptClaims: ConceptClaim[];
 }): ContextResult {
   return {
     evidence: {
@@ -332,7 +423,7 @@ function context({
         severity_text: quality,
       },
       significance: { label: "critical", score: 1 },
-      beauty: { label: "ordinary", score: 0 },
+      beauty,
       candidates: [
         candidate(san, uci, "played_move"),
         candidate("Nf3", "g1f3", "human_common_move"),
@@ -341,19 +432,21 @@ function context({
         concept: "central control",
         claim: `${san} changes the center.`,
       },
+      concept_claims: conceptClaims,
       allowed_claims: ["center"],
     },
     llm_context: {
       played: san,
       quality,
       significance: { label: "critical", score: 1 },
-      beauty: { label: "ordinary", score: 0 },
+      beauty,
       player_level: "1500",
       time_situation: "normal",
       severity: quality,
       main_point: `${san} changes the center.`,
       best_or_key_move: null,
       human_note: null,
+      concept_claims: conceptClaims,
       allowed_claims: ["center"],
     },
     verification: {
