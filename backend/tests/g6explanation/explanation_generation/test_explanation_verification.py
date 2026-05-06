@@ -964,6 +964,32 @@ def test_verifier_does_not_treat_queen_sacrifice_as_attack_target() -> None:
     assert verification.passed
 
 
+def test_verifier_treats_square_lists_as_square_references() -> None:
+    context = mistake_context_with_practical_alternative()
+    claim = ConceptClaim(
+        kind="development",
+        subject="key_move",
+        claim="Nf3 opened a bishop route through d4 toward c5 and b6",
+        source="deterministic_detector",
+        move_san="Nf3",
+    )
+    context = context.model_copy(
+        update={
+            "evidence": context.evidence.model_copy(
+                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+            ),
+            "llm_context": context.llm_context.model_copy(
+                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+            ),
+        }
+    )
+    output = rich_output("g4 was a mistake. Nf3 opened a bishop route through d4 toward c5 and b6.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_accepts_generic_capture_wording_from_verified_line_evidence() -> None:
     context = _rook_fork_context()
     output = rich_output(

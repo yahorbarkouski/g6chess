@@ -432,9 +432,13 @@ def _is_square_reference(explanation: str, start: int, end: int, token: str) -> 
         return False
     prefix = explanation[max(0, start - 16) : start].lower()
     suffix = explanation[end : min(len(explanation), end + 14)].lower()
-    return bool(re.search(r"\b(?:on|from|at|to|through|toward|towards|via)\s+$", prefix)) or bool(
-        re.search(r"^\s+(?:pawn|piece|square)\b", suffix)
-    )
+    return bool(
+        re.search(r"\b(?:on|from|at|to|through|toward|towards|via)\s+$", prefix)
+        or re.search(
+            r"\b(?:on|from|at|to|through|toward|towards|via)\s+[a-h][1-8]\s+and\s+$",
+            prefix,
+        )
+    ) or bool(re.search(r"^\s+(?:pawn|piece|square)\b", suffix))
 
 
 def _verify_move_mentions(
