@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { TextShimmer } from "@/components/loading-ui/text-shimmer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
+import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import type {
   AnalysisMoveMarker,
@@ -537,6 +538,7 @@ function LineCardAnchor({
   const [hoverCardOpen, setHoverCardOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const canPreview = onMoveClick !== undefined && card.moves.length > 0;
   const clearCloseTimer = () => {
     if (closeTimerRef.current === null) {
@@ -569,12 +571,18 @@ function LineCardAnchor({
   };
   const handleClick = () => {
     if (isCoarsePointer) {
+      triggerHaptic("medium");
       setDialogOpen(true);
       return;
     }
     if (canPreview) {
       onMoveClick(rootFen, card.moves, card.moves.length);
     }
+  };
+
+  const closeDialog = () => {
+    triggerHaptic("nudge");
+    setDialogOpen(false);
   };
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
     if (event.key !== "Enter" && event.key !== " ") {
@@ -594,6 +602,12 @@ function LineCardAnchor({
     },
     [],
   );
+
+  useEffect(() => {
+    if (dialogOpen) {
+      dialogRef.current?.focus();
+    }
+  }, [dialogOpen]);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the role=button text span is the actual control; this wrapper keeps its hover preview interactive.
@@ -631,15 +645,28 @@ function LineCardAnchor({
         <div
           aria-label={card.title}
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/35 p-3 backdrop-blur-[2px] sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/35 p-3 backdrop-blur-[2px] outline-none sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeDialog();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              closeDialog();
+            }
+          }}
+          ref={dialogRef}
           role="dialog"
+          tabIndex={-1}
         >
           <div className="relative w-full max-w-sm rounded-lg border border-stone-200 bg-white p-3 shadow-[0_24px_70px_rgba(28,25,23,0.28)] dark:border-stone-700 dark:bg-stone-900">
             <div className="absolute top-2 right-2 z-10">
               <button
                 aria-label="Close line preview"
                 className="flex size-7 items-center justify-center rounded text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-200"
-                onClick={() => setDialogOpen(false)}
+                onClick={closeDialog}
                 type="button"
               >
                 <X className="size-4" />
@@ -703,6 +730,7 @@ function LineCardPreview({
 }) {
   const prefersReducedMotion = useReducedMotion();
   const [step, setStep] = useState(prefersReducedMotion ? card.moves.length : 0);
+  const [userPaused, setUserPaused] = useState(false);
   const displayStep = prefersReducedMotion ? card.moves.length : step;
   const currentFen = fenAfterMoves(rootFen, card.moves, displayStep) ?? rootFen;
   const highlightedMove = lineStepSquares(rootFen, card.moves, displayStep);
@@ -710,7 +738,7 @@ function LineCardPreview({
   const orientation = boardOrientation ?? firstMoveSide;
 
   useEffect(() => {
-    if (!active) {
+    if (!active || userPaused) {
       return;
     }
     if (prefersReducedMotion) {
@@ -722,7 +750,7 @@ function LineCardPreview({
       setStep((current) => (current + 1) % (card.moves.length + 1));
     }, 850);
     return () => window.clearInterval(timer);
-  }, [active, card.moves.length, prefersReducedMotion]);
+  }, [active, card.moves.length, prefersReducedMotion, userPaused]);
 
   return (
     <div className="space-y-2.5" data-testid="line-card-preview">
@@ -766,7 +794,9 @@ function LineCardPreview({
                 className={className}
                 key={key}
                 onClick={() => {
+                  setUserPaused(true);
                   setStep(moveStep);
+                  triggerHaptic("selection");
                   onMoveClick(rootFen, card.moves, moveStep);
                 }}
                 type="button"

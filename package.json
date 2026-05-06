@@ -35,7 +35,8 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",
     "torph": "^0.0.9",
-    "ultrachess": "^1.4.0"
+    "ultrachess": "^1.4.0",
+    "web-haptics": "^0.0.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",

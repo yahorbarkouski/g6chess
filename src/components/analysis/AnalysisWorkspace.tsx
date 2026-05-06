@@ -1,5 +1,12 @@
-import { Activity, ArrowLeft, ArrowUpDown, LayoutGrid, ListOrdered, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  CornerUpLeft,
+  FileText,
+  ListOrdered,
+} from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DiscoveryState,
   type PreviewState,
@@ -33,7 +40,6 @@ import {
 import {
   computeCapturedMaterial,
   ENGINE_ARROW_COLORS,
-  formatEval,
   MAIA_ARROW_COLOR,
   sideToMoveFromFen,
   uciToSquares,
@@ -44,6 +50,7 @@ import {
   mapGameAnalysisImportResponse,
   mapGameAnalysisSnapshot,
 } from "../../lib/game-analysis-mapping";
+import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import type {
   AnalysisMoveMarker,
@@ -69,6 +76,7 @@ import { AnalysisSettingsPopover } from "./AnalysisSettingsPopover";
 import { BoardSidebar } from "./BoardSidebar";
 import { DiscoveryLineBar, DiscoveryLineSidebar } from "./DiscoveryLine";
 import { BookLinesView, type EngineContinuationLine, EngineLinesView } from "./EngineLinesView";
+import { HorizontalEvalBar } from "./EvalBar";
 import { type MarkerDisplayMode, MoveList } from "./MoveList";
 import { PlayerBar } from "./PlayerBar";
 import { PositionInfo } from "./PositionInfo";
@@ -96,17 +104,7 @@ const WHEEL_MOVE_NAVIGATION_DELTA_PER_PLY = 48;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
 const ANALYSIS_LOADING_EMPTY_MESSAGE = "Crunching the analysis. The board is yours to explore";
-type MobileTab = "board" | "moves" | "analysis";
-
-const MOBILE_TAB_ITEMS: Array<{
-  id: MobileTab;
-  label: string;
-  icon: typeof LayoutGrid;
-}> = [
-  { id: "board", label: "Board", icon: LayoutGrid },
-  { id: "moves", label: "Moves", icon: ListOrdered },
-  { id: "analysis", label: "Analysis", icon: Sparkles },
-];
+type MobileTab = "moves" | "analysis";
 
 interface StoredGameAnalysisJob {
   analysis_id: string;
@@ -722,7 +720,7 @@ function AnalysisGameWorkspace({
   const [engineLineCount, setEngineLineCount] = useState(2);
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
-  const [mobileTab, setMobileTab] = useState<MobileTab>("board");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("analysis");
   const isDesktopLayout = useMediaQuery(DESKTOP_MEDIA_QUERY);
 
   const indexes = useMemo(() => buildAnalysisIndexes(analysis), [analysis]);
@@ -860,7 +858,6 @@ function AnalysisGameWorkspace({
     board.clearPreview();
     board.clearDiscovery();
     setCurrentPly(clampPly(initialPly ?? 1, analysis.moves.length));
-    setMobileTab("board");
   }, [analysis.moves.length, board.clearDiscovery, board.clearPreview, initialPly]);
 
   useEffect(() => {
@@ -879,7 +876,7 @@ function AnalysisGameWorkspace({
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(ply);
-      setMobileTab("board");
+      triggerHaptic("selection");
     },
     [board.clearDiscovery, board.clearPreview],
   );
@@ -887,10 +884,12 @@ function AnalysisGameWorkspace({
   const stepPly = useCallback(
     (delta: number) => {
       if (board.stepInDiscovery(delta)) {
+        triggerHaptic("selection");
         return;
       }
       board.clearPreview();
       setCurrentPly((ply) => Math.max(1, Math.min(analysis.moves.length, ply + delta)));
+      triggerHaptic("selection");
     },
     [analysis.moves.length, board.clearPreview, board.stepInDiscovery],
   );
@@ -900,6 +899,7 @@ function AnalysisGameWorkspace({
       board.clearPreview();
       board.clearDiscovery();
       setCurrentPly(direction === "start" ? 1 : analysis.moves.length);
+      triggerHaptic("medium");
     },
     [analysis.moves.length, board.clearDiscovery, board.clearPreview],
   );
@@ -907,9 +907,11 @@ function AnalysisGameWorkspace({
   const exitPreviewOrDiscovery = useCallback(() => {
     if (board.discovery) {
       board.exitDiscovery();
+      triggerHaptic("nudge");
       return;
     }
     board.clearPreview();
+    triggerHaptic("nudge");
   }, [board.clearPreview, board.discovery, board.exitDiscovery]);
 
   const handleBoardWheel = useCallback(
@@ -948,6 +950,7 @@ function AnalysisGameWorkspace({
 
   const handleFlipBoard = useCallback(() => {
     setFlippedBoard((value) => !value);
+    triggerHaptic("medium");
   }, []);
 
   return (
@@ -964,7 +967,7 @@ function AnalysisGameWorkspace({
         {moveLoadingIndicator.show ? (
           <WorkspaceMoveLoadingIndicator progress={moveLoadingIndicator.progress} />
         ) : null}
-        <main className="mx-auto max-w-[1320px] px-3 pt-12 pb-7 sm:px-6 min-[1100px]:pt-5 min-[1100px]:pb-7">
+        <main className="mx-auto max-w-[1320px] px-3 pt-3 pb-7 sm:px-6 min-[1100px]:pt-5 min-[1100px]:pb-7">
           {isDesktopLayout ? (
             <DesktopLayout
               analysis={analysis}
@@ -1061,7 +1064,7 @@ function AnalysisGameWorkspace({
             />
           )}
         </main>
-        <WorkspaceFooter />
+        <WorkspaceFooter hideOnMobile />
       </div>
     </>
   );
@@ -1320,101 +1323,76 @@ function MobileLayout({
   handlePieceDrop,
   onSelectPly,
   onStepPly,
-  onGoToBoundary,
   onOpenImport,
   onExitPreview,
   mobileTab,
   onSetMobileTab,
 }: MobileLayoutProps) {
   return (
-    <div className="relative mx-auto max-w-[760px]">
-      <BackToImportButton className="-top-11 left-0 absolute" onClick={onOpenImport} />
-      <MobileViewSwitcher activeTab={mobileTab} onChange={onSetMobileTab} />
-      {mobileTab === "board" ? (
-        <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-16rem)))] space-y-2.5">
-          <MobileBoardControls
+    <div className="relative mx-auto max-w-[760px] space-y-2.5 pb-24">
+      <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-22rem)))] space-y-2.5">
+        <MobileBoardControls
+          analysisFen={analysisFen}
+          boardOrientation={boardOrientation}
+          fallbackEvalCp={fallbackEvalCp}
+          onOpenImport={onOpenImport}
+          preferBrowserEval={Boolean(discovery || preview)}
+        />
+        <div className="space-y-2.5 border-stone-200  dark:border-stone-800">
+          <PlayerBar
+            captured={playerMeta[topSide].captured}
+            clockSeconds={playerMeta[topSide].clock}
+            materialAdvantage={materialAdvantage}
+            name={playerMeta[topSide].name}
+            rating={playerMeta[topSide].rating}
+            side={topSide}
+          />
+          <EngineAwareUltraAnalysisBoard
+            allowDragging
             analysisFen={analysisFen}
             arrowCount={arrowCount}
-            engineLineCount={engineLineCount}
-            fallbackEvalCp={fallbackEvalCp}
-            flippedBoard={flippedBoard}
-            markerDisplayMode={markerDisplayMode}
-            onArrowCountChange={onArrowCountChange}
-            onEngineLineCountChange={onEngineLineCountChange}
-            onFlipBoard={onFlipBoard}
-            onMarkerDisplayModeChange={onMarkerDisplayModeChange}
-            onShowMaiaArrowChange={onShowMaiaArrowChange}
-            preferBrowserEval={Boolean(discovery || preview)}
+            currentMarker={currentMarker}
+            dimmed={dimmed}
+            discoveryActive={Boolean(discovery)}
+            fen={displayFen}
+            highlightedMove={highlightedMove}
+            onWheel={onBoardWheel}
+            onPieceDrop={handlePieceDrop}
+            orientation={boardOrientation}
+            previewActive={Boolean(preview)}
+            serverEngineLines={serverEngineLines}
+            shadowed={false}
             showMaiaArrow={showMaiaArrow}
+            transitionMove={boardTransitionMove}
           />
-          <div className="space-y-2.5 border-stone-200 border-y py-3 dark:border-stone-800">
-            <PlayerBar
-              captured={playerMeta[topSide].captured}
-              clockSeconds={playerMeta[topSide].clock}
-              materialAdvantage={materialAdvantage}
-              name={playerMeta[topSide].name}
-              rating={playerMeta[topSide].rating}
-              side={topSide}
-            />
-            <EngineAwareUltraAnalysisBoard
-              allowDragging
-              analysisFen={analysisFen}
-              arrowCount={arrowCount}
-              currentMarker={currentMarker}
-              dimmed={dimmed}
-              discoveryActive={Boolean(discovery)}
-              fen={displayFen}
-              highlightedMove={highlightedMove}
-              onWheel={onBoardWheel}
-              onPieceDrop={handlePieceDrop}
-              orientation={boardOrientation}
-              previewActive={Boolean(preview)}
-              serverEngineLines={serverEngineLines}
-              shadowed={false}
-              showMaiaArrow={showMaiaArrow}
-              transitionMove={boardTransitionMove}
-            />
-            <PlayerBar
-              captured={playerMeta[bottomSide].captured}
-              clockSeconds={playerMeta[bottomSide].clock}
-              materialAdvantage={materialAdvantage}
-              name={playerMeta[bottomSide].name}
-              rating={playerMeta[bottomSide].rating}
-              side={bottomSide}
-            />
-          </div>
-          {discovery ? (
-            <DiscoveryLineBar
-              discovery={discovery}
-              onExit={onExitPreview}
-              onStepClick={handleDiscoveryStepClick}
-            />
-          ) : null}
-          <AnalysisNavigationBar
-            canGoBack={currentPly > 1 || Boolean(discovery)}
-            canGoForward={currentPly < analysis.moves.length || Boolean(discovery)}
-            exitLabel={discovery ? "Exit analysis" : "Exit preview"}
-            onExitPreview={onExitPreview}
-            onGoToEnd={() => onGoToBoundary("end")}
-            onGoToStart={() => onGoToBoundary("start")}
-            onStepBack={() => onStepPly(-1)}
-            onStepForward={() => onStepPly(1)}
-            showExitPreview={Boolean(preview || discovery)}
+          <PlayerBar
+            captured={playerMeta[bottomSide].captured}
+            clockSeconds={playerMeta[bottomSide].clock}
+            materialAdvantage={materialAdvantage}
+            name={playerMeta[bottomSide].name}
+            rating={playerMeta[bottomSide].rating}
+            side={bottomSide}
           />
         </div>
-      ) : null}
+        {discovery ? (
+          <DiscoveryLineBar
+            discovery={discovery}
+            onExit={onExitPreview}
+            onStepClick={handleDiscoveryStepClick}
+          />
+        ) : null}
+      </div>
       {mobileTab === "moves" ? (
         <MoveList
-          className="h-[calc(100dvh-8rem)] min-h-[360px]"
+          className="block h-auto"
           currentPly={currentPly}
           markerDisplayMode={markerDisplayMode}
           moveMarkers={analysis.move_markers}
           moves={analysis.moves}
           onSelectPly={onSelectPly}
         />
-      ) : null}
-      {mobileTab === "analysis" ? (
-        <div className="grid gap-4">
+      ) : (
+        <div className="min-w-0 md:space-y-4 space-y-2">
           <PositionInfo
             boardOrientation={boardOrientation}
             currentMove={currentMove}
@@ -1451,118 +1429,199 @@ function MobileLayout({
             maxLines={engineLineCount}
           />
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MobileViewSwitcher({
-  activeTab,
-  onChange,
-}: {
-  activeTab: MobileTab;
-  onChange: (tab: MobileTab) => void;
-}) {
-  return (
-    <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-stone-100/80 p-1 shadow-[inset_0_0_0_1px_rgba(68,64,60,0.06)] backdrop-blur-sm dark:bg-stone-900/80 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
-      {MOBILE_TAB_ITEMS.map((tab) => {
-        const Icon = tab.icon;
-        const active = activeTab === tab.id;
-        return (
-          <button
-            aria-pressed={active}
-            className={cn(
-              "flex h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-2 text-sm font-medium transition-[background-color,box-shadow,color,transform] active:scale-[0.96]",
-              active
-                ? "bg-white text-stone-950 shadow-sm shadow-stone-950/5 dark:bg-stone-800 dark:text-stone-100 dark:shadow-black/20"
-                : "text-stone-500 hover:bg-white/50 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/50 dark:hover:text-stone-200",
-            )}
-            key={tab.id}
-            onClick={() => onChange(tab.id)}
-            type="button"
-          >
-            <Icon className="size-4 shrink-0" />
-            <span className="truncate">{tab.label}</span>
-          </button>
-        );
-      })}
+      )}
+      <MobileFloatingLeftControls
+        arrowCount={arrowCount}
+        engineLineCount={engineLineCount}
+        flippedBoard={flippedBoard}
+        markerDisplayMode={markerDisplayMode}
+        mobileTab={mobileTab}
+        onArrowCountChange={onArrowCountChange}
+        onEngineLineCountChange={onEngineLineCountChange}
+        onFlipBoard={onFlipBoard}
+        onMarkerDisplayModeChange={onMarkerDisplayModeChange}
+        onSetMobileTab={onSetMobileTab}
+        onShowMaiaArrowChange={onShowMaiaArrowChange}
+        showMaiaArrow={showMaiaArrow}
+      />
+      <MobileFloatingNav
+        canGoBack={currentPly > 1 || Boolean(discovery)}
+        canGoForward={currentPly < analysis.moves.length || Boolean(discovery)}
+        exitLabel={discovery ? "Exit analysis" : "Exit preview"}
+        onExitPreview={onExitPreview}
+        onStepBack={() => onStepPly(-1)}
+        onStepForward={() => onStepPly(1)}
+        showExitPreview={Boolean(preview || discovery)}
+      />
     </div>
   );
 }
 
 function MobileBoardControls({
   analysisFen,
+  boardOrientation,
   fallbackEvalCp,
   preferBrowserEval,
-  arrowCount,
-  engineLineCount,
-  onArrowCountChange,
-  onEngineLineCountChange,
-  showMaiaArrow,
-  onShowMaiaArrowChange,
-  markerDisplayMode,
-  onMarkerDisplayModeChange,
-  flippedBoard,
-  onFlipBoard,
+  onOpenImport,
 }: {
   analysisFen: string;
+  boardOrientation: BoardSide;
   fallbackEvalCp: number | null;
   preferBrowserEval: boolean;
-  arrowCount: number;
-  engineLineCount: number;
-  onArrowCountChange: (value: number) => void;
-  onEngineLineCountChange: (value: number) => void;
-  showMaiaArrow: boolean;
-  onShowMaiaArrowChange: (value: boolean) => void;
-  markerDisplayMode: MarkerDisplayMode;
-  onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
-  flippedBoard: boolean;
-  onFlipBoard: () => void;
+  onOpenImport: () => void;
 }) {
   const evalCp = useDisplayEvalCp(analysisFen, fallbackEvalCp, preferBrowserEval);
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg bg-stone-100/75 p-1 shadow-[inset_0_0_0_1px_rgba(68,64,60,0.06)] dark:bg-stone-900/75 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
-      <div className="flex items-center gap-1">
-        <AnalysisSettingsPopover
-          arrowCount={arrowCount}
-          buttonClassName="size-10 rounded-md"
-          engineLineCount={engineLineCount}
-          markerDisplayMode={markerDisplayMode}
-          onArrowCountChange={onArrowCountChange}
-          onEngineLineCountChange={onEngineLineCountChange}
-          onMarkerDisplayModeChange={onMarkerDisplayModeChange}
-          onShowMaiaArrowChange={onShowMaiaArrowChange}
-          placement="bottom-start"
-          showMaiaArrow={showMaiaArrow}
-        />
-        <button
-          aria-label="Flip board"
-          className="flex size-10 cursor-pointer items-center justify-center rounded-md text-stone-500 transition-[background-color,color,transform] hover:bg-white/70 hover:text-stone-950 active:scale-[0.96] dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-50"
-          onClick={onFlipBoard}
-          title="Flip board"
-          type="button"
-        >
-          <ArrowUpDown
-            className={cn(
-              "size-4 transition-transform duration-300 ease-out",
-              flippedBoard && "rotate-180",
-            )}
-          />
-        </button>
-      </div>
-      <output
-        aria-label={`Evaluation ${formatEval(evalCp)}`}
-        className="flex h-10 min-w-0 items-center gap-2 rounded-md bg-white px-3 text-stone-700 shadow-sm shadow-stone-950/5 dark:bg-stone-800 dark:text-stone-200 dark:shadow-black/20"
-      >
-        <Activity className="size-4 shrink-0 text-stone-400 dark:text-stone-500" />
-        <span className="min-w-[3.25rem] text-right font-mono text-sm font-semibold tabular-nums">
-          {formatEval(evalCp)}
-        </span>
-      </output>
+    <div className="flex items-center gap-1.5">
+      <BackToImportButton className="size-7 shrink-0 rounded-md" onClick={onOpenImport} />
+      <HorizontalEvalBar className="h-4 flex-1" evalCp={evalCp} orientation={boardOrientation} />
     </div>
   );
 }
+
+function MobileFloatingLeftControls({
+  arrowCount,
+  engineLineCount,
+  flippedBoard,
+  markerDisplayMode,
+  mobileTab,
+  onArrowCountChange,
+  onEngineLineCountChange,
+  onFlipBoard,
+  onMarkerDisplayModeChange,
+  onSetMobileTab,
+  onShowMaiaArrowChange,
+  showMaiaArrow,
+}: {
+  arrowCount: number;
+  engineLineCount: number;
+  flippedBoard: boolean;
+  markerDisplayMode: MarkerDisplayMode;
+  mobileTab: MobileTab;
+  onArrowCountChange: (value: number) => void;
+  onEngineLineCountChange: (value: number) => void;
+  onFlipBoard: () => void;
+  onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  onSetMobileTab: (tab: MobileTab) => void;
+  onShowMaiaArrowChange: (value: boolean) => void;
+  showMaiaArrow: boolean;
+}) {
+  return (
+    <div className="pointer-events-auto fixed bottom-[1px] left-3 z-30 flex items-center gap-2">
+      <AnalysisSettingsPopover
+        arrowCount={arrowCount}
+        buttonClassName={MOBILE_FLOATING_BUTTON_CLASS}
+        engineLineCount={engineLineCount}
+        flippedBoard={flippedBoard}
+        iconClassName="size-5"
+        markerDisplayMode={markerDisplayMode}
+        onArrowCountChange={onArrowCountChange}
+        onEngineLineCountChange={onEngineLineCountChange}
+        onFlipBoard={onFlipBoard}
+        onMarkerDisplayModeChange={onMarkerDisplayModeChange}
+        onShowMaiaArrowChange={onShowMaiaArrowChange}
+        placement="top-start"
+        showMaiaArrow={showMaiaArrow}
+      />
+      <MobileTabToggleButton activeTab={mobileTab} onChange={onSetMobileTab} />
+    </div>
+  );
+}
+
+function MobileTabToggleButton({
+  activeTab,
+  onChange,
+}: {
+  activeTab: MobileTab;
+  onChange: (tab: MobileTab) => void;
+}) {
+  const showingMoves = activeTab === "moves";
+  const Icon = showingMoves ? FileText : ListOrdered;
+  const label = showingMoves ? "Show analysis" : "Show moves";
+  const nextTab: MobileTab = showingMoves ? "analysis" : "moves";
+
+  return (
+    <button
+      aria-label={label}
+      aria-pressed={!showingMoves}
+      className={cn(
+        "flex cursor-pointer items-center justify-center transition-[background-color,color,transform] active:scale-[0.96]",
+        MOBILE_FLOATING_BUTTON_CLASS,
+      )}
+      onClick={() => {
+        triggerHaptic("medium");
+        onChange(nextTab);
+      }}
+      title={label}
+      type="button"
+    >
+      <Icon className="size-5" />
+    </button>
+  );
+}
+
+function MobileFloatingNav({
+  canGoBack,
+  canGoForward,
+  exitLabel,
+  onExitPreview,
+  onStepBack,
+  onStepForward,
+  showExitPreview,
+}: {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  exitLabel: string;
+  onExitPreview: () => void;
+  onStepBack: () => void;
+  onStepForward: () => void;
+  showExitPreview: boolean;
+}) {
+  return (
+    <div className="pointer-events-auto fixed right-3 bottom-3 z-30 flex items-center gap-1 rounded-full border border-stone-200 bg-white/85 p-1 shadow-lg shadow-stone-950/10 backdrop-blur-md dark:border-stone-800 dark:bg-stone-900/85 dark:shadow-black/30">
+      <MobileFloatingNavButton disabled={!canGoBack} label="Previous move" onClick={onStepBack}>
+        <ChevronLeft className="size-5" />
+      </MobileFloatingNavButton>
+      {showExitPreview ? (
+        <MobileFloatingNavButton label={exitLabel} onClick={onExitPreview}>
+          <CornerUpLeft className="size-5" />
+        </MobileFloatingNavButton>
+      ) : null}
+      <MobileFloatingNavButton disabled={!canGoForward} label="Next move" onClick={onStepForward}>
+        <ChevronRight className="size-5" />
+      </MobileFloatingNavButton>
+    </div>
+  );
+}
+
+function MobileFloatingNavButton({
+  children,
+  disabled = false,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={label}
+      className="flex size-10 cursor-pointer items-center justify-center rounded-full text-stone-700 transition-[background-color,color,transform] hover:bg-stone-100 hover:text-stone-950 active:scale-[0.96] disabled:pointer-events-none disabled:text-stone-300 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50 dark:disabled:text-stone-700"
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+const MOBILE_FLOATING_BUTTON_CLASS =
+  "size-12 rounded-full border border-stone-200 bg-white/85 text-stone-700 shadow-lg shadow-stone-950/10 backdrop-blur-md hover:bg-stone-100 hover:text-stone-950 dark:border-stone-800 dark:bg-stone-900/85 dark:text-stone-300 dark:shadow-black/30 dark:hover:bg-stone-800 dark:hover:text-stone-50";
 
 function EngineBoardSidebar({
   analysisFen,

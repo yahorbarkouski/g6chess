@@ -15,7 +15,7 @@ const PIECE_FONT_STYLE = {
   fontFamily: '"Apple Symbols","Noto Sans Symbols 2","Segoe UI Symbol",serif',
 } as const;
 
-const ENGINE_LINE_ROW_HEIGHT_PX = 58;
+const ENGINE_LINE_ROW_HEIGHT_PX = 38;
 const ENGINE_LINE_ROW_GAP_PX = 6;
 const ENGINE_LINES_HEADING_HEIGHT_PX = 28;
 const ENGINE_LINES_SECTION_GAP_PX = 8;
@@ -96,9 +96,12 @@ export function EngineLinesView({
   const placeholderCount = Math.max(0, reservedRowCount - rowItems.length);
 
   return (
-    <section className={cn("space-y-2", className)} style={{ minHeight: reservedSectionHeight }}>
-      <h3 className="font-serif text-lg text-stone-900 dark:text-stone-100">Engine lines</h3>
-      <div className="space-y-1.5">
+    <section
+      className={cn("min-w-0 max-w-full space-y-2", className)}
+      style={{ minHeight: reservedSectionHeight }}
+    >
+      {/* <h3 className="font-serif text-lg text-stone-900 dark:text-stone-100">Engine lines</h3> */}
+      <div className="min-w-0 space-y-1.5">
         {rowItems.map((item) => (
           <LineRow
             activePreview={activePreview}
@@ -171,7 +174,10 @@ export function BookLinesView({
   const maxWeight = Math.max(...bookLines.map((line) => line.weight));
 
   return (
-    <section className={cn("space-y-1.5", className)} aria-label="Opening book lines">
+    <section
+      className={cn("min-w-0 max-w-full space-y-1.5", className)}
+      aria-label="Opening book lines"
+    >
       {bookLines.map((line, index) => {
         const moveSans = line.moves.map((move) => move.san);
         const percent = maxWeight > 0 ? Math.max(6, (line.weight / maxWeight) * 100) : 0;
@@ -179,7 +185,13 @@ export function BookLinesView({
         const key = line.moves[0]?.uci ?? `${label}-${index}`;
 
         return (
-          <div className={cn("relative rounded px-2 py-1.5", BOOK_LINE_COLORS.rowBg)} key={key}>
+          <div
+            className={cn(
+              "relative min-w-0 max-w-full rounded px-2 py-1.5",
+              BOOK_LINE_COLORS.rowBg,
+            )}
+            key={key}
+          >
             {percent > 0 ? (
               <div className="absolute inset-0 overflow-hidden rounded">
                 <div
@@ -263,7 +275,7 @@ function LineRow({
   return (
     <div
       className={cn(
-        "min-h-[58px] rounded px-2 py-1.5",
+        "min-h-[58px] min-w-0 max-w-full rounded px-2 py-1.5",
         isBestContinuation
           ? "bg-emerald-50/80 dark:bg-emerald-950/30"
           : isContinuation

@@ -53,13 +53,13 @@ describe("BookLinesView", () => {
 
 describe("EngineLinesView", () => {
   it("keeps row geometry reserved while engine lines are not ready", () => {
-    render(
+    const { container } = render(
       <EngineLinesView lines={[]} maxLines={2} onPreview={vi.fn()} rootFen={WHITE_TO_MOVE_FEN} />,
     );
 
-    const section = screen.getByRole("heading", { name: "Engine lines" }).closest("section");
+    const section = container.querySelector("section");
 
-    expect(section).toHaveStyle({ minHeight: "158px" });
+    expect(section).toHaveStyle({ minHeight: "118px" });
     expect(section?.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
   });
 

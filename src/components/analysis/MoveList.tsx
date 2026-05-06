@@ -66,7 +66,7 @@ export function MoveList({
 
   return (
     <div className={cn("group/moves flex h-full min-h-0 flex-col", className)}>
-      <div className="relative grid grid-cols-[10%_1fr_1fr] items-center border-stone-200 px-2 pb-2 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400 dark:border-stone-800 dark:text-stone-500">
+      <div className="relative grid grid-cols-[10%_1fr_1fr] items-center border-stone-200 px-2 pb-2 md:pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400 dark:border-stone-800 dark:text-stone-500">
         <span className="text-center pt-2" />
         <span className="border-stone-200 border-t pt-2 pr-1 text-center dark:border-stone-800">
           White

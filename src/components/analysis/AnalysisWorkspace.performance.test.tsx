@@ -174,6 +174,17 @@ vi.mock("./EvalBar", () => ({
     evalBarMetrics.samples.push({ evalCp, orientation });
     return <div data-testid="eval-bar">{evalCp ?? "none"}</div>;
   },
+  HorizontalEvalBar: ({
+    evalCp,
+    orientation,
+  }: {
+    evalCp: number | null;
+    orientation: BoardSide;
+  }) => {
+    evalBarMetrics.renderCount += 1;
+    evalBarMetrics.samples.push({ evalCp, orientation });
+    return <div data-testid="eval-bar-horizontal">{evalCp ?? "none"}</div>;
+  },
 }));
 
 vi.mock("../ui/morph-text", () => ({

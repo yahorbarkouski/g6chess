@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Settings2 } from "lucide-react";
+import { ArrowUpDown, Settings2 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import { AnimatedIconButton } from "../ui/animated-icon-button";
 import type { MarkerDisplayMode } from "./MoveList";
@@ -14,9 +15,12 @@ interface AnalysisSettingsPopoverProps {
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  flippedBoard?: boolean;
+  onFlipBoard?: () => void;
   buttonClassName?: string;
+  iconClassName?: string;
   className?: string;
-  placement?: "side" | "bottom-start";
+  placement?: "side" | "bottom-start" | "top-start" | "top-end";
   popoverClassName?: string;
 }
 
@@ -48,8 +52,11 @@ export function AnalysisSettingsPopover({
   buttonClassName,
   className,
   engineLineCount,
+  flippedBoard = false,
+  iconClassName,
   onArrowCountChange,
   onEngineLineCountChange,
+  onFlipBoard,
   showMaiaArrow,
   onShowMaiaArrowChange,
   markerDisplayMode,
@@ -62,6 +69,22 @@ export function AnalysisSettingsPopover({
   const prefersReducedMotion = useReducedMotion() ?? false;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const opensBelow = placement === "bottom-start";
+  const opensAboveLeft = placement === "top-start";
+  const opensAboveRight = placement === "top-end";
+  const positionClassName = opensBelow
+    ? "top-[calc(100%+0.5rem)] left-0 origin-top-left"
+    : opensAboveLeft
+      ? "bottom-[calc(100%+0.5rem)] left-0 origin-bottom-left"
+      : opensAboveRight
+        ? "bottom-[calc(100%+0.5rem)] right-0 origin-bottom-right"
+        : "top-0 left-[calc(100%+0.5rem)] origin-left";
+  const initialOffset = prefersReducedMotion
+    ? { x: 0, y: 0 }
+    : opensBelow
+      ? { x: 0, y: -4 }
+      : opensAboveLeft || opensAboveRight
+        ? { x: 0, y: 4 }
+        : { x: -4, y: 0 };
 
   useEffect(() => {
     if (!open) {
@@ -94,8 +117,11 @@ export function AnalysisSettingsPopover({
         aria-label="Board settings"
         active={open}
         className={cn("size-6", buttonClassName)}
-        icon={<Settings2 className="size-3.5" />}
-        onClick={() => setOpen((value) => !value)}
+        icon={<Settings2 className={cn("size-3.5", iconClassName)} />}
+        onClick={() => {
+          triggerHaptic("selection");
+          setOpen((value) => !value);
+        }}
         title="Board settings"
       />
       <AnimatePresence initial={false}>
@@ -104,23 +130,12 @@ export function AnalysisSettingsPopover({
             animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
             className={cn(
               "absolute z-50 w-64 rounded-xl border border-stone-200/80 bg-white p-1 pt-0.5 text-stone-900 shadow-[0_18px_45px_rgba(28,25,23,0.15),0_1px_0_rgba(255,255,255,0.7)_inset] outline-none dark:border-stone-700/70 dark:bg-stone-900 dark:text-stone-100 dark:shadow-[0_18px_45px_rgba(0,0,0,0.5)]",
-              opensBelow
-                ? "top-[calc(100%+0.5rem)] left-0 origin-top-left"
-                : "top-0 left-[calc(100%+0.5rem)] origin-left",
+              positionClassName,
               popoverClassName,
             )}
-            exit={{
-              opacity: 0,
-              scale: 0.96,
-              x: prefersReducedMotion || opensBelow ? 0 : -4,
-              y: prefersReducedMotion || !opensBelow ? 0 : -4,
-            }}
+            exit={{ opacity: 0, scale: 0.96, ...initialOffset }}
             id={popoverId}
-            initial={
-              prefersReducedMotion
-                ? false
-                : { opacity: 0, scale: 0.96, x: opensBelow ? 0 : -4, y: opensBelow ? -4 : 0 }
-            }
+            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.96, ...initialOffset }}
             role="dialog"
             transition={
               prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
@@ -183,6 +198,25 @@ export function AnalysisSettingsPopover({
                 prefersReducedMotion={prefersReducedMotion}
               />
             </SettingsRow>
+
+            {onFlipBoard ? (
+              <>
+                <Divider />
+                <button
+                  className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-[12px] text-stone-700 transition-colors hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+                  onClick={onFlipBoard}
+                  type="button"
+                >
+                  <ArrowUpDown
+                    className={cn(
+                      "size-4 text-stone-500 transition-transform duration-300 ease-out dark:text-stone-400",
+                      flippedBoard && "rotate-180",
+                    )}
+                  />
+                  Flip board
+                </button>
+              </>
+            ) : null}
 
             <PopoverFooter />
           </motion.div>
@@ -262,7 +296,12 @@ function SegmentedControl({
               : "text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200",
           )}
           key={option.key}
-          onClick={option.onSelect}
+          onClick={() => {
+            if (!option.active) {
+              triggerHaptic("selection");
+            }
+            option.onSelect();
+          }}
           type="button"
         >
           {option.active ? (

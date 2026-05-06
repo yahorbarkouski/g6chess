@@ -1,18 +1,28 @@
 import { Monitor, Moon, Smile, Sun } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { type Theme, useTheme } from "../../hooks/useTheme";
+import { cn } from "../../lib/utils";
 
 const GITHUB_URL = "https://github.com/yahorbarkouski/g6chess";
 const FEEDBACK_URL = "mailto:admin@g6chess.com";
 
-export function WorkspaceFooter() {
+interface WorkspaceFooterProps {
+  hideOnMobile?: boolean;
+}
+
+export function WorkspaceFooter({ hideOnMobile = false }: WorkspaceFooterProps = {}) {
   return (
-    <footer className="pointer-events-none fixed right-1.5 bottom-1.5 z-30 flex items-center justify-end gap-0.5 text-xs">
+    <footer
+      className={cn(
+        "pointer-events-none fixed bottom-1.5 left-1/2 z-30 flex -translate-x-1/2 items-center justify-center gap-1 text-xs sm:left-auto sm:right-1.5 sm:translate-x-0 sm:justify-end",
+        hideOnMobile && "hidden min-[1100px]:flex",
+      )}
+    >
       <FooterLink href={FEEDBACK_URL}>
-        <Smile className="size-3.5" strokeWidth={1.75} />
+        <Smile className="size-4" strokeWidth={1.75} />
       </FooterLink>
       <FooterLink external href={GITHUB_URL}>
-        <GithubIcon className="size-3.5" />
+        <GithubIcon className="size-4" />
       </FooterLink>
       <ThemeToggle />
     </footer>
@@ -28,7 +38,7 @@ interface FooterLinkProps {
 function FooterLink({ children, external = false, href }: FooterLinkProps) {
   return (
     <a
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-stone-400 outline-none transition-colors hover:text-stone-700 dark:text-stone-600 dark:hover:text-stone-300"
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-stone-400 outline-none transition-colors hover:text-stone-700 dark:text-stone-600 dark:hover:text-stone-300"
       href={href}
       rel={external ? "noopener noreferrer" : undefined}
       target={external ? "_blank" : undefined}
@@ -79,12 +89,12 @@ function ThemeToggle() {
   return (
     <button
       aria-label={`${label}, click to switch`}
-      className="pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-md px-2 py-1 text-stone-400 outline-none transition-colors hover:text-stone-700 dark:text-stone-600 dark:hover:text-stone-300"
+      className="pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-stone-400 outline-none transition-colors hover:text-stone-700 dark:text-stone-600 dark:hover:text-stone-300"
       onClick={cycle}
       title={label}
       type="button"
     >
-      <Icon className="size-3.5" strokeWidth={1.75} />
+      <Icon className="size-4" strokeWidth={1.75} />
     </button>
   );
 }
