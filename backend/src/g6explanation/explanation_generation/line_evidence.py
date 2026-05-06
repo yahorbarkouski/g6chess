@@ -50,6 +50,8 @@ def _played_line_evidence(context_result: ContextResult) -> ExplanationLineEvide
     context = context_result.llm_context
     is_bad = context.quality in BAD_QUALITY_LABELS
     is_notable = context.significance.label in {"high", "critical"}
+    if is_bad and _has_immediate_material_punishment(context_result):
+        return None
     if not is_bad and not is_notable:
         return None
     moves = _line_moves(
@@ -171,6 +173,22 @@ def _played_line_why(
     if is_bad:
         return "The follow-up shows the opponent keeping pressure after the mistake."
     return "The follow-up shows how the move's idea keeps working after the first response."
+
+
+def _has_immediate_material_punishment(context_result: ContextResult) -> bool:
+    after_line = context_result.evidence.engine.after_line
+    if after_line is None:
+        return False
+    reply = after_line.move_san.lower().rstrip("+#")
+    for claim in context_result.llm_context.concept_claims:
+        claim_text = claim.claim.lower()
+        if claim.kind != "material" or claim.subject != "played_move":
+            continue
+        if "hung" not in claim_text:
+            continue
+        if reply in claim_text:
+            return True
+    return False
 
 
 def _better_line_why(move_context: KeyMoveContext) -> str:

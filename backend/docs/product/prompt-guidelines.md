@@ -70,6 +70,10 @@ The static prompt should say:
 - When supplied typed claims expose concrete board features such as attacks on
   valuable pieces, forks, center control, opened diagonals, or cleared piece
   routes, prefer that concrete board fact over generic continuation wording.
+- When supplied material claims say a bad move immediately hung or lost a named
+  piece to the opponent's reply, make that simple material loss the main chess
+  reason. Do not replace it with generic follow-up, pressure, or long-line
+  wording.
 - When supplied typed claims include tactical proof for an apparent capture, or
   line evidence includes an objection line, answer that objection directly:
   explain why the capture fails or why the moved piece is not simply free, and

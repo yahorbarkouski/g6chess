@@ -18,6 +18,7 @@ from g6explanation.explanation_generation.line_evidence import build_line_eviden
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     engine_line,
+    hung_rook_time_scramble_context,
     na4_tactical_objection_context,
 )
 from tests.g6explanation.explanation_generation.helpers import (
@@ -99,6 +100,14 @@ def test_line_evidence_adds_objection_line_for_apparently_capturable_tactic() ->
     assert objection_line.title == "Why the capture fails"
     assert all(move not in objection_line.why for move in objection_line.moves)
     assert "not simply free" in objection_line.why
+
+
+def test_line_evidence_skips_played_line_when_bad_move_simply_hangs_piece() -> None:
+    context = hung_rook_time_scramble_context()
+
+    line_ids = {line.id for line in build_line_evidence(context)}
+
+    assert "played-line" not in line_ids
 
 
 def _line_by_id(context: ContextResult, line_id: str) -> ExplanationLineEvidence:

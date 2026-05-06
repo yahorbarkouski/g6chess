@@ -124,6 +124,10 @@ significance, beauty, candidates, or typed concept claims.
 Version 19 adds tactical-proof objection guidance: when the context supplies an
 apparent-capture reply line, the model should explain why the capture fails or
 why the moved piece is not simply free before using generic follow-up wording.
+Version 20 makes immediate hung-piece mistakes concise: when a verified
+material claim says the played move hung a named piece to the opponent's reply,
+the model should use that simple material reason instead of generic follow-up,
+pressure, or long-line wording.
 
 ## Contracts
 

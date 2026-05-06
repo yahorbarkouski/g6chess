@@ -5,8 +5,10 @@ from __future__ import annotations
 import chess
 
 from g6explanation.context_engine.concept_evidence import (
+    build_immediate_material_punishment_claims,
     build_move_concept_claims,
     build_tactical_objection_claims,
+    immediate_material_punishment,
 )
 from g6explanation.context_engine.contracts import (
     CandidateMove,
@@ -35,6 +37,16 @@ def build_main_point(
         return MainPoint(
             concept="forced move",
             claim=f"{quality_claim}; the player had no legal alternative.",
+        )
+    if quality.label in BAD_QUALITY_LABELS and (
+        punishment := immediate_material_punishment(board, played.uci, played.san, analysis)
+    ):
+        return MainPoint(
+            concept="material loss",
+            claim=(
+                f"{quality_claim} because it hung the {punishment.piece_name} "
+                f"to {punishment.reply_san}."
+            ),
         )
     if key_candidate is None:
         if quality.label == "best" and featured_candidate is not None:
@@ -97,6 +109,13 @@ def build_allowed_claims(
     analysis: EngineAnalysis,
 ) -> list[str]:
     claims = [_allowed_quality_claim(board, played, quality, analysis)]
+    punishment = (
+        immediate_material_punishment(board, played.uci, played.san, analysis)
+        if quality.label in BAD_QUALITY_LABELS
+        else None
+    )
+    if punishment is not None:
+        claims.append(punishment.played_loss_claim)
     if key_candidate:
         claims.append(f"{key_candidate.san} would have been the key alternative")
         if key_candidate.time_adjusted_findability in {"hard", "very_hard", "engine_like"}:
@@ -107,7 +126,7 @@ def build_allowed_claims(
             claims.append(f"{key_candidate.san} was a practical alternative")
     if featured_candidate and not key_candidate:
         claims.append(f"{featured_candidate.san} was the key move")
-    if analysis.after_line and quality.label in BAD_QUALITY_LABELS:
+    if analysis.after_line and quality.label in BAD_QUALITY_LABELS and punishment is None:
         claims.append(
             f"the opponent's key reply after {played.san} was {analysis.after_line.move_san}"
         )
@@ -134,6 +153,12 @@ def build_concept_claims(
             move_san=played.san,
         )
     ]
+    material_punishment_claims = (
+        build_immediate_material_punishment_claims(board, played.uci, played.san, analysis)
+        if quality.label in BAD_QUALITY_LABELS
+        else []
+    )
+    claims.extend(material_punishment_claims)
 
     if quality.label == "forced":
         claims.append(
@@ -289,7 +314,11 @@ def build_concept_claims(
     if key_candidate is not None:
         claims.extend(_key_candidate_concept_claims(board, key_candidate, analysis))
 
-    if analysis.after_line is not None and quality.label in BAD_QUALITY_LABELS:
+    if (
+        analysis.after_line is not None
+        and quality.label in BAD_QUALITY_LABELS
+        and not material_punishment_claims
+    ):
         claims.append(
             ConceptClaim(
                 kind="opponent_resource",

@@ -10,7 +10,7 @@ from g6explanation.context_engine.contracts import ContextContract
 
 EXPLANATION_SCHEMA_VERSION = "explanation_output.v4"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v19"
+PROMPT_VERSION = "single_move_coach.v20"
 MAX_LINE_CARD_PLIES = 16
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[

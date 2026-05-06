@@ -143,6 +143,13 @@ def build_coach_prompt(
                 "over generic continuation wording."
             ),
             (
+                "When a material concept_claim says a bad played move hung or lost a "
+                "named piece to the opponent's immediate reply, make that simple "
+                "material loss the main chess reason. Mention the reply only as the "
+                "capture that wins the piece; do not replace it with generic "
+                "follow-up, pressure, or long-line wording."
+            ),
+            (
                 "When concept_claims includes tactical_proof or line_evidence includes "
                 "an objection_line, answer the apparent objection directly: explain why "
                 "the move is not simply free or why the capture fails, using the supplied "

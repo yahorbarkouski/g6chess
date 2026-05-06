@@ -52,11 +52,12 @@ product-ready.
   concept claims when exposed to the LLM.
 - Supported concept claims include conservative deterministic evidence for
   net material gain or loss, material-recovery recaptures, verified immediate
-  material trades from supplied PVs, king safety, development, open files,
-  passed pawns, outposts, initiative, forcing move facts, direct attacks on
-  valuable pieces, clear multi-target forks, opened bishop diagonal routes, and
-  tactical proof lines showing why an apparently capturable tactic is not simply
-  free.
+  material trades from supplied PVs, immediate opponent material punishments
+  where a verified reply captures the moved piece, king safety, development,
+  open files, passed pawns, outposts, initiative, forcing move facts, direct
+  attacks on valuable pieces, clear multi-target forks, opened bishop diagonal
+  routes, and tactical proof lines showing why an apparently capturable tactic is
+  not simply free.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when

@@ -29,6 +29,7 @@ from g6explanation.explanation_generation.line_evidence import (
 from tests.g6explanation.context_engine.helpers import (
     StaticAnalysisProvider,
     analysis,
+    hung_rook_time_scramble_context,
     na4_tactical_objection_context,
 )
 from tests.g6explanation.explanation_generation.helpers import (
@@ -558,6 +559,22 @@ def test_verifier_accepts_supported_material_claim() -> None:
         "g4 was a mistake because it lost material. "
         "Nf3 was a practical alternative that stayed close to best play."
     )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+@pytest.mark.parametrize(
+    "explanation",
+    [
+        "Rf4+ was a blunder because it hung the rook to gxf4.",
+        "Rf4+ was a blunder because it hanged the rook to gxf4.",
+    ],
+)
+def test_verifier_accepts_immediate_hung_rook_material_claim(explanation: str) -> None:
+    context = hung_rook_time_scramble_context()
+    output = rich_output(explanation)
 
     verification = ExplanationVerifier().verify(context, output)
 

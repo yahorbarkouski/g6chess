@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import chess
 
@@ -34,6 +35,26 @@ DEVELOPMENT_HOME_SQUARES = {
 CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
 TACTICAL_PROOF_TOLERANCE_CP = 75
+IMMEDIATE_PUNISHMENT_MIN_VALUE = PIECE_VALUES[chess.KNIGHT]
+
+
+@dataclass(frozen=True)
+class ImmediateMaterialPunishment:
+    played_san: str
+    reply_san: str
+    piece_name: str
+    square_name: str
+
+    @property
+    def played_loss_claim(self) -> str:
+        return (
+            f"{self.played_san} hung the {self.piece_name} on "
+            f"{self.square_name} to {self.reply_san}"
+        )
+
+    @property
+    def opponent_gain_claim(self) -> str:
+        return f"{self.reply_san} won the {self.piece_name} on {self.square_name}"
 
 
 def build_move_concept_claims(
@@ -167,6 +188,92 @@ def build_tactical_objection_claims(
             continue
         claims.extend(objection)
     return claims
+
+
+def immediate_material_punishment(
+    board: chess.Board,
+    played_uci: str,
+    played_san: str,
+    analysis: EngineAnalysis,
+) -> ImmediateMaterialPunishment | None:
+    """Return simple material loss when the verified reply wins the moved piece."""
+
+    if analysis.after_line is None:
+        return None
+    try:
+        move = chess.Move.from_uci(played_uci)
+        reply = chess.Move.from_uci(analysis.after_line.move_uci)
+    except ValueError:
+        return None
+    if move not in board.legal_moves:
+        return None
+    if board.is_capture(move) or move.promotion is not None:
+        return None
+
+    moved_piece = board.piece_at(move.from_square)
+    if moved_piece is None or moved_piece.piece_type == chess.KING:
+        return None
+    moved_piece_value = PIECE_VALUES.get(moved_piece.piece_type, 0)
+    if moved_piece_value < IMMEDIATE_PUNISHMENT_MIN_VALUE:
+        return None
+
+    after_board = board.copy(stack=False)
+    after_board.push(move)
+    if not _captures_moved_piece(after_board, reply, move):
+        return None
+
+    captured_piece = _captured_piece(after_board, reply)
+    if (
+        captured_piece is None
+        or captured_piece.color != moved_piece.color
+        or captured_piece.piece_type != moved_piece.piece_type
+    ):
+        return None
+
+    reply_board = after_board.copy(stack=False)
+    reply_board.push(reply)
+    material_delta = _material_balance(reply_board, moved_piece.color) - _material_balance(
+        board,
+        moved_piece.color,
+    )
+    if material_delta >= 0:
+        return None
+
+    return ImmediateMaterialPunishment(
+        played_san=played_san,
+        reply_san=analysis.after_line.move_san,
+        piece_name=_piece_name(moved_piece.piece_type),
+        square_name=chess.square_name(move.to_square),
+    )
+
+
+def build_immediate_material_punishment_claims(
+    board: chess.Board,
+    played_uci: str,
+    played_san: str,
+    analysis: EngineAnalysis,
+) -> list[ConceptClaim]:
+    """Return material claims for a bad move that simply hangs the moved piece."""
+
+    punishment = immediate_material_punishment(board, played_uci, played_san, analysis)
+    if punishment is None:
+        return []
+    return [
+        ConceptClaim(
+            kind="material",
+            subject="played_move",
+            claim=punishment.played_loss_claim,
+            source="engine_line",
+            move_san=played_san,
+        ),
+        ConceptClaim(
+            kind="material",
+            subject="opponent_reply",
+            claim=punishment.opponent_gain_claim,
+            source="engine_line",
+            move_san=punishment.reply_san,
+        ),
+    ]
 
 
 def _tactical_objection_reply(

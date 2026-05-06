@@ -150,3 +150,27 @@ def na4_tactical_objection_context() -> ContextResult:
         time_control="classical",
     )
     return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)
+
+
+def hung_rook_time_scramble_context() -> ContextResult:
+    """Return a static low-clock blunder where Rf4+ simply hangs a rook to gxf4."""
+
+    board = chess.Board("6k1/8/8/8/3r4/3r2P1/5K1P/3R3R b - - 0 46")
+    engine_analysis = analysis(
+        board,
+        played_uci="d4f4",
+        top_scores=[("g8h7", 150)],
+        played_score=-603,
+        after_reply_uci="g3f4",
+        played_pv_uci=["d4f4", "g3f4", "g8h7"],
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="d4f4",
+        player_color="black",
+        player_level=PlayerLevel.rating(1236, "chess.com"),
+        time_control="blitz",
+        clock_before_seconds=1,
+        think_time_seconds=1,
+    )
+    return MoveContextBuilder(StaticAnalysisProvider(engine_analysis)).build(request)

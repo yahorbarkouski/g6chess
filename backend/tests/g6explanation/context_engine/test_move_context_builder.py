@@ -27,6 +27,7 @@ from tests.g6explanation.context_engine.helpers import (
     StaticHumanLikelihoodProvider,
     analysis,
     engine_line,
+    hung_rook_time_scramble_context,
     na4_tactical_objection_context,
 )
 
@@ -380,6 +381,27 @@ def test_tactical_objection_claims_explain_why_capturable_fork_works() -> None:
     assert "Nxe4 forked the queen on c5 and the bishop on g5" in claims
     assert "tactical_proof" in _concept_kinds(result)
     assert ("tactic", "tactical_reply", "Nxe4") in _concept_keys(result)
+
+
+def test_bad_move_that_immediately_hangs_rook_uses_material_reason() -> None:
+    result = hung_rook_time_scramble_context()
+
+    claims = {claim.claim for claim in result.evidence.concept_claims}
+
+    assert result.evidence.played.san == "Rf4+"
+    assert result.evidence.quality.label == "blunder"
+    assert result.llm_context.time_situation == "time_scramble"
+    assert result.evidence.main_point.claim == (
+        "Rf4+ was a blunder because it hung the rook to gxf4."
+    )
+    assert "Rf4+ hung the rook on f4 to gxf4" in claims
+    assert "gxf4 won the rook on f4" in claims
+    assert "opponent_resource" not in _concept_kinds(result)
+    assert "Rf4+ hung the rook on f4 to gxf4" in result.llm_context.allowed_claims
+    assert not any(
+        "the opponent's key reply after Rf4+" in claim
+        for claim in result.llm_context.allowed_claims
+    )
 
 
 def test_builder_supplements_objection_line_when_root_provider_can_prove_capture_fails() -> None:

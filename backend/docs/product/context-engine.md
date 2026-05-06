@@ -203,6 +203,10 @@ Current deterministic concept evidence is intentionally conservative:
   piece but the supplied PV immediately recaptures the moving piece and erases
   the material gain, the model gets trade or exchange wording, not a material
   win claim
+- immediate opponent punishments for bad moves where the verified after-line
+  reply captures the moved non-pawn piece with net material loss; the context
+  should expose the simple hung-piece reason instead of only a generic
+  opponent-resource claim
 - direct attacks by the moved piece on valuable enemy pieces, including clear
   multi-target fork evidence such as a knight attacking both rooks
 - tactical proof for an apparently capturable tactic, using a verified opponent

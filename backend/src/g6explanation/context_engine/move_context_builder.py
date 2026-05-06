@@ -47,7 +47,7 @@ from g6explanation.context_engine.signals import (
 )
 from g6explanation.context_engine.signals.coach_diagnostics import build_move_diagnostic_tags
 
-MOVE_CONTEXT_VERSION = "move_context.v3"
+MOVE_CONTEXT_VERSION = "move_context.v4"
 NON_BAD_QUALITY_LABELS = {"best", "forced", "excellent", "good", "neutral"}
 TACTICAL_REPLY_TOLERANCE_CP = 75
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}

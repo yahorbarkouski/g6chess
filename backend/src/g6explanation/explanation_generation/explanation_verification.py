@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v5"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v6"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -63,7 +63,8 @@ MATERIAL_GAIN_RE = re.compile(
     re.IGNORECASE,
 )
 MATERIAL_LOSS_RE = re.compile(
-    r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\s+"
+    r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|hanged|"
+    r"gives\s+up|gave\s+up|giving\s+up)\s+"
     rf"{MATERIAL_OBJECT_PATTERN}\b",
     re.IGNORECASE,
 )
@@ -1135,7 +1136,8 @@ def _has_material_gain_support(material_support: str) -> bool:
 def _has_material_loss_support(material_support: str) -> bool:
     return (
         re.search(
-            r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|gives\s+up|gave\s+up|giving\s+up)\b",
+            r"\b(?:loses?|lost|dropping|drops?|dropped|hangs?|hung|hanged|"
+            r"gives\s+up|gave\s+up|giving\s+up)\b",
             material_support,
         )
         is not None

@@ -13,7 +13,11 @@ def render_baseline_explanation(context_result: ContextResult) -> ExplanationOut
     parts = [_normalize_sentence(context.main_point)]
 
     teaching_move = context.featured_move or context.best_or_key_move
-    move_sentence = _teaching_move_sentence(teaching_move)
+    move_sentence = (
+        None
+        if _has_simple_material_loss(context_result)
+        else _teaching_move_sentence(teaching_move)
+    )
     if move_sentence and move_sentence.lower() not in parts[0].lower():
         parts.append(move_sentence)
 
@@ -55,3 +59,12 @@ def _dedupe(parts: list[str]) -> list[str]:
         seen.add(key)
         deduped.append(part)
     return deduped
+
+
+def _has_simple_material_loss(context_result: ContextResult) -> bool:
+    for claim in context_result.llm_context.concept_claims:
+        if claim.kind != "material" or claim.subject != "played_move":
+            continue
+        if "hung" in claim.claim.lower():
+            return True
+    return False
