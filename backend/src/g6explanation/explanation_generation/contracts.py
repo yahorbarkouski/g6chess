@@ -10,7 +10,7 @@ from g6explanation.context_engine.contracts import ContextContract
 
 EXPLANATION_SCHEMA_VERSION = "explanation_output.v4"
 PROMPT_ID = "single_move_coach"
-PROMPT_VERSION = "single_move_coach.v18"
+PROMPT_VERSION = "single_move_coach.v19"
 MAX_LINE_CARD_PLIES = 16
 
 ExplanationVerificationIssueCode: TypeAlias = Literal[
@@ -37,7 +37,7 @@ ExplanationVerificationIssueCode: TypeAlias = Literal[
     "line_card_unreferenced",
 ]
 GenerationFinishReason: TypeAlias = Literal["model", "fallback", "controlled_failure"]
-LineEvidenceRole: TypeAlias = Literal["played_line", "better_line"]
+LineEvidenceRole: TypeAlias = Literal["played_line", "better_line", "objection_line"]
 
 
 class ExplanationSegment(ContextContract):

@@ -70,6 +70,11 @@ The static prompt should say:
 - When supplied typed claims expose concrete board features such as attacks on
   valuable pieces, forks, center control, opened diagonals, or cleared piece
   routes, prefer that concrete board fact over generic continuation wording.
+- When supplied typed claims include tactical proof for an apparent capture, or
+  line evidence includes an objection line, answer that objection directly:
+  explain why the capture fails or why the moved piece is not simply free, and
+  name the attempted capture and reply when the supplied claim names them,
+  before using generic follow-up wording.
 - State serious outcomes clearly: forced moves, inaccuracies, mistakes,
   blunders, and missed wins must be named. For best, good, excellent, or
   neutral moves, explain the supported purpose naturally instead of forcing a
@@ -181,6 +186,8 @@ The model may not:
 - override Stockfish, tablebase, legal-move, or verifier evidence
 - turn Maia probability into quality
 - claim material gain, mate, or tactics without allowed evidence
+- claim an apparently capturable piece is safe, not free, or cannot be won
+  cleanly without typed tactical-proof evidence
 - turn a recapture or material recovery claim into a material-winning claim
 - turn a trade or exchange claim into a material-winning claim
 - claim positional concepts without typed concept-claim evidence

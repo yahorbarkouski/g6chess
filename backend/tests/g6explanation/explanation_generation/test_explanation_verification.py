@@ -26,7 +26,11 @@ from g6explanation.explanation_generation.line_evidence import (
     build_line_evidence,
     line_card_from_evidence,
 )
-from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
+from tests.g6explanation.context_engine.helpers import (
+    StaticAnalysisProvider,
+    analysis,
+    na4_tactical_objection_context,
+)
 from tests.g6explanation.explanation_generation.helpers import (
     best_context,
     hard_engine_best_context,
@@ -199,6 +203,50 @@ def test_verifier_accepts_verified_line_card_segments() -> None:
     verification = ExplanationVerifier().verify(context, output)
 
     assert verification.passed
+
+
+def test_verifier_accepts_tactical_objection_line_card_and_not_free_wording() -> None:
+    context = na4_tactical_objection_context()
+    line = next(line for line in build_line_evidence(context) if line.id == "objection-line")
+    output = ExplanationOutput(
+        segments=[
+            ExplanationSegment(
+                text=(
+                    "Na4 forked the queen on c5 and the knight on c3, but "
+                    "Nxa4 is met by Nxe4, so the knight is not simply free."
+                ),
+                line_card_id="objection-line",
+                line_card_anchor="Nxa4 is met by Nxe4",
+            )
+        ],
+        line_cards=[line_card_from_evidence(line)],
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_accepts_negated_material_wording_from_tactical_proof() -> None:
+    context = na4_tactical_objection_context()
+    output = rich_output(
+        "Na4 forked the queen on c5 and the knight on c3, but White cannot win "
+        "the knight cleanly because Nxa4 is met by Nxe4."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
+def test_verifier_rejects_not_free_wording_without_tactical_proof() -> None:
+    context = best_context()
+    output = rich_output("e4 was the best move because the pawn was not simply free.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert not verification.passed
+    assert "unsupported_concept_claim" in _failure_codes(verification)
 
 
 def test_verifier_accepts_copied_practical_alternative_line_card_text() -> None:
@@ -840,6 +888,33 @@ def test_verifier_does_not_treat_attacker_piece_move_as_attack_target() -> None:
     assert verification.passed
 
 
+def test_verifier_does_not_treat_not_free_piece_as_extra_attack_target() -> None:
+    context = _context_with_extra_claims(
+        best_context(),
+        [
+            ConceptClaim(
+                kind="piece_activity",
+                subject="played_move",
+                claim="e4 attacked the queen on d6",
+                source="deterministic_detector",
+                move_san="e4",
+            ),
+            ConceptClaim(
+                kind="tactical_proof",
+                subject="played_move",
+                claim="e4 attacked the queen on d6, so the pawn is not simply free",
+                source="engine_line",
+                move_san="e4",
+            ),
+        ],
+    )
+    output = rich_output("e4 attacked the queen on d6, so the pawn is not simply free.")
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_accepts_generic_capture_wording_from_verified_line_evidence() -> None:
     context = _rook_fork_context()
     output = rich_output(
@@ -1267,13 +1342,20 @@ def _candidate(candidates: list[CandidateMove], uci: str) -> CandidateMove:
 
 
 def _context_with_extra_claim(context: ContextResult, claim: ConceptClaim) -> ContextResult:
+    return _context_with_extra_claims(context, [claim])
+
+
+def _context_with_extra_claims(
+    context: ContextResult,
+    claims: list[ConceptClaim],
+) -> ContextResult:
     return context.model_copy(
         update={
             "evidence": context.evidence.model_copy(
-                update={"concept_claims": [*context.evidence.concept_claims, claim]}
+                update={"concept_claims": [*context.evidence.concept_claims, *claims]}
             ),
             "llm_context": context.llm_context.model_copy(
-                update={"concept_claims": [*context.llm_context.concept_claims, claim]}
+                update={"concept_claims": [*context.llm_context.concept_claims, *claims]}
             ),
         }
     )

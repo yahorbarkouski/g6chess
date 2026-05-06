@@ -6,7 +6,13 @@ from collections.abc import Sequence
 
 import chess
 
-from g6explanation.context_engine.contracts import ConceptClaim, ConceptClaimSubject
+from g6explanation.context_engine.contracts import (
+    ConceptClaim,
+    ConceptClaimSubject,
+    EngineAnalysis,
+    EngineLine,
+    Score,
+)
 from g6explanation.context_engine.move_history import (
     previous_board as board_before_previous_move,
 )
@@ -27,6 +33,7 @@ DEVELOPMENT_HOME_SQUARES = {
 }
 CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
+TACTICAL_PROOF_TOLERANCE_CP = 75
 
 
 def build_move_concept_claims(
@@ -123,6 +130,150 @@ def build_move_concept_claims(
             )
         )
     return claims
+
+
+def build_tactical_objection_claims(
+    board: chess.Board,
+    played_uci: str,
+    played_san: str,
+    analysis: EngineAnalysis,
+) -> list[ConceptClaim]:
+    """Return claims that prove an apparently capturable tactic still works."""
+
+    try:
+        move = chess.Move.from_uci(played_uci)
+    except ValueError:
+        return []
+    if move not in board.legal_moves:
+        return []
+
+    after_board = board.copy(stack=False)
+    after_board.push(move)
+    moved_piece = after_board.piece_at(move.to_square)
+    if moved_piece is None:
+        return []
+
+    claims: list[ConceptClaim] = []
+    for reply_line in analysis.opponent_reply_lines:
+        objection = _tactical_objection_reply(
+            after_board=after_board,
+            move=move,
+            moved_piece=moved_piece,
+            played_san=played_san,
+            reply_line=reply_line,
+            reference_score=analysis.played_line.score,
+        )
+        if objection is None:
+            continue
+        claims.extend(objection)
+    return claims
+
+
+def _tactical_objection_reply(
+    after_board: chess.Board,
+    move: chess.Move,
+    moved_piece: chess.Piece,
+    played_san: str,
+    reply_line: EngineLine,
+    reference_score: Score,
+) -> list[ConceptClaim] | None:
+    if not _line_preserves_player_value(reply_line.score, reference_score):
+        return None
+    if len(reply_line.pv_uci) < 2:
+        return None
+
+    try:
+        capture = chess.Move.from_uci(reply_line.pv_uci[0])
+        player_reply = chess.Move.from_uci(reply_line.pv_uci[1])
+    except ValueError:
+        return None
+    if not _captures_moved_piece(after_board, capture, move):
+        return None
+
+    after_capture = after_board.copy(stack=False)
+    after_capture.push(capture)
+    if player_reply not in after_capture.legal_moves:
+        return None
+
+    capture_san = reply_line.pv_san[0] if reply_line.pv_san else after_board.san(capture)
+    reply_san = after_capture.san(player_reply)
+    claims = [
+        ConceptClaim(
+            kind="tactical_proof",
+            subject="played_move",
+            claim=_tactical_proof_claim(
+                after_board=after_board,
+                move=move,
+                moved_piece=moved_piece,
+                played_san=played_san,
+                capture_san=capture_san,
+                reply_san=reply_san,
+            ),
+            source="engine_line",
+            move_san=played_san,
+        )
+    ]
+    claims.extend(
+        build_move_concept_claims(
+            after_capture,
+            player_reply.uci(),
+            reply_san,
+            "tactical_reply",
+            line_pv_uci=reply_line.pv_uci[1:],
+        )
+    )
+    return claims
+
+
+def _captures_moved_piece(
+    after_board: chess.Board,
+    capture: chess.Move,
+    move: chess.Move,
+) -> bool:
+    return (
+        capture in after_board.legal_moves
+        and after_board.is_capture(capture)
+        and capture.to_square == move.to_square
+    )
+
+
+def _line_preserves_player_value(score: Score, reference_score: Score) -> bool:
+    if reference_score.kind == "mate":
+        return (
+            reference_score.mate_for == "player"
+            and score.kind == "mate"
+            and score.mate_for == "player"
+        )
+    if score.kind == "mate":
+        return score.mate_for == "player"
+    if score.value is None or reference_score.value is None:
+        return False
+    return score.value >= reference_score.value - TACTICAL_PROOF_TOLERANCE_CP
+
+
+def _tactical_proof_claim(
+    after_board: chess.Board,
+    move: chess.Move,
+    moved_piece: chess.Piece,
+    played_san: str,
+    capture_san: str,
+    reply_san: str,
+) -> str:
+    targets = _valuable_targets_attacked_by_moved_piece(
+        after_board,
+        moved_piece.color,
+        move.to_square,
+    )
+    if len(targets) >= 2:
+        setup = f"{played_san} forked {_attacked_targets_phrase(targets)}"
+    elif targets:
+        setup = f"{played_san} attacked {_attacked_targets_phrase(targets)}"
+    else:
+        setup = f"{played_san} looked capturable"
+    return (
+        f"{setup}, and {capture_san} is met by {reply_san}, so "
+        f"the {_piece_name(moved_piece.piece_type)} is not simply free"
+    )
 
 
 def _attacked_piece_claims(

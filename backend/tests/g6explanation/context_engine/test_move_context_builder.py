@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import chess
 import pytest
 
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
+    ColorName,
     ContextResult,
     EngineAnalysis,
     EngineAnalysisBudget,
@@ -24,6 +27,7 @@ from tests.g6explanation.context_engine.helpers import (
     StaticHumanLikelihoodProvider,
     analysis,
     engine_line,
+    na4_tactical_objection_context,
 )
 
 
@@ -357,6 +361,78 @@ def test_candidate_capture_recaptured_in_pv_is_trade_not_material_win() -> None:
         claim.claim for claim in result.evidence.concept_claims
     }
     assert "Bxf3 would have been the key alternative" in result.llm_context.allowed_claims
+
+
+def test_tactical_objection_claims_explain_why_capturable_fork_works() -> None:
+    result = na4_tactical_objection_context()
+
+    claims = {claim.claim for claim in result.evidence.concept_claims}
+
+    assert result.evidence.played.san == "Na4"
+    assert result.evidence.main_point.claim == (
+        "Na4 forked the queen on c5 and the knight on c3, and Nxa4 is met by Nxe4, "
+        "so the knight is not simply free in a critical position."
+    )
+    assert (
+        "Na4 forked the queen on c5 and the knight on c3, and Nxa4 is met by Nxe4, "
+        "so the knight is not simply free"
+    ) in claims
+    assert "Nxe4 forked the queen on c5 and the bishop on g5" in claims
+    assert "tactical_proof" in _concept_kinds(result)
+    assert ("tactic", "tactical_reply", "Nxe4") in _concept_keys(result)
+
+
+def test_builder_supplements_objection_line_when_root_provider_can_prove_capture_fails() -> None:
+    board = chess.Board("r2q1rk1/pp2ppbp/1np2np1/2Q3B1/3PP1b1/2N2N2/PP3PPP/3RKB1R b K - 6 11")
+    after_board = board.copy(stack=False)
+    after_board.push(chess.Move.from_uci("b6a4"))
+    engine_analysis = EngineAnalysis(
+        engine_version="static-test-engine",
+        analysis_budget=EngineAnalysisBudget(kind="static", value=1, multipv=2),
+        top_lines=[
+            engine_line(
+                board,
+                "b6a4",
+                250,
+                rank=1,
+                pv_uci=["b6a4", "c5a3", "a4c3"],
+            ),
+            engine_line(board, "d8d6", 80, rank=2),
+        ],
+        played_line=engine_line(
+            board,
+            "b6a4",
+            250,
+            rank=None,
+            pv_uci=["b6a4", "c5a3", "a4c3"],
+        ),
+        after_line=engine_line(after_board, "c5a3", 250, rank=1),
+    )
+    provider = StaticRootReplyProvider(
+        engine_analysis=engine_analysis,
+        reply_lines=[
+            engine_line(
+                after_board,
+                "c3a4",
+                280,
+                rank=None,
+                pv_uci=["c3a4", "f6e4"],
+            )
+        ],
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="b6a4",
+        player_color="black",
+        player_level=PlayerLevel.rating(2300, "historical-demo"),
+        time_control="classical",
+    )
+
+    result = MoveContextBuilder(provider).build(request)
+
+    assert provider.requested_root_moves == [["c3a4"]]
+    assert [line.move_san for line in result.evidence.engine.opponent_reply_lines] == ["Nxa4"]
+    assert "tactical_proof" in _concept_kinds(result)
 
 
 def test_knight_fork_context_exposes_attacked_rooks_as_board_fact() -> None:
@@ -1215,6 +1291,77 @@ def test_rejects_engine_line_with_illegal_pv_move() -> None:
 
     with pytest.raises(AnalysisError, match="engine_pv_illegal"):
         engine.build(request)
+
+
+def test_rejects_illegal_opponent_reply_line() -> None:
+    board = chess.Board()
+    engine_analysis = analysis(
+        board,
+        played_uci="e2e4",
+        top_scores=[("e2e4", 50)],
+        played_score=50,
+        after_reply_uci="e7e5",
+    ).model_copy(
+        update={
+            "opponent_reply_lines": [
+                EngineLine(
+                    move_uci="e2e4",
+                    move_san="e4",
+                    score=Score.cp(50),
+                    rank=None,
+                    pv_uci=["e2e4"],
+                    pv_san=["e4"],
+                )
+            ]
+        }
+    )
+    request = MoveContextRequest(
+        fen_before=board.fen(),
+        played_move="e2e4",
+        player_color="white",
+        player_level=PlayerLevel.rating(1200),
+    )
+
+    engine = MoveContextBuilder(StaticAnalysisProvider(engine_analysis))
+
+    with pytest.raises(AnalysisError, match="engine_line_illegal"):
+        engine.build(request)
+
+
+@dataclass
+class StaticRootReplyProvider:
+    engine_analysis: EngineAnalysis
+    reply_lines: list[EngineLine]
+    requested_root_moves: list[list[str]]
+
+    def __init__(
+        self,
+        engine_analysis: EngineAnalysis,
+        reply_lines: list[EngineLine],
+    ) -> None:
+        self.engine_analysis = engine_analysis
+        self.reply_lines = reply_lines
+        self.requested_root_moves = []
+
+    def analyze(
+        self,
+        board: chess.Board,
+        played_move: chess.Move,
+        player_color: ColorName,
+    ) -> EngineAnalysis:
+        del board, played_move, player_color
+        return self.engine_analysis
+
+    def analyze_root_moves(
+        self,
+        board: chess.Board,
+        root_moves: list[chess.Move],
+        player_color: ColorName,
+    ) -> list[EngineLine]:
+        del board, player_color
+        requested = [move.uci() for move in root_moves]
+        self.requested_root_moves.append(requested)
+        return [line for line in self.reply_lines if line.move_uci in requested]
 
 
 def _concept_kinds(result: ContextResult) -> set[str]:

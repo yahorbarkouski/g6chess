@@ -15,7 +15,11 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationLineEvidence,
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
-from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, engine_line
+from tests.g6explanation.context_engine.helpers import (
+    StaticAnalysisProvider,
+    engine_line,
+    na4_tactical_objection_context,
+)
 from tests.g6explanation.explanation_generation.helpers import (
     mistake_context_with_practical_alternative,
 )
@@ -83,6 +87,18 @@ def test_line_evidence_why_is_plain_language_not_line_notation() -> None:
     assert context.llm_context.main_point not in played_line.why
     assert all(move not in played_line.why for move in played_line.moves)
     assert played_line.title == "How the mistake gets punished"
+
+
+def test_line_evidence_adds_objection_line_for_apparently_capturable_tactic() -> None:
+    context = na4_tactical_objection_context()
+
+    objection_line = _line_by_id(context, "objection-line")
+
+    assert objection_line.role == "objection_line"
+    assert objection_line.moves == ["Na4", "Nxa4", "Nxe4"]
+    assert objection_line.title == "Why the capture fails"
+    assert all(move not in objection_line.why for move in objection_line.moves)
+    assert "not simply free" in objection_line.why
 
 
 def _line_by_id(context: ContextResult, line_id: str) -> ExplanationLineEvidence:

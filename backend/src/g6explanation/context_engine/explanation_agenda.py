@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import chess
 
-from g6explanation.context_engine.concept_evidence import build_move_concept_claims
+from g6explanation.context_engine.concept_evidence import (
+    build_move_concept_claims,
+    build_tactical_objection_claims,
+)
 from g6explanation.context_engine.contracts import (
     CandidateMove,
     ConceptClaim,
@@ -224,6 +227,7 @@ def build_concept_claims(
             line_pv_uci=analysis.played_line.pv_uci,
         )
     )
+    claims.extend(build_tactical_objection_claims(board, played.uci, played.san, analysis))
 
     if featured_candidate is not None:
         claims.extend(
@@ -370,8 +374,7 @@ def _non_bad_quality_claim(
     quality: MoveQuality,
     analysis: EngineAnalysis | None = None,
 ) -> str:
-    played_pv_uci = analysis.played_line.pv_uci if analysis is not None else None
-    if purpose_claim := _primary_played_purpose_claim(board, played, played_pv_uci):
+    if purpose_claim := _primary_played_purpose_claim(board, played, analysis):
         return purpose_claim
     if quality.label == "best":
         return f"{played.san} fits the position"
@@ -385,25 +388,25 @@ def _non_bad_quality_claim(
 def _primary_played_purpose_claim(
     board: chess.Board,
     played: PlayedMoveFacts,
-    line_pv_uci: list[str] | None = None,
+    analysis: EngineAnalysis | None = None,
 ) -> str | None:
-    claim = _primary_played_purpose_claim_with_kind(board, played, line_pv_uci)
+    claim = _primary_played_purpose_claim_with_kind(board, played, analysis)
     return claim[1] if claim is not None else None
 
 
 def _primary_played_purpose_kind(
     board: chess.Board,
     played: PlayedMoveFacts,
-    line_pv_uci: list[str] | None = None,
+    analysis: EngineAnalysis | None = None,
 ) -> str | None:
-    claim = _primary_played_purpose_claim_with_kind(board, played, line_pv_uci)
+    claim = _primary_played_purpose_claim_with_kind(board, played, analysis)
     return claim[0] if claim is not None else None
 
 
 def _primary_played_purpose_claim_with_kind(
     board: chess.Board,
     played: PlayedMoveFacts,
-    line_pv_uci: list[str] | None = None,
+    analysis: EngineAnalysis | None = None,
 ) -> tuple[str, str] | None:
     move = chess.Move.from_uci(played.uci)
     if move not in board.legal_moves:
@@ -415,14 +418,20 @@ def _primary_played_purpose_claim_with_kind(
     if played.promotion is not None:
         return ("promotion", f"{played.san} promoted to {played.promotion}")
 
-    claims = build_move_concept_claims(
-        board,
-        played.uci,
-        played.san,
-        "played_move",
-        line_pv_uci=line_pv_uci,
+    claims: list[ConceptClaim] = []
+    if analysis is not None:
+        claims.extend(build_tactical_objection_claims(board, played.uci, played.san, analysis))
+    claims.extend(
+        build_move_concept_claims(
+            board,
+            played.uci,
+            played.san,
+            "played_move",
+            line_pv_uci=analysis.played_line.pv_uci if analysis is not None else None,
+        )
     )
-    priority = (
+    priority: tuple[str, ...] = (
+        "tactical_proof",
         "forced_mate",
         "tactic",
         "piece_activity",
@@ -474,7 +483,7 @@ def _featured_best_concept(
         and analysis.played_line.score.mate_for == "player"
     ):
         return "forced mate"
-    primary_kind = _primary_played_purpose_kind(board, played, analysis.played_line.pv_uci)
+    primary_kind = _primary_played_purpose_kind(board, played, analysis)
     if primary_kind in {"tactic", "piece_activity", "recapture", "development"}:
         return primary_kind.replace("_", " ")
     if played.is_check:
@@ -499,7 +508,7 @@ def _featured_best_claim(
         purpose_claim := _primary_played_purpose_claim(
             board,
             played,
-            analysis.played_line.pv_uci,
+            analysis,
         )
     ):
         return f"{purpose_claim} in a critical position."

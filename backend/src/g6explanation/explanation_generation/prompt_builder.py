@@ -143,6 +143,13 @@ def build_coach_prompt(
                 "over generic continuation wording."
             ),
             (
+                "When concept_claims includes tactical_proof or line_evidence includes "
+                "an objection_line, answer the apparent objection directly: explain why "
+                "the move is not simply free or why the capture fails, using the supplied "
+                "reply line. Name the attempted capture and the reply when the supplied "
+                "claim names them. Prefer this over a generic 'follow-up' sentence."
+            ),
+            (
                 "If a supplied claim says the move attacks or forks pieces, name the "
                 "attacked pieces exactly as supplied before using any line-card continuation."
             ),

@@ -47,7 +47,17 @@ from g6explanation.context_engine.signals import (
 )
 from g6explanation.context_engine.signals.coach_diagnostics import build_move_diagnostic_tags
 
-MOVE_CONTEXT_VERSION = "move_context.v2"
+MOVE_CONTEXT_VERSION = "move_context.v3"
+NON_BAD_QUALITY_LABELS = {"best", "forced", "excellent", "good", "neutral"}
+TACTICAL_REPLY_TOLERANCE_CP = 75
+VALUABLE_ATTACK_TARGETS = {chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN}
+PIECE_VALUES = {
+    chess.PAWN: 100,
+    chess.KNIGHT: 300,
+    chess.BISHOP: 300,
+    chess.ROOK: 500,
+    chess.QUEEN: 900,
+}
 
 
 class MoveContextBuilder:
@@ -71,6 +81,29 @@ class MoveContextBuilder:
         _raise_verification_failure(
             self._evidence_verifier.verify_engine_analysis(board, move, analysis)
         )
+        quality = classify_quality(
+            analysis,
+            reconstructed.played,
+            legal_move_count=len(reconstructed.position.legal_moves_uci),
+        )
+        significance = calculate_significance(analysis, reconstructed.played)
+        supplemental_reply_lines = self._supplemental_opponent_reply_lines(
+            board=board,
+            played_move=move,
+            analysis=analysis,
+            player_color=request.player_color,
+            quality=quality,
+            significance_label=significance.label,
+        )
+        if supplemental_reply_lines:
+            analysis = analysis.model_copy(
+                update={
+                    "opponent_reply_lines": [
+                        *analysis.opponent_reply_lines,
+                        *supplemental_reply_lines,
+                    ]
+                }
+            )
         candidate_moves = _candidate_moves_from_analysis(
             board, analysis_move_uci=[line.move_uci for line in analysis.top_lines]
         )
@@ -90,12 +123,6 @@ class MoveContextBuilder:
         )
 
         situation = time_situation(request)
-        quality = classify_quality(
-            analysis,
-            reconstructed.played,
-            legal_move_count=len(reconstructed.position.legal_moves_uci),
-        )
-        significance = calculate_significance(analysis, reconstructed.played)
         beauty = calculate_beauty(
             board=board,
             analysis=analysis,
@@ -230,6 +257,48 @@ class MoveContextBuilder:
             _validate_line_pv(board, line)
         return lines
 
+    def _supplemental_opponent_reply_lines(
+        self,
+        board: chess.Board,
+        played_move: chess.Move,
+        analysis: EngineAnalysis,
+        player_color: ColorName,
+        quality: MoveQuality,
+        significance_label: str,
+    ) -> list[EngineLine]:
+        if not isinstance(self._analysis_provider, RootMoveAnalysisProvider):
+            return []
+        if quality.label not in NON_BAD_QUALITY_LABELS or significance_label not in {
+            "high",
+            "critical",
+        }:
+            return []
+        if not _moved_piece_attacks_valuable_target(board, played_move):
+            return []
+
+        after_board = board.copy(stack=False)
+        after_board.push(played_move)
+        existing = {line.move_uci for line in analysis.opponent_reply_lines}
+        capture_moves = [
+            move
+            for move in _captures_moved_piece(after_board, played_move)
+            if move.uci() not in existing
+        ]
+        if not capture_moves:
+            return []
+
+        lines = self._analysis_provider.analyze_root_moves(
+            after_board,
+            capture_moves[:2],
+            player_color,
+        )
+        filtered_lines: list[EngineLine] = []
+        for line in lines:
+            _validate_line_pv(after_board, line)
+            if _reply_line_preserves_player_value(line, analysis.played_line):
+                filtered_lines.append(line)
+        return filtered_lines
+
 
 def _raise_verification_failure(verification: VerificationResult) -> None:
     if verification.passed:
@@ -267,6 +336,60 @@ def _featured_candidate(
     if quality.label == "best" and significance_label in {"high", "critical"}:
         return played
     return None
+
+
+def _moved_piece_attacks_valuable_target(board: chess.Board, played_move: chess.Move) -> bool:
+    piece = board.piece_at(played_move.from_square)
+    if piece is None:
+        return False
+    after_board = board.copy(stack=False)
+    after_board.push(played_move)
+    for square in after_board.attacks(played_move.to_square):
+        target = after_board.piece_at(square)
+        if (
+            target is not None
+            and target.color != piece.color
+            and target.piece_type in VALUABLE_ATTACK_TARGETS
+        ):
+            return True
+    return False
+
+
+def _captures_moved_piece(after_board: chess.Board, played_move: chess.Move) -> list[chess.Move]:
+    captures = [
+        move
+        for move in after_board.legal_moves
+        if after_board.is_capture(move) and move.to_square == played_move.to_square
+    ]
+    return sorted(
+        captures,
+        key=lambda move: (
+            _piece_value(after_board.piece_at(move.from_square)),
+            move.uci(),
+        ),
+    )
+
+
+def _piece_value(piece: chess.Piece | None) -> int:
+    if piece is None:
+        return 0
+    return PIECE_VALUES.get(piece.piece_type, 0)
+
+
+def _reply_line_preserves_player_value(line: EngineLine, reference_line: EngineLine) -> bool:
+    score = line.score
+    reference_score = reference_line.score
+    if reference_score.kind == "mate":
+        return (
+            reference_score.mate_for == "player"
+            and score.kind == "mate"
+            and score.mate_for == "player"
+        )
+    if score.kind == "mate":
+        return score.mate_for == "player"
+    if score.value is None or reference_score.value is None:
+        return False
+    return score.value >= reference_score.value - TACTICAL_REPLY_TOLERANCE_CP
 
 
 def _validate_line_pv(board: chess.Board, line: EngineLine) -> None:

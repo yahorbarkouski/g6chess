@@ -85,6 +85,7 @@ ConceptClaimKind: TypeAlias = Literal[
     "teachable_skill_gap",
     "material",
     "tactic",
+    "tactical_proof",
     "king_safety",
     "center",
     "development",
@@ -103,6 +104,7 @@ ConceptClaimSubject: TypeAlias = Literal[
     "engine_best_move",
     "practical_alternative",
     "opponent_reply",
+    "tactical_reply",
     "position",
 ]
 ConceptClaimSource: TypeAlias = Literal[
@@ -355,6 +357,7 @@ class EngineAnalysis(ContextContract):
     top_lines: list[EngineLine] = Field(default_factory=list[EngineLine])
     played_line: EngineLine
     after_line: EngineLine | None = None
+    opponent_reply_lines: list[EngineLine] = Field(default_factory=list[EngineLine])
 
     @field_validator("top_lines")
     @classmethod

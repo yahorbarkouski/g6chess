@@ -205,6 +205,9 @@ Current deterministic concept evidence is intentionally conservative:
   win claim
 - direct attacks by the moved piece on valuable enemy pieces, including clear
   multi-target fork evidence such as a knight attacking both rooks
+- tactical proof for an apparently capturable tactic, using a verified opponent
+  reply line to show why the capture fails or why the moved piece is not simply
+  free
 - moves that vacate the first blocker on a friendly bishop diagonal, exposing
   the concrete route squares without naming an opening system
 - minor-piece development from the home rank

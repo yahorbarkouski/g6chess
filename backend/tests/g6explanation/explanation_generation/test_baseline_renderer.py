@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from g6explanation.explanation_generation.baseline_renderer import render_baseline_explanation
 from g6explanation.explanation_generation.explanation_verification import ExplanationVerifier
+from tests.g6explanation.context_engine.helpers import na4_tactical_objection_context
 from tests.g6explanation.explanation_generation.helpers import (
     best_context,
     hard_engine_best_context,
@@ -38,3 +39,14 @@ def test_baseline_renderer_uses_practical_alternative_without_judging_model_outp
     assert verification.passed
     assert "mistake" in output.explanation.lower()
     assert "Nf3" in output.explanation
+
+
+def test_baseline_renderer_uses_tactical_objection_proof_when_supplied() -> None:
+    context = na4_tactical_objection_context()
+
+    output = render_baseline_explanation(context)
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+    assert "Nxa4 is met by Nxe4" in output.explanation
+    assert "not simply free" in output.explanation

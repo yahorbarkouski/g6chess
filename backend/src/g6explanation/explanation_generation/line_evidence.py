@@ -22,6 +22,10 @@ def build_line_evidence(context_result: ContextResult) -> list[ExplanationLineEv
     """Build compact verified line options the model may attach to segments."""
 
     evidence: list[ExplanationLineEvidence] = []
+    objection_line = _objection_line_evidence(context_result)
+    if objection_line is not None:
+        evidence.append(objection_line)
+
     played_line = _played_line_evidence(context_result)
     if played_line is not None:
         evidence.append(played_line)
@@ -63,6 +67,36 @@ def _played_line_evidence(context_result: ContextResult) -> ExplanationLineEvide
         title="How the mistake gets punished" if is_bad else "How the idea plays out",
         why=_played_line_why(context_result, is_bad=is_bad),
     )
+
+
+def _objection_line_evidence(context_result: ContextResult) -> ExplanationLineEvidence | None:
+    tactical_proof_text = " ".join(
+        claim.claim
+        for claim in context_result.llm_context.concept_claims
+        if claim.kind == "tactical_proof"
+    )
+    if not tactical_proof_text:
+        return None
+
+    for line in context_result.evidence.engine.opponent_reply_lines:
+        if len(line.pv_san) < 2:
+            continue
+        if line.pv_san[0] not in tactical_proof_text or line.pv_san[1] not in tactical_proof_text:
+            continue
+        moves = _line_moves([context_result.llm_context.played, *line.pv_san])
+        if moves is None or len(moves) < 3:
+            continue
+        return ExplanationLineEvidence(
+            id="objection-line",
+            role="objection_line",
+            moves=moves,
+            title="Why the capture fails",
+            why=(
+                "The line shows the tactical reply behind the apparent capture, "
+                "so the moved piece is not simply free."
+            ),
+        )
+    return None
 
 
 def _better_line_evidence(context_result: ContextResult) -> ExplanationLineEvidence | None:

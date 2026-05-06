@@ -308,6 +308,15 @@ def _verify_engine_analysis(
                 f"{path}.after_line",
                 "Engine after_line is present even though the played move ends the game.",
             )
+        if analysis.opponent_reply_lines:
+            issues.fail(
+                "engine_after_line_unexpected",
+                f"{path}.opponent_reply_lines",
+                (
+                    "Engine opponent reply lines are present even though the played move "
+                    "ends the game."
+                ),
+            )
         return
 
     if analysis.after_line is None:
@@ -323,18 +332,29 @@ def _verify_engine_analysis(
                 f"{path}.after_line",
                 "Engine analysis must include an after-move reply when the game continues.",
             )
-        return
-
-    _verify_engine_line(
-        board=after_board,
-        line=analysis.after_line,
-        path=f"{path}.after_line",
-        issues=issues,
-        require_metadata=not is_static,
-        require_pv=not is_static,
-        require_wdl=wdl_requested,
-        minimum_depth=minimum_depth,
-    )
+            return
+    else:
+        _verify_engine_line(
+            board=after_board,
+            line=analysis.after_line,
+            path=f"{path}.after_line",
+            issues=issues,
+            require_metadata=not is_static,
+            require_pv=not is_static,
+            require_wdl=wdl_requested,
+            minimum_depth=minimum_depth,
+        )
+    for index, line in enumerate(analysis.opponent_reply_lines):
+        _verify_engine_line(
+            board=after_board,
+            line=line,
+            path=f"{path}.opponent_reply_lines[{index}]",
+            issues=issues,
+            require_metadata=not is_static,
+            require_pv=not is_static,
+            require_wdl=wdl_requested,
+            minimum_depth=minimum_depth,
+        )
 
 
 def _verify_engine_metadata(

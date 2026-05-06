@@ -54,7 +54,9 @@ product-ready.
   net material gain or loss, material-recovery recaptures, verified immediate
   material trades from supplied PVs, king safety, development, open files,
   passed pawns, outposts, initiative, forcing move facts, direct attacks on
-  valuable pieces, clear multi-target forks, and opened bishop diagonal routes.
+  valuable pieces, clear multi-target forks, opened bishop diagonal routes, and
+  tactical proof lines showing why an apparently capturable tactic is not simply
+  free.
 - Move quality includes `forced` for positions with exactly one legal move so
   the context can describe the position outcome without assigning move blame.
 - Immediate checkmates are quality `best` and significance `critical` even when
@@ -86,6 +88,8 @@ product-ready.
   hover-card wording, but they may not invent card ids, alter supplied moves, or
   shorten the supplied line. Verified line cards are bounded at 16 SAN plies and
   should add follow-through beyond the visible segment instead of duplicating it.
+  Objection line cards are allowed when verified reply evidence proves why an
+  apparent capture fails.
   Full move arrays are for board visualization; explanation prose should avoid
   reading out long notation lines. Line-card title and `why` text must match the
   supplied line evidence exactly, and generic alternative line cards must not

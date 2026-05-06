@@ -21,7 +21,7 @@ from g6explanation.explanation_generation.contracts import (
 )
 from g6explanation.explanation_generation.line_evidence import build_line_evidence
 
-EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v4"
+EXPLANATION_VERIFIER_VERSION = "explanation_verifier.v5"
 
 SAN_MOVE_RE = re.compile(
     r"(?<![A-Za-z0-9])"
@@ -91,6 +91,8 @@ TACTIC_TERMS = {
     "forks",
     "forked",
     "double attack",
+    "counterfork",
+    "counter-fork",
     "pin",
     "skewer",
     "deflection",
@@ -104,7 +106,7 @@ TACTIC_TERMS = {
 }
 ATTACK_TARGET_RE = re.compile(
     r"\b(?:attacks|attacked|attacking|threatens?|threatened|threatening)\b"
-    r"[^.?!;]{0,100}"
+    r"[^.?!;,]{0,100}"
     r"\b(?:queens?|rooks?|bishops?|knights?|pawns?|pieces?)\b(?!\s+moves?\b)",
     re.IGNORECASE,
 )
@@ -161,6 +163,25 @@ CONCEPT_ALIASES_BY_KIND: dict[str, tuple[str, ...]] = {
         "king is exposed",
         "exposed king",
         "unsafe king",
+    ),
+    "tactical_proof": (
+        "apparent capture",
+        "capture fails",
+        "cannot be taken",
+        "can't be taken",
+        "cannot win",
+        "can't win",
+        "cannot be won",
+        "can't be won",
+        "not a free",
+        "not simply free",
+        "not free",
+        "free piece",
+        "free knight",
+        "free bishop",
+        "free rook",
+        "free queen",
+        "met by",
     ),
     "center": ("center", "centre", "central"),
     "development": (
@@ -510,7 +531,12 @@ def _verify_supported_claim_terms(
         or MATERIAL_TRADE_RE.search(explanation)
     ):
         material_support = _trusted_claim_text(context_result, {"material"})
-        unsupported_material_term = _unsupported_material_claim(text, material_support)
+        tactical_proof_support = _trusted_claim_text(context_result, {"tactical_proof"})
+        unsupported_material_term = _unsupported_material_claim(
+            text,
+            material_support,
+            tactical_proof_support,
+        )
         if unsupported_material_term is not None:
             issues.fail(
                 "unsupported_material_claim",
@@ -984,15 +1010,28 @@ def _has_direct_mate_language(text: str, token: str, aliases: set[str]) -> bool:
     return False
 
 
-def _unsupported_material_claim(text: str, material_support: str) -> str | None:
+def _unsupported_material_claim(
+    text: str,
+    material_support: str,
+    tactical_proof_support: str = "",
+) -> str | None:
     if not material_support:
-        return "material"
+        for pattern in (MATERIAL_GAIN_RE, MATERIAL_LOSS_RE, MATERIAL_TRADE_RE):
+            for match in pattern.finditer(text):
+                if _material_match_is_negated_tactical_proof(text, match, tactical_proof_support):
+                    continue
+                return "material"
+        return None
     for match in MATERIAL_GAIN_RE.finditer(text):
+        if _material_match_is_negated_tactical_proof(text, match, tactical_proof_support):
+            continue
         if not _has_material_gain_support(material_support):
             return "material gain"
         if unsupported_term := _unsupported_material_term(match.group(0), material_support):
             return unsupported_term
     for match in MATERIAL_LOSS_RE.finditer(text):
+        if _material_match_is_negated_tactical_proof(text, match, tactical_proof_support):
+            continue
         if not _has_material_loss_support(material_support):
             return "material loss"
         if unsupported_term := _unsupported_material_term(match.group(0), material_support):
@@ -1003,6 +1042,22 @@ def _unsupported_material_claim(text: str, material_support: str) -> str | None:
         if unsupported_term := _unsupported_material_term(match.group(0), material_support):
             return unsupported_term
     return None
+
+
+def _material_match_is_negated_tactical_proof(
+    text: str,
+    match: re.Match[str],
+    tactical_proof_support: str,
+) -> bool:
+    if not tactical_proof_support:
+        return False
+    prefix = text[max(0, match.start() - 32) : match.start()]
+    return bool(
+        re.search(
+            r"(?:cannot|can't|cant|does\s+not|doesn't|not\s+able\s+to|not)\s+$",
+            prefix,
+        )
+    )
 
 
 def _unsupported_attack_claim(text: str, attack_support: str) -> str | None:
@@ -1048,7 +1103,7 @@ def _has_any_concrete_attack_target(attack_support: str) -> bool:
 
 
 def _tactic_supported(tactic_support: str, tactic: str) -> bool:
-    if tactic in {"fork", "forks", "forked", "double attack"}:
+    if tactic in {"fork", "forks", "forked", "double attack", "counterfork", "counter-fork"}:
         return any(
             _contains_phrase(tactic_support, alias)
             for alias in ("fork", "forks", "forked", "double attack")

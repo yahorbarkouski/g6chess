@@ -63,7 +63,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v18`. Current explanation schema
+Current prompt version: `single_move_coach.v19`. Current explanation schema
 version: `explanation_output.v4`. Version 2 made
 `recommendation_policy` wording explicit so hard or hidden resources are framed
 as review points, practical alternatives are framed as coaching options, and
@@ -121,6 +121,9 @@ review and coach-wording guidance: WDL edge cases, fast sound moves, time
 scramble misses, slow blunders, increment context, no-blame forced moves, and
 rating-level wording. These tags do not override objective quality,
 significance, beauty, candidates, or typed concept claims.
+Version 19 adds tactical-proof objection guidance: when the context supplies an
+apparent-capture reply line, the model should explain why the capture fails or
+why the moved piece is not simply free before using generic follow-up wording.
 
 ## Contracts
 
@@ -222,6 +225,8 @@ Minimum checks:
   move history
 - tactic prose requires a trusted typed `tactic` concept claim that names the
   same tactic
+- apparent-capture or "not free" prose requires trusted typed
+  `tactical_proof` concept evidence and supplied reply-line moves
 - attack prose about valuable pieces requires trusted `piece_activity` or
   `tactic` concept evidence naming the attacked material
 - named opening-system prose requires explicit opening metadata; board geometry

@@ -296,6 +296,18 @@ REAL_EXPLANATION_EVAL_CASES: tuple[RealExplanationEvalCase, ...] = (
         source=PROJECT_HISTORICAL_GAME_SOURCE,
     ),
     RealExplanationEvalCase(
+        case_id="century-na4-objection",
+        description="Game of the Century Na4 fork whose apparent capture is tactically punished",
+        pgn=BYRNE_FISCHER,
+        ply=22,
+        player_color="black",
+        player_level=PlayerLevel.rating(2300, "historical-demo"),
+        time_control="classical",
+        expected_san="Na4",
+        tags=("game-of-the-century", "objection-line", "fork", "best"),
+        source=PROJECT_HISTORICAL_GAME_SOURCE,
+    ),
+    RealExplanationEvalCase(
         case_id="kasparov-rxd4",
         description="Kasparov-Topalov rook sacrifice",
         pgn=KASPAROV_TOPALOV,
