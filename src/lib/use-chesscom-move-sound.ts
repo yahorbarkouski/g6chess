@@ -1,9 +1,17 @@
 import { useEffect, useRef } from "react";
 import { triggerHaptic, warmupHaptics } from "./haptics";
 
-const MOVE_SOUND_MIN_INTERVAL_MS = 28;
+const MOVE_SOUND_MIN_INTERVAL_MS = 14;
 const MOVE_SOUND_POOL_SIZE = 4;
 const MOVE_SOUND_VOLUME = 1;
+const COARSE_POINTER_QUERY = "(hover: none), (pointer: coarse)";
+
+function isCoarsePointer(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia(COARSE_POINTER_QUERY).matches;
+}
 
 const CHESS_COM_SOUND_URLS = {
   moveSelf: "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3",
@@ -81,33 +89,39 @@ export function useChessComMoveSound(
   const indicesRef = useRef<Record<MoveSoundKey, number> | null>(null);
   const lastPositionRef = useRef<string | null>(null);
   const lastPlayAtRef = useRef(0);
+  const audioEnabledRef = useRef(false);
 
   useEffect(() => {
-    const createPool = (url: string) =>
-      Array.from({ length: MOVE_SOUND_POOL_SIZE }, () => {
-        const audio = new Audio(url);
-        audio.preload = "auto";
-        audio.volume = MOVE_SOUND_VOLUME;
-        return audio;
-      });
+    const audioEnabled = !isCoarsePointer();
+    audioEnabledRef.current = audioEnabled;
 
-    poolsRef.current = {
-      moveSelf: createPool(CHESS_COM_SOUND_URLS.moveSelf),
-      moveOpponent: createPool(CHESS_COM_SOUND_URLS.moveOpponent),
-      capture: createPool(CHESS_COM_SOUND_URLS.capture),
-      castle: createPool(CHESS_COM_SOUND_URLS.castle),
-      moveCheck: createPool(CHESS_COM_SOUND_URLS.moveCheck),
-      promote: createPool(CHESS_COM_SOUND_URLS.promote),
-    };
+    if (audioEnabled) {
+      const createPool = (url: string) =>
+        Array.from({ length: MOVE_SOUND_POOL_SIZE }, () => {
+          const audio = new Audio(url);
+          audio.preload = "auto";
+          audio.volume = MOVE_SOUND_VOLUME;
+          return audio;
+        });
 
-    indicesRef.current = {
-      moveSelf: 0,
-      moveOpponent: 0,
-      capture: 0,
-      castle: 0,
-      moveCheck: 0,
-      promote: 0,
-    };
+      poolsRef.current = {
+        moveSelf: createPool(CHESS_COM_SOUND_URLS.moveSelf),
+        moveOpponent: createPool(CHESS_COM_SOUND_URLS.moveOpponent),
+        capture: createPool(CHESS_COM_SOUND_URLS.capture),
+        castle: createPool(CHESS_COM_SOUND_URLS.castle),
+        moveCheck: createPool(CHESS_COM_SOUND_URLS.moveCheck),
+        promote: createPool(CHESS_COM_SOUND_URLS.promote),
+      };
+
+      indicesRef.current = {
+        moveSelf: 0,
+        moveOpponent: 0,
+        capture: 0,
+        castle: 0,
+        moveCheck: 0,
+        promote: 0,
+      };
+    }
 
     let unlocked = false;
     const unlock = () => {
@@ -116,10 +130,12 @@ export function useChessComMoveSound(
       }
       unlocked = true;
       warmupHaptics();
-      const pools = poolsRef.current;
-      if (pools) {
-        for (const audios of Object.values(pools)) {
-          unlockAudioPool(audios);
+      if (audioEnabled) {
+        const pools = poolsRef.current;
+        if (pools) {
+          for (const audios of Object.values(pools)) {
+            unlockAudioPool(audios);
+          }
         }
       }
       window.removeEventListener("pointerdown", unlock, true);
@@ -133,6 +149,7 @@ export function useChessComMoveSound(
     return () => {
       poolsRef.current = null;
       indicesRef.current = null;
+      audioEnabledRef.current = false;
       window.removeEventListener("pointerdown", unlock, true);
       window.removeEventListener("touchstart", unlock, true);
       window.removeEventListener("keydown", unlock, true);
@@ -159,6 +176,11 @@ export function useChessComMoveSound(
 
     const key = resolveMoveSoundKey(san, movedByPlayer);
     triggerHaptic(MOVE_SOUND_HAPTIC[key]);
+
+    if (!audioEnabledRef.current) {
+      return;
+    }
+
     const pools = poolsRef.current;
     const indices = indicesRef.current;
     if (!pools || !indices) {

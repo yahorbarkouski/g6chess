@@ -47,8 +47,8 @@ vi.mock("../../hooks/useStockfish", () => ({
   }),
 }));
 
-vi.mock("../../lib/use-chesscom-move-sound", () => ({
-  useChessComMoveSound: vi.fn(),
+vi.mock("../../lib/use-move-haptics", () => ({
+  useMoveHaptics: vi.fn(),
 }));
 
 vi.mock("./UltraAnalysisBoard", () => ({
