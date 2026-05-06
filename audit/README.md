@@ -17,6 +17,7 @@ event log only when you need command history or detailed evidence.
 | `2026-05-05-engine-line-preview-regression-audit.md` | Focused bug audit | Engine-line preview behavior and old-vs-current sidebar line selection. |
 | `2026-05-05-book-lines-port-plan.md` | Feature plan | Opening-book metadata contract and book-line UI port. |
 | `2026-05-05-early-board-rendering-audit.md` | Focused architecture audit | Import-to-board render timing, Chess.com/PGN skeleton contract, and context-gated board hydration. |
+| `2026-05-06-safari-performance-audit.md` | Focused performance audit | Safari/WebKit lag suspects around move-list scrolling, board animation, and browser Stockfish fallback. |
 
 ## Historical Context
 
@@ -34,6 +35,7 @@ event log only when you need command history or detailed evidence.
 - `2026-05-05-engine-line-preview-regression-audit-event-log.md`
 - `2026-05-05-book-lines-port-plan-event-log.md`
 - `2026-05-05-early-board-rendering-audit-event-log.md`
+- `2026-05-06-safari-performance-audit-event-log.md`
 - `2026-05-04-codebase-audit-event-log.md`
 - `2026-05-04-stockfish-performance-audit-event-log.md`
 - `2026-05-04-stockfish-ultrachess-cross-repo-performance-audit-event-log.md`

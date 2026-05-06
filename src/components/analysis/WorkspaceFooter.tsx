@@ -7,7 +7,7 @@ const FEEDBACK_URL = "mailto:admin@g6chess.com";
 
 export function WorkspaceFooter() {
   return (
-    <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center justify-end gap-0.5 p-1.5 text-xs backdrop-blur-sm">
+    <footer className="pointer-events-none fixed right-1.5 bottom-1.5 z-30 flex items-center justify-end gap-0.5 text-xs">
       <FooterLink href={FEEDBACK_URL}>
         <Smile className="size-3.5" strokeWidth={1.75} />
       </FooterLink>

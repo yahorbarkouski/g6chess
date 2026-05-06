@@ -445,6 +445,67 @@ export function AnalysisWorkspace() {
   ]);
 
   useEffect(() => {
+    if (
+      route.kind !== "chess_com_live" ||
+      route.externalGameId === null ||
+      route.analysisId === null ||
+      activeJob === null ||
+      activeJob.analysis_id !== route.analysisId ||
+      hasPlayerIdentity(activeJob.source)
+    ) {
+      return;
+    }
+
+    const externalGameId = route.externalGameId;
+    const analysisId = route.analysisId;
+    let cancelled = false;
+    const abortController = new AbortController();
+
+    async function hydrateSharedRouteSource() {
+      try {
+        const response = await getCachedChessComLiveGameAnalysis(
+          externalGameId,
+          abortController.signal,
+        );
+        if (
+          cancelled ||
+          response.source.external_game_id !== externalGameId ||
+          !hasPlayerIdentity(response.source)
+        ) {
+          return;
+        }
+        setActiveJob((current) => {
+          if (
+            current === null ||
+            current.analysis_id !== analysisId ||
+            hasPlayerIdentity(current.source)
+          ) {
+            return current;
+          }
+          const nextJob: StoredGameAnalysisJob = {
+            ...current,
+            source: response.source,
+            game: current.game ?? response.game ?? null,
+          };
+          writeStoredGameAnalysisJob(nextJob);
+          return nextJob;
+        });
+      } catch (error) {
+        if (cancelled || isAbortError(error)) {
+          return;
+        }
+      }
+    }
+
+    void hydrateSharedRouteSource();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
+  }, [activeJob, route.analysisId, route.externalGameId, route.kind]);
+
+  useEffect(() => {
     if (pendingRouteImportId === null) {
       return;
     }
@@ -1723,6 +1784,16 @@ function sourceFromExternalGameId(externalGameId: string): ImportedGameMetadata 
     allows_global_training: false,
     rights_basis: "Public Chess.com game link.",
   };
+}
+
+function hasPlayerIdentity(source: ImportedGameMetadata | null): boolean {
+  return (
+    source !== null &&
+    source.white_username !== null &&
+    source.black_username !== null &&
+    source.white_rating !== null &&
+    source.black_rating !== null
+  );
 }
 
 function buildChessComRouteImportRequest(

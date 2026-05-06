@@ -338,6 +338,34 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
+  it("hydrates player identity for shared Chess.com analysis links from the import cache", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1");
+    const source = importedSource();
+    apiMocks.getCachedChessComLiveGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "succeeded",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+      game: gameSkeleton(),
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.getCachedChessComLiveGameAnalysis).toHaveBeenCalledWith(
+        "168193636078",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(await screen.findByText("Alpha")).toBeTruthy();
+    expect(screen.getByText("Beta")).toBeTruthy();
+    expect(screen.getByText("(1600)")).toBeTruthy();
+    expect(screen.getByText("(1500)")).toBeTruthy();
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
   it("polls a direct analysis link without starting a new import", async () => {
     window.history.replaceState(null, "", "/analysis/analysis-1?ply=1");
     apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
