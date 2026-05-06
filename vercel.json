@@ -73,6 +73,28 @@
       "permanent": true
     },
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/",
+      "permanent": true
+    },
+    {
       "source": "/analysis/:path*",
       "has": [
         {
@@ -89,6 +111,28 @@
         {
           "type": "host",
           "value": "www.g6chess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/analysis/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/analysis/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/analysis/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/analysis/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.g6lichess.org"
         }
       ],
       "destination": "https://g6chess.com/analysis/:path*",
@@ -133,6 +177,50 @@
         {
           "type": "host",
           "value": "www.g6chess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/lichess/:gameId",
+      "permanent": true
+    },
+    {
+      "source": "/:gameId((?!analysis(?:/|$))[A-Za-z0-9]{8})",
+      "has": [
+        {
+          "type": "host",
+          "value": "g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/lichess/:gameId",
+      "permanent": true
+    },
+    {
+      "source": "/:gameId((?!analysis(?:/|$))[A-Za-z0-9]{8})/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/lichess/:gameId",
+      "permanent": true
+    },
+    {
+      "source": "/:gameId((?!analysis(?:/|$))[A-Za-z0-9]{8})",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/lichess/:gameId",
+      "permanent": true
+    },
+    {
+      "source": "/:gameId((?!analysis(?:/|$))[A-Za-z0-9]{8})/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.g6lichess.org"
         }
       ],
       "destination": "https://g6chess.com/lichess/:gameId",
@@ -155,6 +243,28 @@
         {
           "type": "host",
           "value": "www.g6chess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "g6lichess.org"
+        }
+      ],
+      "destination": "https://g6chess.com/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.g6lichess.org"
         }
       ],
       "destination": "https://g6chess.com/:path*",

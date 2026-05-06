@@ -15,6 +15,11 @@ const PIECE_FONT_STYLE = {
   fontFamily: '"Apple Symbols","Noto Sans Symbols 2","Segoe UI Symbol",serif',
 } as const;
 
+const ENGINE_LINE_ROW_HEIGHT_PX = 58;
+const ENGINE_LINE_ROW_GAP_PX = 6;
+const ENGINE_LINES_HEADING_HEIGHT_PX = 28;
+const ENGINE_LINES_SECTION_GAP_PX = 8;
+
 interface PreviewState {
   rootFen: string;
   lineMoves: string[];
@@ -58,31 +63,54 @@ export function EngineLinesView({
   const visibleLineCount = Math.max(0, maxLines - continuationRowCount);
   const visibleLineStart = merged ? 1 : 0;
   const visibleLines = lines.slice(visibleLineStart, visibleLineStart + visibleLineCount);
+  const reservedRowCount = Math.max(1, maxLines);
+  const reservedSectionHeight =
+    ENGINE_LINES_HEADING_HEIGHT_PX +
+    ENGINE_LINES_SECTION_GAP_PX +
+    reservedRowCount * ENGINE_LINE_ROW_HEIGHT_PX +
+    Math.max(0, reservedRowCount - 1) * ENGINE_LINE_ROW_GAP_PX;
+  const rowItems: Array<{
+    key: string;
+    fen: string;
+    label: string;
+    line: BestLine;
+    variant: "default" | "continuation" | "best-continuation";
+  }> = [];
+
+  if (continuationLine) {
+    rowItems.push({
+      fen: continuationLine.fen,
+      key: `continuation-${continuationLine.fen}-${continuationLine.line.uci}`,
+      label: merged ? "Best continuation" : "Continuation",
+      line: continuationLine.line,
+      variant: merged ? "best-continuation" : "continuation",
+    });
+  }
+
+  visibleLines.forEach((line, index) => {
+    rowItems.push({
+      fen: rootFen,
+      key: `line-${rootFen}-${visibleLineStart + index}-${line.uci}-${line.san}`,
+      label: !merged && index === 0 ? "Best" : "Alternative",
+      line,
+      variant: "default",
+    });
+  });
 
   return (
-    <section className={cn("space-y-2", className)}>
+    <section className={cn("space-y-2", className)} style={{ minHeight: reservedSectionHeight }}>
       <h3 className="font-serif text-lg text-stone-900 dark:text-stone-100">Engine lines</h3>
       <div className="space-y-1.5">
-        {continuationLine ? (
+        {rowItems.map((item) => (
           <LineRow
             activePreview={activePreview}
-            fen={continuationLine.fen}
-            label={merged ? "Best continuation" : "Continuation"}
-            line={continuationLine.line}
+            fen={item.fen}
+            key={item.key}
+            label={item.label}
+            line={item.line}
             onPreview={onPreview}
             playerSide={playerSide}
-            variant={merged ? "best-continuation" : "continuation"}
-          />
-        ) : null}
-        {visibleLines.map((line, index) => (
-          <LineRow
-            activePreview={activePreview}
-            fen={rootFen}
-            key={`${line.uci}-${line.san}`}
-            label={!merged && index === 0 ? "Best" : "Alternative"}
-            line={line}
-            onPreview={onPreview}
-            playerSide={playerSide}
+            variant={item.variant}
           />
         ))}
       </div>
@@ -215,7 +243,7 @@ function LineRow({
   return (
     <div
       className={cn(
-        "rounded px-2 py-1.5",
+        "min-h-[58px] rounded px-2 py-1.5",
         isBestContinuation
           ? "bg-emerald-50/80 dark:bg-emerald-950/30"
           : isContinuation
@@ -223,10 +251,10 @@ function LineRow({
             : "bg-stone-100/80 dark:bg-stone-800/40",
       )}
     >
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-1 flex min-h-4 items-center gap-2">
         <span
           className={cn(
-            "text-[10px] font-medium uppercase tracking-wide",
+            "shrink-0 whitespace-nowrap text-[10px] font-medium uppercase leading-none tracking-wide",
             isBestContinuation
               ? "text-emerald-500 dark:text-emerald-400"
               : isContinuation
@@ -236,11 +264,16 @@ function LineRow({
         >
           <MorphText>{label}</MorphText>
         </span>
-        <span className={cn("font-mono text-[11px]", evalColorClass(line.eval_cp, playerSide))}>
+        <span
+          className={cn(
+            "shrink-0 whitespace-nowrap font-mono text-[11px] leading-none",
+            evalColorClass(line.eval_cp, playerSide),
+          )}
+        >
           <MorphText>{formatEvalLong(line.eval_cp)}</MorphText>
         </span>
       </div>
-      <div className="scrollbar-hide flex items-center gap-1 overflow-x-auto">
+      <div className="scrollbar-hide flex min-h-[26px] items-center gap-1 overflow-x-auto">
         {moves.map((san, stepIndex) => {
           const moveSide = stepIndex % 2 === 0 ? rootSide : otherSide(rootSide);
           const isActive = previewMatches(activePreview, fen, moves, stepIndex + 1);
