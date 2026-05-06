@@ -1,2 +1,0 @@
-[     109ms] [ERROR] Access to fetch at 'http://127.0.0.1:8001/api/game-analysis/1d10e446ecbb48e4a8751e772977f018' from origin 'http://127.0.0.1:4173' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://127.0.0.1:4173/game/live/168221352004?analysis=1d10e446ecbb48e4a8751e772977f018:0
-[     110ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://127.0.0.1:8001/api/game-analysis/1d10e446ecbb48e4a8751e772977f018:0
