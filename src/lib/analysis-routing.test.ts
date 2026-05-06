@@ -7,6 +7,24 @@ import {
 } from "./analysis-routing";
 
 describe("analysis routing", () => {
+  it("parses legacy production-domain Chess.com game routes as live imports", () => {
+    expect(parseAnalysisRoute("/game/168319028894")).toEqual({
+      kind: "chess_com_live",
+      externalSource: "chess_com_live_url",
+      externalGameId: "168319028894",
+      analysisId: null,
+      ply: null,
+      canonicalPath: "/game/live/168319028894",
+    });
+    expect(extractGameImportTarget("https://www.g6chess.com/game/168319028894")).toEqual({
+      source: "chess_com_live_url",
+      externalGameId: "168319028894",
+    });
+    expect(normalizeGameImportUrl("https://www.g6chess.com/game/168319028894")).toBe(
+      "https://www.chess.com/game/live/168319028894",
+    );
+  });
+
   it("parses Lichess game URLs and normalizes to the canonical import URL", () => {
     expect(extractLichessGameId("https://lichess.org/fY44h4OY/black#56")).toBe("fY44h4OY");
     expect(extractLichessGameId("https://lichess.org/game/export/fY44h4OY")).toBe("fY44h4OY");

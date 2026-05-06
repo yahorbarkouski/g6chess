@@ -308,6 +308,9 @@ function matchChessComRouteParts(parts: string[]): string | null {
   if (parts[0] === "game" && parts[1] === "live") {
     return normalizeNumericId(parts[2]);
   }
+  if (parts[0] === "game") {
+    return normalizeNumericId(parts[1]);
+  }
   if (parts[0] === "live") {
     return normalizeNumericId(parts[1]);
   }
@@ -323,9 +326,7 @@ function matchLichessRouteParts(parts: string[]): string | null {
 
 function matchChessComPath(pathname: string): string | null {
   const parts = pathParts(pathname);
-  return (
-    matchChessComRouteParts(parts) ?? (parts[0] === "game" ? normalizeNumericId(parts[1]) : null)
-  );
+  return matchChessComRouteParts(parts);
 }
 
 function matchLichessPath(pathname: string): string | null {

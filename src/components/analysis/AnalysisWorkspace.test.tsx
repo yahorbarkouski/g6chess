@@ -235,6 +235,44 @@ describe("AnalysisWorkspace imports", () => {
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
+  it("starts a Chess.com route import from a legacy production-domain game path", async () => {
+    window.history.replaceState(null, "", "/game/168319028894");
+    const source = importedSource({
+      externalGameId: "168319028894",
+      sourceUrl: "https://www.chess.com/game/live/168319028894",
+    });
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(screen.getByLabelText("Game URL")).toHaveValue(
+      "https://www.chess.com/game/live/168319028894",
+    );
+    await waitFor(() =>
+      expect(apiMocks.getCachedChessComLiveGameAnalysis).toHaveBeenCalledWith(
+        "168319028894",
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "chess_com_live_url",
+          url: "https://www.chess.com/game/live/168319028894",
+        }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/game/live/168319028894");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
   it("starts a Lichess route import from a production-domain game path", async () => {
     window.history.replaceState(null, "", "/lichess/fY44h4OY");
     const source = lichessSource();
@@ -574,11 +612,17 @@ async function waitForNoBrowserEngineTick(): Promise<void> {
   await new Promise((resolve) => window.setTimeout(resolve, 120));
 }
 
-function importedSource(): ImportedGameMetadata {
+function importedSource({
+  externalGameId = "168193636078",
+  sourceUrl = "https://www.chess.com/game/live/168193636078",
+}: {
+  externalGameId?: string;
+  sourceUrl?: string;
+} = {}): ImportedGameMetadata {
   return {
     source: "chess_com_live_url",
-    source_url: "https://www.chess.com/game/live/168193636078",
-    external_game_id: "168193636078",
+    source_url: sourceUrl,
+    external_game_id: externalGameId,
     title: "Alpha vs Beta",
     white_username: "Alpha",
     black_username: "Beta",

@@ -447,6 +447,9 @@ export function AnalysisWorkspace() {
     return () => {
       cancelled = true;
       abortController.abort();
+      if (routeImportStartedRef.current === routeImportKey) {
+        routeImportStartedRef.current = null;
+      }
     };
   }, [activeJob, navigateToImportedGamePath, route]);
 
@@ -995,7 +998,7 @@ function BackToImportButton({ className, onClick }: { className?: string; onClic
     <button
       aria-label="Back to import"
       className={cn(
-        "z-40 flex size-6 cursor-pointer items-center justify-center rounded-full text-stone-300 transition-colors hover:bg-stone-100/70 hover:text-stone-500 dark:text-stone-600 dark:hover:bg-stone-900/70 dark:hover:text-stone-400",
+        "z-40 flex size-6 cursor-pointer items-center justify-center rounded-full text-stone-400 transition-colors hover:bg-stone-100/70 hover:text-stone-500 dark:text-stone-500 dark:hover:bg-stone-900/70 dark:hover:text-stone-400",
         className,
       )}
       onClick={onClick}
