@@ -52,6 +52,7 @@ describe("PositionInfo", () => {
     cleanup();
     vi.useRealTimers();
     installPointerMedia(false);
+    vi.unstubAllGlobals();
   });
 
   it("highlights only the segment anchor and previews the attached line", async () => {
@@ -123,6 +124,57 @@ describe("PositionInfo", () => {
     expect(board).toHaveTextContent(ROOT_FEN);
   });
 
+  it("keeps the hover card open while moving from the anchor into the card", () => {
+    vi.useFakeTimers();
+
+    render(
+      <PositionInfo
+        currentMove={move()}
+        rootFen={ROOT_FEN}
+        selectedMarker={markerWithRichExplanation()}
+      />,
+    );
+
+    const anchor = screen.getByRole("button", { name: /key reply Nxb5/i });
+    fireEvent.pointerEnter(anchor);
+
+    const preview = screen.getByTestId("line-card-preview");
+    const shell = preview.parentElement;
+    const root = anchor.parentElement;
+
+    expect(shell).not.toBeNull();
+    expect(root).not.toBeNull();
+
+    fireEvent.pointerLeave(root as HTMLElement);
+    fireEvent.pointerEnter(shell as HTMLElement);
+
+    act(() => vi.advanceTimersByTime(180));
+
+    expect(screen.getByTestId("line-card-preview")).toBeInTheDocument();
+  });
+
+  it("lets users click a move inside the hover card", async () => {
+    const user = userEvent.setup();
+    const onMoveClick = vi.fn();
+
+    render(
+      <PositionInfo
+        currentMove={move()}
+        onMoveClick={onMoveClick}
+        rootFen={ROOT_FEN}
+        selectedMarker={markerWithRichExplanation()}
+      />,
+    );
+
+    await user.hover(screen.getByRole("button", { name: /key reply Nxb5/i }));
+
+    const preview = screen.getByTestId("line-card-preview");
+    await user.click(within(preview).getByRole("button", { name: /xb5/i }));
+
+    expect(onMoveClick).toHaveBeenCalledWith(ROOT_FEN, ["b5", "Nxb5", "Qb4+"], 2);
+    expect(screen.getByTestId("line-card-preview")).toBeInTheDocument();
+  });
+
   it("opens and dismisses a tap popover on coarse pointers", async () => {
     installPointerMedia(true);
     const user = userEvent.setup();
@@ -169,6 +221,34 @@ describe("PositionInfo", () => {
     await user.click(screen.getByRole("button", { name: "Bxf7" }));
 
     expect(onMoveClick).toHaveBeenCalledWith(ROOT_FEN, ["Kd8", "Bxf7", "Kc7"], 2);
+  });
+
+  it("copies the current PGN when the move title is clicked", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: { writeText },
+    });
+
+    render(
+      <PositionInfo
+        currentMove={move()}
+        currentPly={3}
+        moves={[
+          gameMove({ ply: 1, move_number: 1, side: "white", san: "e4" }),
+          gameMove({ ply: 2, move_number: 1, side: "black", san: "e5" }),
+          gameMove({ ply: 3, move_number: 2, side: "white", san: "Nf3" }),
+          gameMove({ ply: 4, move_number: 2, side: "black", san: "Nc6" }),
+        ]}
+        rootFen={ROOT_FEN}
+        selectedMarker={markerWithRichExplanation()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Copy PGN through 9... b5" }));
+
+    expect(writeText).toHaveBeenCalledWith("1. e4 e5 2. Nf3");
   });
 
   it("uses the opening name as the selected book move badge", () => {
@@ -251,6 +331,15 @@ function move(): GameMove {
     uci: "b7b5",
     fen_before: ROOT_FEN,
     fen_after: "rn1qkb1r/ppp1pppp/5n2/1B1p4/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 2",
+  };
+}
+
+function gameMove(moveOverrides: Pick<GameMove, "move_number" | "ply" | "san" | "side">): GameMove {
+  return {
+    ...moveOverrides,
+    uci: `${moveOverrides.san.toLowerCase()}-uci`,
+    fen_before: `before-${moveOverrides.ply}`,
+    fen_after: `after-${moveOverrides.ply}`,
   };
 }
 

@@ -1,7 +1,16 @@
 import { BorderBeam } from "border-beam";
 import { useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, X } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FocusEvent,
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { TextShimmer } from "@/components/loading-ui/text-shimmer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
@@ -28,12 +37,15 @@ interface PositionInfoProps {
   emptyMessageVariant?: "plain" | "shimmer";
   openingName?: string | null;
   onMoveClick?: (rootFen: string, moves: string[], step: number) => void;
+  moves?: GameMove[];
+  currentPly?: number;
   className?: string;
 }
 
 const SAN_PATTERN = /\b([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b/g;
 const SHOW_ENGINE_DETAIL_PANEL: boolean = false;
 type LineCardTone = "good" | "bad";
+type LineCardMoveClick = (rootFen: string, moves: string[], step: number) => void;
 
 export function PositionInfo({
   currentMove,
@@ -45,6 +57,8 @@ export function PositionInfo({
   emptyMessageVariant = "plain",
   openingName = null,
   onMoveClick,
+  moves,
+  currentPly,
   className,
 }: PositionInfoProps) {
   const explanationContent = useMemo(() => {
@@ -57,14 +71,38 @@ export function PositionInfo({
     ? selectedMoveBadgeContent(selectedMarker, openingName)
     : null;
   const selectedMoveBeam = selectedMarker ? moveBeamVariant(selectedMarker) : null;
+  const canCopyMoves = Boolean(moves?.length && currentPly && currentPly > 0);
+  const handleCopyMoves = useCallback(() => {
+    if (!moves || !currentPly) {
+      return;
+    }
+    const pgn = movesToPgn(moves, currentPly);
+    if (!pgn) {
+      return;
+    }
+    void navigator.clipboard?.writeText(pgn);
+  }, [currentPly, moves]);
+  const moveTitle = formatMoveLabel(currentMove);
 
   return (
     <div className={cn("space-y-1", className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-serif text-2xl text-stone-900 dark:text-stone-100">
-            <MorphText>{formatMoveLabel(currentMove)}</MorphText>
-          </div>
+          {canCopyMoves ? (
+            <button
+              aria-label={`Copy PGN through ${moveTitle}`}
+              className="cursor-pointer border-0 bg-transparent p-0 text-left font-serif text-2xl text-stone-900 transition-colors hover:text-stone-600 focus-visible:rounded-sm dark:text-stone-100 dark:hover:text-stone-300"
+              onClick={handleCopyMoves}
+              title="Copy moves"
+              type="button"
+            >
+              <MorphText>{moveTitle}</MorphText>
+            </button>
+          ) : (
+            <div className="font-serif text-2xl text-stone-900 dark:text-stone-100">
+              <MorphText>{moveTitle}</MorphText>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {selectedMoveBadge ? (
@@ -143,6 +181,21 @@ function SelectedMoveBadge({
       {content}
     </BorderBeam>
   );
+}
+
+function movesToPgn(moves: GameMove[], upToPly: number): string {
+  const parts: string[] = [];
+  for (const move of moves) {
+    if (move.ply > upToPly) {
+      break;
+    }
+    if (move.side === "white") {
+      parts.push(`${move.move_number}. ${move.san}`);
+    } else {
+      parts.push(move.san);
+    }
+  }
+  return parts.join(" ");
 }
 
 function selectedMoveBadgeContent(
@@ -414,7 +467,7 @@ function renderLineCardSegment({
   boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
   marker: AnalysisMoveMarker;
-  onMoveClick: ((rootFen: string, moves: string[], step: number) => void) | undefined;
+  onMoveClick: LineCardMoveClick | undefined;
   rootFen: string;
   segment: ExplanationSegment;
 }): ReactNode {
@@ -471,7 +524,37 @@ function LineCardAnchor({
   const isCoarsePointer = useCoarsePointer();
   const [hoverCardOpen, setHoverCardOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
   const canPreview = onMoveClick !== undefined && card.moves.length > 0;
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current === null) {
+      return;
+    }
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  };
+  const openHoverCard = () => {
+    clearCloseTimer();
+    setHoverCardOpen(true);
+  };
+  const closeHoverCardSoon = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setHoverCardOpen(false);
+      closeTimerRef.current = null;
+    }, 180);
+  };
+  const closeHoverCard = () => {
+    clearCloseTimer();
+    setHoverCardOpen(false);
+  };
+  const handleRootBlur = (event: FocusEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    closeHoverCard();
+  };
   const handleClick = () => {
     if (isCoarsePointer) {
       setDialogOpen(true);
@@ -483,27 +566,46 @@ function LineCardAnchor({
   };
   const showHoverCard = hoverCardOpen && !isCoarsePointer;
 
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current === null) {
+        return;
+      }
+      window.clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
+
   return (
-    <div className="relative inline-block align-baseline">
+    // biome-ignore lint/a11y/noStaticElementInteractions: the actual control is the button; this wrapper keeps its hover preview interactive.
+    <div
+      className="relative inline-block align-baseline"
+      onBlur={handleRootBlur}
+      onFocus={openHoverCard}
+      onPointerEnter={openHoverCard}
+      onPointerLeave={closeHoverCardSoon}
+    >
       <button
         aria-label={`${triggerText}: ${card.title}`}
         className={cn(
-          "inline cursor-pointer rounded-sm px-0.5 text-left transition-colors",
+          "inline cursor-pointer rounded-sm px-0.5 text-left transition-colors py-0.5 text-sm",
           tone === "good"
             ? "bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/50 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-900/55"
             : "bg-amber-50/80 text-stone-800 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500/50 dark:bg-amber-950/45 dark:text-stone-200 dark:hover:bg-amber-900/50",
         )}
-        onBlur={() => setHoverCardOpen(false)}
         onClick={handleClick}
-        onFocus={() => setHoverCardOpen(true)}
-        onPointerEnter={() => setHoverCardOpen(true)}
-        onPointerLeave={() => setHoverCardOpen(false)}
         type="button"
       >
         {triggerText}
       </button>
       {showHoverCard ? (
-        <LineCardPreviewShell boardOrientation={boardOrientation} card={card} rootFen={rootFen} />
+        <LineCardPreviewShell
+          boardOrientation={boardOrientation}
+          card={card}
+          onMoveClick={onMoveClick}
+          onPointerEnter={openHoverCard}
+          rootFen={rootFen}
+        />
       ) : null}
       {dialogOpen ? (
         <div
@@ -527,6 +629,7 @@ function LineCardAnchor({
               active
               boardOrientation={boardOrientation}
               card={card}
+              onMoveClick={onMoveClick}
               rootFen={rootFen}
             />
           </div>
@@ -539,15 +642,28 @@ function LineCardAnchor({
 function LineCardPreviewShell({
   boardOrientation,
   card,
+  onMoveClick,
+  onPointerEnter,
   rootFen,
 }: {
   boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
+  onMoveClick: LineCardMoveClick | undefined;
+  onPointerEnter: () => void;
   rootFen: string;
 }) {
   return (
-    <div className="absolute top-full left-1/2 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 whitespace-normal rounded-lg border border-stone-200 bg-white p-2.5 text-left shadow-[0_18px_45px_rgba(28,25,23,0.18),0_1px_0_rgba(255,255,255,0.8)_inset] sm:w-80 dark:border-stone-700 dark:bg-stone-900 dark:shadow-[0_18px_45px_rgba(0,0,0,0.4)]">
-      <LineCardPreview active boardOrientation={boardOrientation} card={card} rootFen={rootFen} />
+    <div
+      className="absolute top-full left-1/2 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 whitespace-normal rounded-lg border border-stone-200 bg-white p-2.5 text-left shadow-[0_18px_45px_rgba(28,25,23,0.18),0_1px_0_rgba(255,255,255,0.8)_inset] sm:w-80 dark:border-stone-700 dark:bg-stone-900 dark:shadow-[0_18px_45px_rgba(0,0,0,0.4)]"
+      onPointerEnter={onPointerEnter}
+    >
+      <LineCardPreview
+        active
+        boardOrientation={boardOrientation}
+        card={card}
+        onMoveClick={onMoveClick}
+        rootFen={rootFen}
+      />
     </div>
   );
 }
@@ -556,11 +672,13 @@ function LineCardPreview({
   active,
   boardOrientation,
   card,
+  onMoveClick,
   rootFen,
 }: {
   active: boolean;
   boardOrientation: BoardSide | null;
   card: ExplanationLineCard;
+  onMoveClick: LineCardMoveClick | undefined;
   rootFen: string;
 }) {
   const prefersReducedMotion = useReducedMotion();
@@ -611,17 +729,35 @@ function LineCardPreview({
           const moveStep = index + 1;
           const activeMove = displayStep === moveStep;
           const moveSide = index % 2 === 0 ? firstMoveSide : otherBoardSide(firstMoveSide);
+          const content = <SanMove san={move} side={moveSide} />;
+          const className = cn(
+            "inline-flex shrink-0 items-center rounded border px-1 py-0.5 transition-colors",
+            activeMove
+              ? "border-amber-300 bg-amber-100 dark:border-amber-700 dark:bg-amber-900/50"
+              : "border-stone-200 bg-white/60 dark:border-stone-700 dark:bg-stone-900/60",
+            onMoveClick
+              ? "cursor-pointer hover:border-stone-300 hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500/50 dark:hover:border-stone-600 dark:hover:bg-stone-800"
+              : null,
+          );
+          const key = `${card.id}-${card.moves.slice(0, moveStep).join(" ")}`;
+          if (onMoveClick) {
+            return (
+              <button
+                className={className}
+                key={key}
+                onClick={() => {
+                  setStep(moveStep);
+                  onMoveClick(rootFen, card.moves, moveStep);
+                }}
+                type="button"
+              >
+                {content}
+              </button>
+            );
+          }
           return (
-            <span
-              className={cn(
-                "inline-flex shrink-0 items-center rounded border px-1 py-0.5 transition-colors",
-                activeMove
-                  ? "border-amber-300 bg-amber-100 dark:border-amber-700 dark:bg-amber-900/50"
-                  : "border-stone-200 bg-white/60 dark:border-stone-700 dark:bg-stone-900/60",
-              )}
-              key={`${card.id}-${card.moves.slice(0, moveStep).join(" ")}`}
-            >
-              <SanMove san={move} side={moveSide} />
+            <span className={className} key={key}>
+              {content}
             </span>
           );
         })}
@@ -757,7 +893,7 @@ function parseExplanationWithMoves(
     }
     return (
       <button
-        className="inline rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono text-xs font-medium text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:bg-stone-700"
+        className="inline rounded border-stone-200 bg-stone-50 px-1 py-0.5 font-mono text-xs font-medium text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:bg-stone-700"
         key={part.key}
         onClick={() => {
           const preview = previewForMove(marker, part.move);

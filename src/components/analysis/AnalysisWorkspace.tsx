@@ -1136,6 +1136,8 @@ function DesktopLayout({
             currentMove={currentMove}
             emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
             emptyMessageVariant="shimmer"
+            currentPly={currentPly}
+            moves={analysis.moves}
             onMoveClick={onPreview}
             openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? currentFen}
@@ -1316,6 +1318,8 @@ function MobileLayout({
             currentMove={currentMove}
             emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
             emptyMessageVariant="shimmer"
+            currentPly={currentPly}
+            moves={analysis.moves}
             onMoveClick={onPreview}
             openingName={currentOpeningName}
             rootFen={currentMove?.fen_before ?? null}

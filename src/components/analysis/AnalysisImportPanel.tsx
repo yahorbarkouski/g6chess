@@ -486,11 +486,7 @@ function MorphField({
   }, [mode]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-    const wantsSubmit = mode === "url" ? !event.shiftKey : event.metaKey || event.ctrlKey;
-    if (!wantsSubmit) {
+    if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
     event.preventDefault();

@@ -103,7 +103,7 @@ export function AnalysisSettingsPopover({
           <motion.div
             animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
             className={cn(
-              "absolute z-50 w-64 rounded-xl border border-stone-200/80 bg-white p-1.5 text-stone-900 shadow-[0_18px_45px_rgba(28,25,23,0.15),0_1px_0_rgba(255,255,255,0.7)_inset] outline-none dark:border-stone-700/70 dark:bg-stone-900 dark:text-stone-100 dark:shadow-[0_18px_45px_rgba(0,0,0,0.5)]",
+              "absolute z-50 w-64 rounded-xl border border-stone-200/80 bg-white p-1 pt-0.5 text-stone-900 shadow-[0_18px_45px_rgba(28,25,23,0.15),0_1px_0_rgba(255,255,255,0.7)_inset] outline-none dark:border-stone-700/70 dark:bg-stone-900 dark:text-stone-100 dark:shadow-[0_18px_45px_rgba(0,0,0,0.5)]",
               opensBelow
                 ? "top-[calc(100%+0.5rem)] left-0 origin-top-left"
                 : "top-0 left-[calc(100%+0.5rem)] origin-left",
@@ -194,7 +194,7 @@ export function AnalysisSettingsPopover({
 
 function SectionCaption({ children }: { children: ReactNode }) {
   return (
-    <div className="px-2 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-stone-400 dark:text-stone-500">
+    <div className="px-2 pt-1.5 text-[11px] font-medium text-stone-500 dark:text-stone-500">
       {children}
     </div>
   );
