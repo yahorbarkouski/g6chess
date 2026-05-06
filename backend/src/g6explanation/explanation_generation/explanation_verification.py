@@ -312,9 +312,26 @@ def _allowed_move_aliases(
     for line in line_evidence:
         for move in line.moves:
             aliases.update(_san_aliases(move))
+    aliases.update(_claim_supplied_move_aliases(context_result.evidence.concept_claims))
+    aliases.update(_claim_supplied_move_aliases(context_result.llm_context.concept_claims))
     after_line = context_result.evidence.engine.after_line
     if after_line and _move_is_allowed_by_claims(after_line.move_san, context_result):
         aliases.update(_san_aliases(after_line.move_san))
+    return aliases
+
+
+def _claim_supplied_move_aliases(claims: list[ConceptClaim]) -> set[str]:
+    aliases: set[str] = set()
+    for claim in claims:
+        if claim.move_san is not None:
+            aliases.update(_san_aliases(claim.move_san))
+        if claim.kind != "tactical_proof":
+            continue
+        for match in SAN_MOVE_RE.finditer(claim.claim):
+            token = match.group(0)
+            if _is_square_reference(claim.claim, match.start(), match.end(), token):
+                continue
+            aliases.update(_san_aliases(token))
     return aliases
 
 

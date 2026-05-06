@@ -34,6 +34,24 @@ def test_baseline_renderer_caveats_hard_engine_move() -> None:
     assert "hard" in output.explanation.lower()
 
 
+def test_baseline_renderer_normalizes_legacy_findability_note_text() -> None:
+    context = hard_engine_best_context()
+    context = context.model_copy(
+        update={
+            "llm_context": context.llm_context.model_copy(
+                update={"human_note": "e4 was engine_like to find in blitz."}
+            )
+        }
+    )
+
+    output = render_baseline_explanation(context)
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+    assert "engine-like" in output.explanation
+    assert "engine_like" not in output.explanation
+
+
 def test_baseline_renderer_uses_practical_alternative_without_judging_model_output() -> None:
     context = mistake_context_with_practical_alternative()
 

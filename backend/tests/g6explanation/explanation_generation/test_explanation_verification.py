@@ -243,6 +243,42 @@ def test_verifier_accepts_negated_material_wording_from_tactical_proof() -> None
     assert verification.passed
 
 
+def test_verifier_allows_tactical_proof_moves_named_in_verified_claim() -> None:
+    context = _context_with_extra_claims(
+        best_context(),
+        [
+            ConceptClaim(
+                kind="piece_activity",
+                subject="played_move",
+                claim="e4 attacked the queen on g4",
+                source="deterministic_detector",
+                move_san="e4",
+            ),
+            ConceptClaim(
+                kind="tactical_proof",
+                subject="played_move",
+                claim="e4 attacked the queen on g4, and Qxf3 is met by Rxf3",
+                source="engine_line",
+                move_san="e4",
+            ),
+            ConceptClaim(
+                kind="recapture",
+                subject="tactical_reply",
+                claim="Rxf3 recaptured the queen on f3",
+                source="deterministic_detector",
+                move_san="Rxf3",
+            ),
+        ],
+    )
+    output = rich_output(
+        "e4 attacked the queen on g4, and Qxf3 is met by Rxf3, so the pawn is not simply free."
+    )
+
+    verification = ExplanationVerifier().verify(context, output)
+
+    assert verification.passed
+
+
 def test_verifier_rejects_not_free_wording_without_tactical_proof() -> None:
     context = best_context()
     output = rich_output("e4 was the best move because the pawn was not simply free.")

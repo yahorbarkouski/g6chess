@@ -17,6 +17,7 @@ from g6explanation.context_engine.contracts import (
     ConceptClaim,
     ConceptClaimSubject,
     EngineAnalysis,
+    FindabilityLabel,
     KeyMoveContext,
     MainPoint,
     MoveBeauty,
@@ -375,14 +376,15 @@ def build_human_note(
         time_phrase = (
             "" if time_situation == "unknown" else f" in {time_situation.replace('_', ' ')}"
         )
+        findability = _human_findability_label(key_candidate.time_adjusted_findability)
         if key_candidate.teachable_skill_gap:
             return (
-                f"{key_candidate.san} was {key_candidate.time_adjusted_findability} to find"
+                f"{key_candidate.san} was {findability} to find"
                 f"{time_phrase}, but it becomes more common for stronger players; the useful "
                 "lesson is the idea, not that it was obvious."
             )
         return (
-            f"{key_candidate.san} was {key_candidate.time_adjusted_findability} to find"
+            f"{key_candidate.san} was {findability} to find"
             f"{time_phrase}; the useful lesson is the idea, not that it was obvious."
         )
     if key_candidate.teachable_skill_gap:
@@ -391,6 +393,10 @@ def build_human_note(
             "players while still realistic enough to mention."
         )
     return None
+
+
+def _human_findability_label(findability: FindabilityLabel) -> str:
+    return findability.replace("_", "-")
 
 
 def build_key_move_context(candidate: CandidateMove | None) -> KeyMoveContext | None:

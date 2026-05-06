@@ -23,7 +23,7 @@ def render_baseline_explanation(context_result: ContextResult) -> ExplanationOut
         parts.append(move_sentence)
 
     if context.human_note and not has_sacrifice:
-        parts.append(_normalize_sentence(context.human_note))
+        parts.append(_normalize_sentence(_human_readable_note(context.human_note)))
 
     deduped_parts = _dedupe(parts)
     return ExplanationOutput(
@@ -48,6 +48,10 @@ def _normalize_sentence(text: str) -> str:
     if stripped.endswith((".", "!", "?")):
         return stripped
     return f"{stripped}."
+
+
+def _human_readable_note(note: str) -> str:
+    return note.replace("engine_like", "engine-like").replace("very_hard", "very hard")
 
 
 def _dedupe(parts: list[str]) -> list[str]:
