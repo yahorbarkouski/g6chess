@@ -1,6 +1,6 @@
 # [g6](https://g6chess.com): Free Chess Analysis
 
-![g6 analysis workspace](public/demo.png)
+<video src="public/demo.mov" controls muted playsinline width="100%"></video>
 
 Public frontend for g6, an evidence-grounded chess analysis product.
 
