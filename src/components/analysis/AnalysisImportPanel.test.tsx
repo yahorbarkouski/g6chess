@@ -163,6 +163,36 @@ describe("AnalysisImportPanel", () => {
     );
   });
 
+  it("accepts a 12-character Lichess URL and imports the canonical 8-character game ID", async () => {
+    const user = userEvent.setup();
+    const onImport = vi.fn().mockResolvedValue(undefined);
+
+    render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
+
+    const submitButton = screen.getByRole("button", { name: "Analyze" });
+    await user.type(screen.getByLabelText("Game URL"), "https://lichess.org/fY44h4OYabcd/black");
+
+    expect(submitButton).toBeEnabled();
+
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(onImport).toHaveBeenCalledWith(
+      {
+        source: "lichess_game_url",
+        url: "https://lichess.org/fY44h4OY",
+        include_context: false,
+        use_baseline_fallback: false,
+        explain_significance: ["critical"],
+      },
+      {
+        boardOrientation: "black",
+        externalGameId: "fY44h4OY",
+        source: "lichess_game_url",
+      },
+    );
+  });
+
   it("verifies with Turnstile before starting an import when protection is enabled", async () => {
     vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
     vi.resetModules();

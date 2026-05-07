@@ -3,7 +3,8 @@ const LICHESS_HOSTS = new Set(["lichess.org", "www.lichess.org"]);
 const G6_HOSTS = new Set(["g6chess.com", "www.g6chess.com"]);
 const ANALYSIS_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const NUMERIC_ID_PATTERN = /^\d+$/;
-const LICHESS_ID_PATTERN = /^[A-Za-z0-9]{8}$/;
+const LICHESS_ID_PATTERN = /^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{4})?$/;
+const LICHESS_GAME_ID_LENGTH = 8;
 
 export type ExternalGameSource = "chess_com_live_url" | "lichess_game_url";
 export type ExternalGameOrientation = "white" | "black";
@@ -396,7 +397,7 @@ function normalizeLichessId(value: string | undefined): string | null {
     return null;
   }
   const trimmed = value.trim();
-  return LICHESS_ID_PATTERN.test(trimmed) ? trimmed : null;
+  return LICHESS_ID_PATTERN.test(trimmed) ? trimmed.slice(0, LICHESS_GAME_ID_LENGTH) : null;
 }
 
 function normalizeBoardSide(value: string | undefined): ExternalGameOrientation | null {

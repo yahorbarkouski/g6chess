@@ -30,7 +30,11 @@ describe("analysis routing", () => {
   it("parses Lichess game URLs and normalizes to the canonical import URL", () => {
     expect(extractLichessGameId("https://lichess.org/fY44h4OY/black#56")).toBe("fY44h4OY");
     expect(extractLichessGameId("https://lichess.org/game/export/fY44h4OY")).toBe("fY44h4OY");
+    expect(extractLichessGameId("https://lichess.org/fY44h4OYabcd")).toBe("fY44h4OY");
     expect(normalizeGameImportUrl("https://lichess.org/fY44h4OY/black#56")).toBe(
+      "https://lichess.org/fY44h4OY",
+    );
+    expect(normalizeGameImportUrl("https://lichess.org/fY44h4OYabcd/black#56")).toBe(
       "https://lichess.org/fY44h4OY",
     );
     expect(extractGameImportTarget("https://lichess.org/fY44h4OY")).toEqual({
@@ -69,6 +73,23 @@ describe("analysis routing", () => {
       analysisId: "analysis-1",
       ply: 3,
       canonicalPath: "/lichess/fY44h4OY?analysis=analysis-1&ply=3",
+    });
+  });
+
+  it("normalizes 12-character Lichess route IDs to the 8-character game ID", () => {
+    expect(parseAnalysisRoute("/lichess/fY44h4OYabcd/black", "?analysis=analysis-1")).toEqual({
+      kind: "lichess_game",
+      externalSource: "lichess_game_url",
+      externalGameId: "fY44h4OY",
+      boardOrientation: "black",
+      analysisId: "analysis-1",
+      ply: null,
+      canonicalPath: "/lichess/fY44h4OY/black?analysis=analysis-1",
+    });
+    expect(extractGameImportTarget("https://www.g6chess.com/lichess/fY44h4OYabcd")).toEqual({
+      source: "lichess_game_url",
+      externalGameId: "fY44h4OY",
+      boardOrientation: null,
     });
   });
 });
