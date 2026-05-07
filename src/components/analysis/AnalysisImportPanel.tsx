@@ -1,4 +1,4 @@
-import { ArrowUp, Dices, RotateCw, Smile } from "lucide-react";
+import { ArrowUp, Dices, RotateCw, Smile, X } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import {
   type FormEvent,
@@ -43,6 +43,13 @@ interface PendingTurnstileImport {
   hintedTarget: ExternalGameTarget | null;
 }
 
+interface PendingPgnEloImport {
+  request: GameAnalysisImportRequest;
+  hintedTarget: ExternalGameTarget | null;
+  needsWhite: boolean;
+  needsBlack: boolean;
+}
+
 const DEFAULT_EXPLAIN_SIGNIFICANCE: readonly SignificanceLabel[] = ["critical"];
 function turnstileSiteKey(): string {
   return String(import.meta.env.VITE_G6_TURNSTILE_SITE_KEY ?? "").trim();
@@ -56,6 +63,7 @@ const FIELD_HEIGHT_URL = 46;
 const FIELD_HEIGHT_PGN = 232;
 const BUTTON_SIZE = 36;
 const BUTTON_INSET = 6;
+const DEFAULT_ELO = 1500;
 
 const PGN_TAG_PATTERN = /\[\s*\w+\s+"[^"]*"\s*\]/;
 const PGN_MOVE_PATTERN = /\b\d+\s*\.{1,3}\s*[A-Za-z0-9]/;
@@ -184,6 +192,7 @@ export function AnalysisImportPanel({
   const [localTurnstileResetKey, setLocalTurnstileResetKey] = useState(0);
   const [pendingTurnstileImport, setPendingTurnstileImport] =
     useState<PendingTurnstileImport | null>(null);
+  const [pendingPgnEloImport, setPendingPgnEloImport] = useState<PendingPgnEloImport | null>(null);
   const [turnstilePrompted, setTurnstilePrompted] = useState(false);
   const lastRandomGameIndexRef = useRef<number | null>(null);
 
@@ -198,7 +207,8 @@ export function AnalysisImportPanel({
     needsTurnstile && turnstileToken === null && (turnstilePrompted || turnstileRequired);
   const displayedError = localError ?? error;
   const value = mode === "url" ? url : pgn;
-  const canSubmit = !isBusy && !isAwaitingTurnstile && isValidInput(mode, value);
+  const canSubmit =
+    !isBusy && !isAwaitingTurnstile && pendingPgnEloImport === null && isValidInput(mode, value);
   const setTurnstileToken = useCallback(
     (token: string | null) => {
       if (controlledTurnstileToken === undefined) {
@@ -266,22 +276,17 @@ export function AnalysisImportPanel({
 
   function clearPendingVerification() {
     setPendingTurnstileImport(null);
+    setPendingPgnEloImport(null);
     setTurnstilePrompted(false);
     if (needsTurnstile) {
       resetTurnstile();
     }
   }
 
-  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    if (!canSubmit) {
-      return;
-    }
-    setLocalError(null);
-    const hintedTarget = orientationHintForTarget(
-      mode === "url" ? extractGameImportTarget(url.trim()) : null,
-    );
-    const request = buildRequest(mode, { url: url.trim(), pgn, turnstileToken });
+  async function submitRequest(
+    request: GameAnalysisImportRequest,
+    hintedTarget: ExternalGameTarget | null,
+  ) {
     if (needsTurnstile && turnstileToken === null) {
       promptForTurnstile(request, hintedTarget);
       return;
@@ -299,6 +304,45 @@ export function AnalysisImportPanel({
         resetTurnstile();
       }
     }
+  }
+
+  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!canSubmit) {
+      return;
+    }
+    setLocalError(null);
+    const hintedTarget = orientationHintForTarget(
+      mode === "url" ? extractGameImportTarget(url.trim()) : null,
+    );
+    const request = buildRequest(mode, { url: url.trim(), pgn, turnstileToken });
+    const missingElo = mode === "pgn" ? missingPgnElo(pgn) : null;
+    if (missingElo !== null) {
+      setPendingPgnEloImport({
+        request,
+        hintedTarget,
+        needsWhite: missingElo.white,
+        needsBlack: missingElo.black,
+      });
+      return;
+    }
+    await submitRequest(request, hintedTarget);
+  }
+
+  async function submitPendingPgnElo(values: { whiteElo: string | null; blackElo: string | null }) {
+    if (pendingPgnEloImport === null) {
+      return;
+    }
+    const basePgn = pendingPgnEloImport.request.pgn ?? "";
+    const nextPgn = addPgnEloHeaders(basePgn, values);
+    const request = {
+      ...pendingPgnEloImport.request,
+      pgn: nextPgn,
+    };
+    const { hintedTarget } = pendingPgnEloImport;
+    setPgn(nextPgn);
+    setPendingPgnEloImport(null);
+    await submitRequest(request, hintedTarget);
   }
 
   async function handleRandomGame() {
@@ -343,7 +387,16 @@ export function AnalysisImportPanel({
     if (pendingTurnstileImport !== null) {
       clearPendingVerification();
     }
+    if (pendingPgnEloImport !== null) {
+      setPendingPgnEloImport(null);
+    }
     if (mode === "url") {
+      if (looksLikePgnPaste(next)) {
+        setMode("pgn");
+        setPgn(next);
+        setUrl("");
+        return;
+      }
       setUrl(stripNewlines(next));
     } else {
       setPgn(next);
@@ -397,7 +450,146 @@ export function AnalysisImportPanel({
           />
         </div>
       ) : null}
+
+      {pendingPgnEloImport !== null ? (
+        <PgnEloDialog
+          needsBlack={pendingPgnEloImport.needsBlack}
+          needsWhite={pendingPgnEloImport.needsWhite}
+          onDismiss={() => setPendingPgnEloImport(null)}
+          onSubmit={submitPendingPgnElo}
+          onUseDefault={() =>
+            submitPendingPgnElo({
+              whiteElo: pendingPgnEloImport.needsWhite ? String(DEFAULT_ELO) : null,
+              blackElo: pendingPgnEloImport.needsBlack ? String(DEFAULT_ELO) : null,
+            })
+          }
+        />
+      ) : null}
     </section>
+  );
+}
+
+function PgnEloDialog({
+  needsBlack,
+  needsWhite,
+  onDismiss,
+  onSubmit,
+  onUseDefault,
+}: {
+  needsBlack: boolean;
+  needsWhite: boolean;
+  onDismiss: () => void;
+  onSubmit: (values: { whiteElo: string | null; blackElo: string | null }) => void;
+  onUseDefault: () => void;
+}) {
+  const [whiteElo, setWhiteElo] = useState("");
+  const [blackElo, setBlackElo] = useState("");
+  const whiteValid = !needsWhite || isValidEloInput(whiteElo);
+  const blackValid = !needsBlack || isValidEloInput(blackElo);
+  const canSubmit = whiteValid && blackValid;
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit) {
+      return;
+    }
+    onSubmit({
+      whiteElo: needsWhite ? whiteElo : null,
+      blackElo: needsBlack ? blackElo : null,
+    });
+  }
+
+  return (
+    <div
+      aria-labelledby="pgn-elo-dialog-title"
+      aria-modal="true"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/35 px-4 backdrop-blur-[2px] dark:bg-black/50"
+      role="dialog"
+    >
+      <form
+        className="w-full max-w-[360px] rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_24px_80px_rgba(28,25,23,0.22)] dark:border-stone-800 dark:bg-stone-950 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
+        onSubmit={handleSubmit}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              className="font-medium text-sm text-stone-900 dark:text-stone-100"
+              id="pgn-elo-dialog-title"
+            >
+              Add missing Elo
+            </h2>
+            <p className="mt-1 text-stone-500 text-xs leading-5 dark:text-stone-400">
+              This PGN needs ratings before analysis can start.
+            </p>
+          </div>
+          <button
+            aria-label="Close Elo input"
+            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-900 dark:hover:text-stone-200"
+            onClick={onDismiss}
+            type="button"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {needsWhite ? (
+            <EloInput label="White Elo" onChange={setWhiteElo} value={whiteElo} />
+          ) : null}
+          {needsBlack ? (
+            <EloInput label="Black Elo" onChange={setBlackElo} value={blackElo} />
+          ) : null}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-3 font-medium text-stone-500 text-xs leading-none hover:bg-stone-100 hover:text-stone-700 active:scale-[0.96] dark:hover:bg-stone-900 dark:hover:text-stone-200"
+            onClick={onDismiss}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-3 font-medium text-stone-700 text-xs leading-none hover:bg-stone-100 active:scale-[0.96] dark:text-stone-200 dark:hover:bg-stone-900"
+            onClick={onUseDefault}
+            type="button"
+          >
+            Use default
+          </button>
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-stone-900 px-3 font-medium text-white text-xs leading-none disabled:cursor-default disabled:opacity-30 active:scale-[0.96] disabled:active:scale-100 dark:bg-stone-100 dark:text-stone-950"
+            disabled={!canSubmit}
+            type="submit"
+          >
+            Apply
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function EloInput({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="block text-stone-500 text-xs dark:text-stone-400">
+      {label}
+      <input
+        className="mt-1 h-9 w-full rounded-xl border border-stone-200 bg-white px-3 text-stone-900 outline-none focus:border-stone-400 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-stone-600"
+        inputMode="numeric"
+        max={4000}
+        min={100}
+        onChange={(event) => onChange(event.target.value)}
+        pattern="[0-9]*"
+        type="number"
+        value={value}
+      />
+    </label>
   );
 }
 
@@ -688,6 +880,51 @@ function isValidPgn(value: string): boolean {
     return false;
   }
   return PGN_TAG_PATTERN.test(trimmed) || PGN_MOVE_PATTERN.test(trimmed);
+}
+
+function looksLikePgnPaste(value: string): boolean {
+  return /[\r\n]/.test(value) && isValidPgn(value);
+}
+
+function missingPgnElo(pgn: string): { white: boolean; black: boolean } | null {
+  const white = !hasPgnTag(pgn, "WhiteElo");
+  const black = !hasPgnTag(pgn, "BlackElo");
+  return white || black ? { white, black } : null;
+}
+
+function hasPgnTag(pgn: string, tag: string): boolean {
+  return new RegExp(`\\[\\s*${tag}\\s+"[^"]+"\\s*\\]`, "i").test(pgn);
+}
+
+function addPgnEloHeaders(
+  pgn: string,
+  values: { whiteElo: string | null; blackElo: string | null },
+): string {
+  const headers = [
+    values.whiteElo === null ? null : `[WhiteElo "${Number.parseInt(values.whiteElo, 10)}"]`,
+    values.blackElo === null ? null : `[BlackElo "${Number.parseInt(values.blackElo, 10)}"]`,
+  ].filter((header): header is string => header !== null);
+  if (headers.length === 0) {
+    return pgn;
+  }
+
+  const trimmedStart = pgn.trimStart();
+  const leadingWhitespace = pgn.slice(0, pgn.length - trimmedStart.length);
+  const headerMatches = [...trimmedStart.matchAll(/^[ \t]*\[[^\n\r]*\][ \t]*$/gm)];
+  const lastHeader = headerMatches.at(-1);
+  if (!lastHeader || lastHeader.index === undefined) {
+    return `${headers.join("\n")}\n\n${pgn.trimStart()}`;
+  }
+  const insertAt = lastHeader.index + lastHeader[0].length;
+  return `${leadingWhitespace}${trimmedStart.slice(0, insertAt)}\n${headers.join(
+    "\n",
+  )}${trimmedStart.slice(insertAt)}`;
+}
+
+function isValidEloInput(value: string): boolean {
+  const clean = value.trim();
+  const rating = Number.parseInt(clean, 10);
+  return /^\d+$/.test(clean) && rating >= 100 && rating <= 4000;
 }
 
 function buildRequest(

@@ -612,6 +612,49 @@ describe("AnalysisWorkspace imports", () => {
     await waitFor(() => expect(activeMoveButton(/1\.\.\. a5/)).toBeTruthy());
   });
 
+  it("steps through moves with left and right arrow keys", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(6));
+
+    render(<AnalysisWorkspace />);
+
+    const board = await screen.findByTestId("analysis-board");
+    await waitFor(() => expect(board).toHaveTextContent("0 2"));
+
+    await user.keyboard("{ArrowLeft}");
+    await waitFor(() => expect(board).toHaveTextContent("0 1"));
+
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(board).toHaveTextContent("0 2"));
+  });
+
+  it("prompts for missing Elo and applies it to the player headers", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/analysis/analysis-1");
+    window.localStorage.setItem(
+      "g6explanation.currentGameAnalysis",
+      JSON.stringify({
+        analysis_id: "analysis-1",
+        status_url: "/api/game-analysis/analysis-1",
+        source: importedSource({ whiteRating: null, blackRating: null }),
+        game: null,
+      }),
+    );
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(1));
+
+    render(<AnalysisWorkspace />);
+
+    expect(await screen.findByRole("dialog", { name: "Add missing Elo" })).toBeTruthy();
+    await user.type(screen.getByLabelText("White Elo"), "1725");
+    await user.type(screen.getByLabelText("Black Elo"), "1680");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("(1725)")).toBeTruthy();
+    expect(screen.getByText("(1680)")).toBeTruthy();
+  });
+
   it("does not chase a shared ply while a partial analysis grows", async () => {
     vi.useFakeTimers();
     window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
@@ -752,9 +795,13 @@ function activeMoveButton(name: RegExp): HTMLElement | undefined {
 function importedSource({
   externalGameId = "168193636078",
   sourceUrl = "https://www.chess.com/game/live/168193636078",
+  whiteRating = 1600,
+  blackRating = 1500,
 }: {
   externalGameId?: string;
   sourceUrl?: string;
+  whiteRating?: number | null;
+  blackRating?: number | null;
 } = {}): ImportedGameMetadata {
   return {
     source: "chess_com_live_url",
@@ -763,8 +810,8 @@ function importedSource({
     title: "Alpha vs Beta",
     white_username: "Alpha",
     black_username: "Beta",
-    white_rating: 1600,
-    black_rating: 1500,
+    white_rating: whiteRating,
+    black_rating: blackRating,
     time_control: "180+2",
     result: "1-0",
     allows_global_training: false,

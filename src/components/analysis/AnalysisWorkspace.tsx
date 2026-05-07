@@ -6,8 +6,18 @@ import {
   CornerUpLeft,
   FileText,
   ListOrdered,
+  X,
 } from "lucide-react";
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type DiscoveryState,
   type PreviewState,
@@ -103,6 +113,7 @@ const WHEEL_MOVE_NAVIGATION_PIXEL_THRESHOLD = 10;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
 const ANALYSIS_LOADING_EMPTY_MESSAGE = "Crunching the analysis. The board is yours to explore";
+const DEFAULT_ELO = 1500;
 type MobileTab = "moves" | "analysis";
 
 interface StoredGameAnalysisJob {
@@ -720,9 +731,23 @@ function AnalysisGameWorkspace({
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
   const [mobileTab, setMobileTab] = useState<MobileTab>("analysis");
+  const [ratingPromptDismissed, setRatingPromptDismissed] = useState(false);
+  const [ratingHeaderOverrides, setRatingHeaderOverrides] = useState<Record<string, string>>({});
   const isDesktopLayout = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const displayAnalysis = useMemo<AnalysisResponse>(() => {
+    if (Object.keys(ratingHeaderOverrides).length === 0) {
+      return analysis;
+    }
+    return {
+      ...analysis,
+      headers: {
+        ...analysis.headers,
+        ...ratingHeaderOverrides,
+      },
+    };
+  }, [analysis, ratingHeaderOverrides]);
 
-  const indexes = useMemo(() => buildAnalysisIndexes(analysis), [analysis]);
+  const indexes = useMemo(() => buildAnalysisIndexes(displayAnalysis), [displayAnalysis]);
   const currentMove = indexes.moveByPly.get(currentPly) ?? null;
   const currentMarker = indexes.markerByPly.get(currentPly) ?? null;
   const currentTimelinePoint = indexes.timelineByPly.get(currentPly) ?? null;
@@ -832,15 +857,19 @@ function AnalysisGameWorkspace({
   }, [currentPly, indexes.moveByPly]);
   const topSide = boardOrientation === "white" ? "black" : "white";
   const bottomSide = boardOrientation === "white" ? "white" : "black";
-  const playerMeta = buildPlayerMeta(analysis, indexes, currentPly, material);
+  const playerMeta = buildPlayerMeta(displayAnalysis, indexes, currentPly, material);
   const fallbackEvalCp = currentTimelinePoint?.eval_cp ?? currentMarker?.eval_after_cp ?? null;
+  const shouldShowRatingPrompt =
+    !ratingPromptDismissed &&
+    (toRating(displayAnalysis.headers.WhiteElo) === null ||
+      toRating(displayAnalysis.headers.BlackElo) === null);
 
   const preAnalyzeFens = useMemo(
     () =>
       browserAnalysisReason === "missing-server-lines"
-        ? buildPreAnalysisFens(analysis, indexes, currentPly, currentFen)
+        ? buildPreAnalysisFens(displayAnalysis, indexes, currentPly, currentFen)
         : EMPTY_PRE_ANALYZE_FENS,
-    [analysis, browserAnalysisReason, currentFen, currentPly, indexes],
+    [browserAnalysisReason, currentFen, currentPly, displayAnalysis, indexes],
   );
 
   useEffect(() => {
@@ -923,7 +952,7 @@ function AnalysisGameWorkspace({
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||
-        shouldIgnoreWheelMoveNavigationTarget(event.target)
+        shouldIgnoreMoveNavigationTarget(event.target)
       ) {
         return;
       }
@@ -952,6 +981,26 @@ function AnalysisGameWorkspace({
     [stepPly],
   );
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        shouldIgnoreMoveNavigationTarget(event.target)
+      ) {
+        return;
+      }
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      event.preventDefault();
+      stepPly(event.key === "ArrowRight" ? 1 : -1);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [stepPly]);
+
   const handleFlipBoard = useCallback(() => {
     setFlippedBoard((value) => !value);
     triggerHaptic("medium");
@@ -971,10 +1020,24 @@ function AnalysisGameWorkspace({
         {moveLoadingIndicator.show ? (
           <WorkspaceMoveLoadingIndicator progress={moveLoadingIndicator.progress} />
         ) : null}
+        {shouldShowRatingPrompt ? (
+          <MissingEloDialog
+            headers={displayAnalysis.headers}
+            onDismiss={() => setRatingPromptDismissed(true)}
+            onSubmit={(headers) => {
+              setRatingHeaderOverrides((current) => ({ ...current, ...headers }));
+              setRatingPromptDismissed(true);
+            }}
+            onUseDefault={(headers) => {
+              setRatingHeaderOverrides((current) => ({ ...current, ...headers }));
+              setRatingPromptDismissed(true);
+            }}
+          />
+        ) : null}
         <main className="mx-auto max-w-[1320px] px-3 pt-3 pb-7 sm:px-6 min-[1100px]:pt-5 min-[1100px]:pb-7">
           {isDesktopLayout ? (
             <DesktopLayout
-              analysis={analysis}
+              analysis={displayAnalysis}
               analysisFen={analysisFen}
               arrowCount={arrowCount}
               boardOrientation={boardOrientation}
@@ -1020,7 +1083,7 @@ function AnalysisGameWorkspace({
             />
           ) : (
             <MobileLayout
-              analysis={analysis}
+              analysis={displayAnalysis}
               analysisFen={analysisFen}
               arrowCount={arrowCount}
               boardOrientation={boardOrientation}
@@ -1091,7 +1154,138 @@ function WorkspaceMoveLoadingIndicator({ progress }: { progress: number | null }
   );
 }
 
-function shouldIgnoreWheelMoveNavigationTarget(target: EventTarget | null): boolean {
+function MissingEloDialog({
+  headers,
+  onDismiss,
+  onSubmit,
+  onUseDefault,
+}: {
+  headers: Record<string, string>;
+  onDismiss: () => void;
+  onSubmit: (headers: Record<string, string>) => void;
+  onUseDefault: (headers: Record<string, string>) => void;
+}) {
+  const needsWhite = toRating(headers.WhiteElo) === null;
+  const needsBlack = toRating(headers.BlackElo) === null;
+  const [whiteElo, setWhiteElo] = useState("");
+  const [blackElo, setBlackElo] = useState("");
+  const whiteValid = !needsWhite || isValidEloInput(whiteElo);
+  const blackValid = !needsBlack || isValidEloInput(blackElo);
+  const canSubmit = whiteValid && blackValid;
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit) {
+      return;
+    }
+    onSubmit({
+      ...(needsWhite ? { WhiteElo: String(Number.parseInt(whiteElo, 10)) } : {}),
+      ...(needsBlack ? { BlackElo: String(Number.parseInt(blackElo, 10)) } : {}),
+    });
+  }
+
+  function handleUseDefault() {
+    onUseDefault({
+      ...(needsWhite ? { WhiteElo: String(DEFAULT_ELO) } : {}),
+      ...(needsBlack ? { BlackElo: String(DEFAULT_ELO) } : {}),
+    });
+  }
+
+  return (
+    <div
+      aria-labelledby="missing-elo-dialog-title"
+      aria-modal="true"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/35 px-4 backdrop-blur-[2px] dark:bg-black/50"
+      role="dialog"
+    >
+      <form
+        className="w-full max-w-[360px] rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_24px_80px_rgba(28,25,23,0.22)] dark:border-stone-800 dark:bg-stone-950 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
+        onSubmit={handleSubmit}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              className="font-medium text-sm text-stone-900 dark:text-stone-100"
+              id="missing-elo-dialog-title"
+            >
+              Add missing Elo
+            </h2>
+            <p className="mt-1 text-stone-500 text-xs leading-5 dark:text-stone-400">
+              Ratings were not detected from the import. Add them to the game header.
+            </p>
+          </div>
+          <button
+            aria-label="Close Elo input"
+            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-900 dark:hover:text-stone-200"
+            onClick={onDismiss}
+            type="button"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {needsWhite ? (
+            <EloInput label="White Elo" onChange={setWhiteElo} value={whiteElo} />
+          ) : null}
+          {needsBlack ? (
+            <EloInput label="Black Elo" onChange={setBlackElo} value={blackElo} />
+          ) : null}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-3 font-medium text-stone-500 text-xs leading-none hover:bg-stone-100 hover:text-stone-700 active:scale-[0.96] dark:hover:bg-stone-900 dark:hover:text-stone-200"
+            onClick={onDismiss}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-3 font-medium text-stone-700 text-xs leading-none hover:bg-stone-100 active:scale-[0.96] dark:text-stone-200 dark:hover:bg-stone-900"
+            onClick={handleUseDefault}
+            type="button"
+          >
+            Use default
+          </button>
+          <button
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-stone-900 px-3 font-medium text-white text-xs leading-none disabled:cursor-default disabled:opacity-30 active:scale-[0.96] disabled:active:scale-100 dark:bg-stone-100 dark:text-stone-950"
+            disabled={!canSubmit}
+            type="submit"
+          >
+            Apply
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function EloInput({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="block text-stone-500 text-xs dark:text-stone-400">
+      {label}
+      <input
+        className="mt-1 h-9 w-full rounded-xl border border-stone-200 bg-white px-3 text-stone-900 outline-none focus:border-stone-400 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-stone-600"
+        inputMode="numeric"
+        max={4000}
+        min={100}
+        onChange={(event) => onChange(event.target.value)}
+        pattern="[0-9]*"
+        type="number"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function shouldIgnoreMoveNavigationTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false;
   }
@@ -1106,6 +1300,11 @@ function normalizedWheelDelta(delta: number, deltaMode: number): number {
     return delta * 320;
   }
   return delta;
+}
+
+function isValidEloInput(value: string): boolean {
+  const rating = Number.parseInt(value, 10);
+  return /^\d+$/.test(value.trim()) && rating >= 100 && rating <= 4000;
 }
 
 function BackToImportButton({ className, onClick }: { className?: string; onClick: () => void }) {

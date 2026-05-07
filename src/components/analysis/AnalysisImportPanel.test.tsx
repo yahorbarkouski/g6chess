@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnalysisImportPanel } from "./AnalysisImportPanel";
@@ -35,24 +35,87 @@ describe("AnalysisImportPanel", () => {
     expect(screen.queryByText("link import failed")).toBeNull();
   });
 
-  it("submits pasted PGN through the same import boundary without a player level", async () => {
+  it("prompts for missing PGN Elo and submits PGN with rating headers", async () => {
     const user = userEvent.setup();
     const onImport = vi.fn().mockResolvedValue(undefined);
 
     render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
 
     await user.click(screen.getByTitle("PGN fallback"));
-    await user.type(screen.getByLabelText("PGN fallback"), "1. e4 e5 *");
+    fireEvent.change(screen.getByLabelText("PGN fallback"), {
+      target: { value: '[Event "Test"]\n[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *' },
+    });
     await user.click(screen.getByRole("button", { name: "Analyze PGN" }));
+
+    expect(await screen.findByRole("dialog", { name: "Add missing Elo" })).toBeTruthy();
+    expect(onImport).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("White Elo"), "1725");
+    await user.type(screen.getByLabelText("Black Elo"), "1680");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
 
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
     expect(onImport).toHaveBeenCalledWith({
       source: "pgn",
-      pgn: "1. e4 e5 *",
+      pgn: '[Event "Test"]\n[White "Alpha"]\n[Black "Beta"]\n[WhiteElo "1725"]\n[BlackElo "1680"]\n\n1. e4 e5 *',
       include_context: false,
       use_baseline_fallback: false,
       explain_significance: ["critical"],
     });
+  });
+
+  it("can apply default Elo values for missing PGN ratings", async () => {
+    const user = userEvent.setup();
+    const onImport = vi.fn().mockResolvedValue(undefined);
+
+    render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
+
+    await user.click(screen.getByTitle("PGN fallback"));
+    fireEvent.change(screen.getByLabelText("PGN fallback"), {
+      target: { value: '[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *' },
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze PGN" }));
+    await user.click(await screen.findByRole("button", { name: "Use default" }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(onImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pgn: '[White "Alpha"]\n[Black "Beta"]\n[WhiteElo "1500"]\n[BlackElo "1500"]\n\n1. e4 e5 *',
+      }),
+    );
+  });
+
+  it("submits pasted PGN immediately when Elo headers exist", async () => {
+    const user = userEvent.setup();
+    const onImport = vi.fn().mockResolvedValue(undefined);
+    const pgn = '[WhiteElo "1600"]\n[BlackElo "1500"]\n\n1. e4 e5 *';
+
+    render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
+
+    await user.click(screen.getByTitle("PGN fallback"));
+    fireEvent.change(screen.getByLabelText("PGN fallback"), { target: { value: pgn } });
+    await user.click(screen.getByRole("button", { name: "Analyze PGN" }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onImport).toHaveBeenCalledWith({
+      source: "pgn",
+      pgn,
+      include_context: false,
+      use_baseline_fallback: false,
+      explain_significance: ["critical"],
+    });
+  });
+
+  it("switches from URL mode to PGN mode when pasted text looks like PGN", async () => {
+    const pgn = '[Event "Paste"]\n[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *';
+
+    render(<AnalysisImportPanel error={null} onImport={vi.fn()} status="idle" />);
+
+    fireEvent.change(screen.getByLabelText("Game URL"), { target: { value: pgn } });
+
+    expect(screen.getByLabelText("PGN fallback")).toHaveValue(pgn);
+    expect(screen.getByRole("button", { name: "Analyze PGN" })).toBeTruthy();
   });
 
   it("accepts a production-domain Chess.com game route and sends the canonical Chess.com URL", async () => {
