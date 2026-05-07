@@ -137,10 +137,6 @@ vi.mock("../../lib/game-analysis-mapping", async () => {
   };
 });
 
-vi.mock("../../lib/use-chesscom-move-sound", () => ({
-  useChessComMoveSound: vi.fn(),
-}));
-
 vi.mock("./UltraAnalysisBoard", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
   return {
@@ -292,6 +288,52 @@ describe("AnalysisWorkspace performance baseline", () => {
     expect(stockfishStore.analyze).not.toHaveBeenCalled();
     expect(stockfishStore.preAnalyze).not.toHaveBeenCalled();
     recordBaselineMetric("pre-analysis queued fens", 0);
+  });
+
+  it("keeps the mobile board and eval bar stable while switching tabs", async () => {
+    installMatchMedia(false);
+    renderWorkspaceWithCompletedAnalysis();
+
+    await screen.findByTestId("analysis-board");
+    await screen.findByTestId("eval-bar-horizontal");
+    boardMetrics.reset();
+    evalBarMetrics.reset();
+
+    for (let index = 0; index < 4; index += 1) {
+      const button = screen.getByRole("button", { name: /show (analysis|moves)/i });
+      act(() => {
+        button.click();
+      });
+    }
+
+    expect(boardMetrics.renderCount).toBe(0);
+    expect(evalBarMetrics.renderCount).toBe(0);
+  });
+
+  it("keeps the mobile eval bar stable while changing board arrows", async () => {
+    installMatchMedia(false);
+    renderWorkspaceWithCompletedAnalysis();
+
+    await screen.findByTestId("analysis-board");
+    await screen.findByTestId("eval-bar-horizontal");
+
+    act(() => {
+      screen.getByRole("button", { name: /board settings/i }).click();
+    });
+    boardMetrics.reset();
+    evalBarMetrics.reset();
+
+    for (const value of ["0", "1", "2", "3"]) {
+      const option = screen.queryByRole("button", { name: `Best line arrows: ${value}` });
+      if (option) {
+        act(() => {
+          option.click();
+        });
+      }
+    }
+
+    expect(boardMetrics.renderCount).toBeGreaterThan(0);
+    expect(evalBarMetrics.renderCount).toBe(0);
   });
 });
 

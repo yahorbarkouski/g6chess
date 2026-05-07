@@ -1,3 +1,4 @@
+import { triggerHaptic } from "@ultrachess/react";
 import { BorderBeam } from "border-beam";
 import { useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, X } from "lucide-react";
@@ -16,7 +17,6 @@ import { toast } from "sonner";
 import { TextShimmer } from "@/components/loading-ui/text-shimmer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
-import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import type {
   AnalysisMoveMarker,
@@ -96,7 +96,7 @@ export function PositionInfo({
           {canCopyMoves ? (
             <button
               aria-label={`Copy moves through ${moveTitle}`}
-              className="cursor-pointer border-0 bg-transparent p-0 text-left font-serif text-2xl text-stone-900 transition-colors hover:text-stone-600 focus-visible:rounded-sm dark:text-stone-100 dark:hover:text-stone-300"
+              className="cursor-pointer select-none border-0 bg-transparent p-0 text-left font-serif text-2xl text-stone-900 transition-colors hover:text-stone-600 focus-visible:rounded-sm dark:text-stone-100 dark:hover:text-stone-300"
               onClick={handleCopyMoves}
               title="Copy moves to clipboard"
               type="button"
@@ -104,7 +104,7 @@ export function PositionInfo({
               <MorphText>{moveTitle}</MorphText>
             </button>
           ) : (
-            <div className="font-serif text-2xl text-stone-900 dark:text-stone-100">
+            <div className="select-none font-serif text-2xl text-stone-900 dark:text-stone-100">
               <MorphText>{moveTitle}</MorphText>
             </div>
           )}

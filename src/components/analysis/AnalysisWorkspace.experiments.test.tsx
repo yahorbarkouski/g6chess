@@ -115,9 +115,6 @@ vi.mock("../../lib/game-analysis-mapping", async () => {
   };
 });
 
-vi.mock("../../lib/use-chesscom-move-sound", () => ({ useChessComMoveSound: vi.fn() }));
-vi.mock("../../lib/haptics", () => ({ triggerHaptic: vi.fn(), warmupHaptics: vi.fn() }));
-
 vi.mock("./UltraAnalysisBoard", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
   return {

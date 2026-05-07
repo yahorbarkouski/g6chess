@@ -2,7 +2,6 @@ import { Info } from "lucide-react";
 import { formatEvalLong, sideToMoveFromFen } from "../../lib/chess";
 import { cn } from "../../lib/utils";
 import type { BestLine, BoardSide, BookLine } from "../../types/analysis";
-import { MorphText } from "../ui/morph-text";
 
 type PieceType = "K" | "Q" | "R" | "B" | "N";
 
@@ -294,7 +293,7 @@ function LineRow({
                 : "text-stone-400 dark:text-stone-500",
           )}
         >
-          <MorphText>{label}</MorphText>
+          {label}
         </span>
         <span
           className={cn(
@@ -302,7 +301,7 @@ function LineRow({
             evalColorClass(line.eval_cp, playerSide),
           )}
         >
-          <MorphText>{formatEvalLong(line.eval_cp)}</MorphText>
+          {formatEvalLong(line.eval_cp)}
         </span>
       </div>
       <div className="scrollbar-hide flex min-h-[26px] items-center gap-1 overflow-x-auto">

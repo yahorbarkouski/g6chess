@@ -1,6 +1,5 @@
 import { parseMateFromCp } from "../../lib/chess";
 import { cn } from "../../lib/utils";
-import { MorphText } from "../ui/morph-text";
 
 const EVAL_BAR_TRANSITION = {
   transitionProperty: "height",
@@ -43,7 +42,7 @@ export function EvalBar({ evalCp, orientation, className }: EvalBarProps) {
       >
         {winnerIsTop && label ? (
           <span className="absolute inset-x-0 bottom-1 text-center font-mono font-semibold text-[9px] leading-none tabular-nums">
-            <MorphText>{label}</MorphText>
+            {label}
           </span>
         ) : null}
       </div>
@@ -56,7 +55,7 @@ export function EvalBar({ evalCp, orientation, className }: EvalBarProps) {
       >
         {!winnerIsTop && label ? (
           <span className="absolute inset-x-0 top-1 text-center font-mono font-semibold text-[9px] leading-none tabular-nums">
-            <MorphText>{label}</MorphText>
+            {label}
           </span>
         ) : null}
       </div>
@@ -99,7 +98,7 @@ export function HorizontalEvalBar({ evalCp, orientation, className }: Horizontal
       />
       {label ? (
         <span className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-10 rounded-sm bg-stone-700/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none text-stone-50 tabular-nums shadow-sm shadow-stone-950/20 backdrop-blur-[1px] dark:bg-stone-800/85 dark:text-stone-100">
-          <MorphText>{label}</MorphText>
+          {label}
         </span>
       ) : null}
     </div>

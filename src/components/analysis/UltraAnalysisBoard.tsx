@@ -6,9 +6,24 @@ import {
   type SquareIndex,
 } from "@ultrachess/core";
 import { chesscom } from "@ultrachess/pieces/chesscom";
-import { Chessboard, type PositionTransition, useChessGame } from "@ultrachess/react";
+import {
+  Chessboard,
+  type MoveHapticOptions,
+  type MoveSoundOptions,
+  type PositionTransition,
+  useChessGame,
+} from "@ultrachess/react";
 import { green } from "@ultrachess/themes/green";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  type CSSProperties,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { parseSquare } from "ultrachess";
 import { pieceCodeAtSquare, squareName, uciToSquares } from "../../lib/chess";
 import { cn } from "../../lib/utils";
@@ -28,6 +43,7 @@ const HIGHLIGHTED_SQUARE_STYLE: CSSProperties = {
 const EMPTY_ARROWS: readonly Arrow[] = Object.freeze([]);
 const EMPTY_BOARD_ARROWS: ReadonlyArray<BoardArrow> = [];
 const NO_ANIMATION = { durationMs: 0 } as const;
+const COARSE_POINTER_QUERY = "(hover: none), (pointer: coarse)";
 
 export type BoardArrow = readonly [string, string, string?];
 export type BoardTransitionMove = PositionTransition;
@@ -49,11 +65,12 @@ interface UltraAnalysisBoardProps {
   shadowed?: boolean;
   dimmed?: boolean;
   showCoordinates?: boolean;
+  feedbackSide?: "white" | "black" | null;
   onWheel?: (event: WheelEvent) => void;
   className?: string;
 }
 
-export function UltraAnalysisBoard({
+function UltraAnalysisBoardBase({
   fen,
   orientation = "white",
   arrows = EMPTY_BOARD_ARROWS,
@@ -66,6 +83,7 @@ export function UltraAnalysisBoard({
   shadowed = true,
   dimmed = false,
   showCoordinates = true,
+  feedbackSide = null,
   onWheel,
   className,
 }: UltraAnalysisBoardProps) {
@@ -79,6 +97,31 @@ export function UltraAnalysisBoard({
   );
   const renderSquare = useHighlightedSquareOverlay(highlightedMove);
   const handleMove = useOnMoveAdapter(game, onPieceDrop);
+  const coarsePointer = useCoarsePointer();
+  const feedbackPerspective = useMemo(
+    () => sideToFeedbackPerspective(feedbackSide),
+    [feedbackSide],
+  );
+  const moveSound = useMemo<false | MoveSoundOptions>(
+    () =>
+      coarsePointer
+        ? false
+        : {
+            enabled: true,
+            ...(feedbackPerspective === undefined ? {} : { perspective: feedbackPerspective }),
+          },
+    [coarsePointer, feedbackPerspective],
+  );
+  const moveHaptics = useMemo<false | MoveHapticOptions>(
+    () =>
+      coarsePointer
+        ? {
+            enabled: true,
+            ...(feedbackPerspective === undefined ? {} : { perspective: feedbackPerspective }),
+          }
+        : false,
+    [coarsePointer, feedbackPerspective],
+  );
 
   useEffect(() => {
     const board = boardRef.current;
@@ -118,10 +161,106 @@ export function UltraAnalysisBoard({
         showCheckHighlight
         showCoordinates={showCoordinates}
         showLegalTargets="dots"
-        sound={false}
+        haptics={moveHaptics}
+        sound={moveSound}
         theme={green}
       />
     </div>
+  );
+}
+
+export const UltraAnalysisBoard = memo(UltraAnalysisBoardBase, areUltraAnalysisBoardPropsEqual);
+
+function areUltraAnalysisBoardPropsEqual(
+  previous: UltraAnalysisBoardProps,
+  next: UltraAnalysisBoardProps,
+): boolean {
+  return (
+    previous.fen === next.fen &&
+    (previous.orientation ?? "white") === (next.orientation ?? "white") &&
+    areBoardArrowsEqual(previous.arrows ?? EMPTY_BOARD_ARROWS, next.arrows ?? EMPTY_BOARD_ARROWS) &&
+    (previous.highlightedMove ?? null) === (next.highlightedMove ?? null) &&
+    areTransitionMovesEqual(previous.transitionMove ?? null, next.transitionMove ?? null) &&
+    (previous.allowDragging ?? false) === (next.allowDragging ?? false) &&
+    (previous.allowDrawingArrows ?? true) === (next.allowDrawingArrows ?? true) &&
+    previous.onPieceDrop === next.onPieceDrop &&
+    (previous.animationMs ?? 45) === (next.animationMs ?? 45) &&
+    (previous.shadowed ?? true) === (next.shadowed ?? true) &&
+    (previous.dimmed ?? false) === (next.dimmed ?? false) &&
+    (previous.showCoordinates ?? true) === (next.showCoordinates ?? true) &&
+    (previous.feedbackSide ?? null) === (next.feedbackSide ?? null) &&
+    previous.onWheel === next.onWheel &&
+    previous.className === next.className
+  );
+}
+
+function sideToFeedbackPerspective(side: "white" | "black" | null): 0 | 1 | undefined {
+  if (side === "white") {
+    return 0;
+  }
+  if (side === "black") {
+    return 1;
+  }
+  return undefined;
+}
+
+function useCoarsePointer(): boolean {
+  const [coarsePointer, setCoarsePointer] = useState(readCoarsePointer);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const mediaQuery = window.matchMedia(COARSE_POINTER_QUERY);
+    const update = () => setCoarsePointer(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener?.("change", update);
+    return () => mediaQuery.removeEventListener?.("change", update);
+  }, []);
+
+  return coarsePointer;
+}
+
+function readCoarsePointer(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia(COARSE_POINTER_QUERY).matches;
+}
+
+function areBoardArrowsEqual(
+  previous: ReadonlyArray<BoardArrow>,
+  next: ReadonlyArray<BoardArrow>,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (previous.length !== next.length) {
+    return false;
+  }
+  return previous.every((arrow, index) => {
+    const nextArrow = next[index];
+    return (
+      nextArrow !== undefined &&
+      arrow[0] === nextArrow[0] &&
+      arrow[1] === nextArrow[1] &&
+      arrow[2] === nextArrow[2]
+    );
+  });
+}
+
+function areTransitionMovesEqual(
+  previous: BoardTransitionMove | null,
+  next: BoardTransitionMove | null,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (previous === null || next === null) {
+    return false;
+  }
+  return (
+    previous.uci === next.uci && previous.direction === next.direction && previous.key === next.key
   );
 }
 

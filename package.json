@@ -20,7 +20,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@ultrachess/core": "1.1.3",
     "@ultrachess/pieces": "1.1.1",
-    "@ultrachess/react": "1.1.6",
+    "@ultrachess/react": "1.2.2",
     "@ultrachess/themes": "1.1.1",
     "@vercel/analytics": "^2.0.1",
     "border-beam": "^1.0.1",
@@ -35,8 +35,7 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",
     "torph": "^0.0.9",
-    "ultrachess": "^1.4.0",
-    "web-haptics": "^0.0.6"
+    "ultrachess": "^1.4.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",

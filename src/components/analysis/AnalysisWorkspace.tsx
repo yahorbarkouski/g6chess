@@ -1,3 +1,4 @@
+import { triggerHaptic } from "@ultrachess/react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -6,7 +7,7 @@ import {
   FileText,
   ListOrdered,
 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DiscoveryState,
   type PreviewState,
@@ -50,7 +51,6 @@ import {
   mapGameAnalysisImportResponse,
   mapGameAnalysisSnapshot,
 } from "../../lib/game-analysis-mapping";
-import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import type {
   AnalysisMoveMarker,
@@ -98,9 +98,8 @@ const DESKTOP_MEDIA_QUERY = "(min-width: 1100px)";
 const MIN_BROWSER_EVAL_BAR_DEPTH = 13;
 const MAX_PRE_ANALYZE_FENS = 12;
 const PRE_ANALYZE_NEIGHBOR_PLIES = 4;
-const WHEEL_MOVE_NAVIGATION_COOLDOWN_MS = 45;
-const WHEEL_MOVE_NAVIGATION_MIN_DELTA = 12;
-const WHEEL_MOVE_NAVIGATION_DELTA_PER_PLY = 48;
+const SHARE_URL_REPLACE_DEBOUNCE_MS = 180;
+const WHEEL_MOVE_NAVIGATION_PIXEL_THRESHOLD = 10;
 const EMPTY_PRE_ANALYZE_FENS: string[] = [];
 const GAME_ANALYSIS_STORAGE_KEY = "g6explanation.currentGameAnalysis";
 const ANALYSIS_LOADING_EMPTY_MESSAGE = "Crunching the analysis. The board is yours to explore";
@@ -733,19 +732,17 @@ function AnalysisGameWorkspace({
   const currentFen = currentMove?.fen_after ?? analysis.moves[0]?.fen_before ?? "";
   const previousPlyRef = useRef(currentPly);
   const routePlyRef = useRef(initialPly);
-  const lastWheelNavigationAtRef = useRef(0);
+  const shareUrlSyncedRef = useRef(false);
+  const accumulatedWheelDeltaPixelModeRef = useRef(0);
+  const handleExitDiscoveryPly = useCallback((ply: number) => {
+    setCurrentPly(ply);
+  }, []);
 
   const board = useAnalysisBoard({
     baseFen: currentFen,
     currentPly,
-    playerSide: analysis.player_side,
     baseHighlightedMove: currentMove?.uci ?? null,
-    baseSoundKey: currentMove ? `ply:${currentMove.ply}` : null,
-    baseSan: currentMove?.san ?? null,
-    baseMovedByPlayer: currentMove?.side === analysis.player_side,
-    onExitDiscovery: (ply) => {
-      setCurrentPly(ply);
-    },
+    onExitDiscovery: handleExitDiscoveryPly,
   });
 
   const displayFen = board.displayFen ?? currentFen;
@@ -868,7 +865,16 @@ function AnalysisGameWorkspace({
     if (shareTarget === null) {
       return;
     }
-    replaceAnalysisUrl(shareTarget, currentPly);
+    if (!shareUrlSyncedRef.current) {
+      shareUrlSyncedRef.current = true;
+      replaceAnalysisUrl(shareTarget, currentPly);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      replaceAnalysisUrl(shareTarget, currentPly);
+    }, SHARE_URL_REPLACE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
   }, [currentPly, shareTarget]);
 
   const handleSelectPly = useCallback(
@@ -921,26 +927,27 @@ function AnalysisGameWorkspace({
       ) {
         return;
       }
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      const deltaY = normalizedWheelDelta(event.deltaY, event.deltaMode);
+      const deltaX = normalizedWheelDelta(event.deltaX, event.deltaMode);
+      if (Math.abs(deltaY) <= Math.abs(deltaX)) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      if (Math.abs(event.deltaY) < WHEEL_MOVE_NAVIGATION_MIN_DELTA) {
-        return;
-      }
 
-      const now = Date.now();
-      if (now - lastWheelNavigationAtRef.current < WHEEL_MOVE_NAVIGATION_COOLDOWN_MS) {
-        return;
+      let navigationDelta = event.deltaY;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+        accumulatedWheelDeltaPixelModeRef.current += event.deltaY;
+        if (
+          Math.abs(accumulatedWheelDeltaPixelModeRef.current) <
+          WHEEL_MOVE_NAVIGATION_PIXEL_THRESHOLD
+        ) {
+          return;
+        }
+        navigationDelta = accumulatedWheelDeltaPixelModeRef.current;
       }
-
-      lastWheelNavigationAtRef.current = now;
-      const stepCount = Math.max(
-        1,
-        Math.min(4, Math.floor(Math.abs(event.deltaY) / WHEEL_MOVE_NAVIGATION_DELTA_PER_PLY)),
-      );
-      stepPly((event.deltaY > 0 ? 1 : -1) * stepCount);
+      accumulatedWheelDeltaPixelModeRef.current = 0;
+      stepPly(navigationDelta > 0 ? 1 : -1);
     },
     [stepPly],
   );
@@ -1091,6 +1098,16 @@ function shouldIgnoreWheelMoveNavigationTarget(target: EventTarget | null): bool
   return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
+function normalizedWheelDelta(delta: number, deltaMode: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return delta * 16;
+  }
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return delta * 320;
+  }
+  return delta;
+}
+
 function BackToImportButton({ className, onClick }: { className?: string; onClick: () => void }) {
   return (
     <button
@@ -1105,6 +1122,28 @@ function BackToImportButton({ className, onClick }: { className?: string; onClic
     >
       <ArrowLeft className="size-3.5" />
     </button>
+  );
+}
+
+const MemoizedPlayerBar = memo(PlayerBar, arePlayerBarPropsEqual);
+const MemoizedPositionInfo = memo(PositionInfo);
+
+function arePlayerBarPropsEqual(
+  previous: Parameters<typeof PlayerBar>[0],
+  next: Parameters<typeof PlayerBar>[0],
+): boolean {
+  return (
+    previous.name === next.name &&
+    previous.rating === next.rating &&
+    previous.side === next.side &&
+    previous.materialAdvantage === next.materialAdvantage &&
+    previous.clockSeconds === next.clockSeconds &&
+    previous.className === next.className &&
+    previous.captured.q === next.captured.q &&
+    previous.captured.r === next.captured.r &&
+    previous.captured.b === next.captured.b &&
+    previous.captured.n === next.captured.n &&
+    previous.captured.p === next.captured.p
   );
 }
 
@@ -1177,7 +1216,7 @@ function DesktopLayout({
               showMaiaArrow={showMaiaArrow}
             />
             <div className="relative flex min-w-0 flex-1 flex-col gap-2">
-              <PlayerBar
+              <MemoizedPlayerBar
                 captured={playerMeta[topSide].captured}
                 clockSeconds={playerMeta[topSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1185,13 +1224,14 @@ function DesktopLayout({
                 rating={playerMeta[topSide].rating}
                 side={topSide}
               />
-              <EngineAwareUltraAnalysisBoard
+              <MemoizedEngineAwareUltraAnalysisBoard
                 allowDragging
                 analysisFen={analysisFen}
                 arrowCount={arrowCount}
                 currentMarker={currentMarker}
                 dimmed={dimmed}
                 discoveryActive={Boolean(discovery)}
+                feedbackSide={analysis.player_side}
                 fen={displayFen}
                 highlightedMove={highlightedMove}
                 onWheel={onBoardWheel}
@@ -1203,7 +1243,7 @@ function DesktopLayout({
                 showMaiaArrow={showMaiaArrow}
                 transitionMove={boardTransitionMove}
               />
-              <PlayerBar
+              <MemoizedPlayerBar
                 captured={playerMeta[bottomSide].captured}
                 clockSeconds={playerMeta[bottomSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1231,7 +1271,7 @@ function DesktopLayout({
 
       <div className="flex max-h-[87vh] min-w-0 flex-col pl-5">
         <aside className="shrink-0 space-y-4 pr-1">
-          <PositionInfo
+          <MemoizedPositionInfo
             boardOrientation={boardOrientation}
             currentMove={currentMove}
             emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
@@ -1251,7 +1291,7 @@ function DesktopLayout({
               onStepClick={handleDiscoveryStepClick}
             />
           ) : null}
-          <EngineLinesSlot
+          <MemoizedEngineLinesSlot
             activePreview={preview}
             analysisFen={analysisFen}
             analysisPlayerSide={analysis.player_side}
@@ -1328,7 +1368,7 @@ function MobileLayout({
   return (
     <div className="relative mx-auto max-w-[760px] space-y-2.5 pb-10 md:pb-24">
       <div className="mx-auto w-full max-w-[min(720px,max(360px,calc(100dvh-22rem)))] space-y-1 md:space-y-2.5">
-        <MobileBoardControls
+        <MemoizedMobileBoardControls
           analysisFen={analysisFen}
           boardOrientation={boardOrientation}
           fallbackEvalCp={fallbackEvalCp}
@@ -1336,7 +1376,7 @@ function MobileLayout({
           preferBrowserEval={Boolean(discovery || preview)}
         />
         <div className="space-y-2.5 border-stone-200  dark:border-stone-800">
-          <PlayerBar
+          <MemoizedPlayerBar
             captured={playerMeta[topSide].captured}
             clockSeconds={playerMeta[topSide].clock}
             materialAdvantage={materialAdvantage}
@@ -1344,13 +1384,14 @@ function MobileLayout({
             rating={playerMeta[topSide].rating}
             side={topSide}
           />
-          <EngineAwareUltraAnalysisBoard
+          <MemoizedEngineAwareUltraAnalysisBoard
             allowDragging
             analysisFen={analysisFen}
             arrowCount={arrowCount}
             currentMarker={currentMarker}
             dimmed={dimmed}
             discoveryActive={Boolean(discovery)}
+            feedbackSide={analysis.player_side}
             fen={displayFen}
             highlightedMove={highlightedMove}
             onWheel={onBoardWheel}
@@ -1362,7 +1403,7 @@ function MobileLayout({
             showMaiaArrow={showMaiaArrow}
             transitionMove={boardTransitionMove}
           />
-          <PlayerBar
+          <MemoizedPlayerBar
             captured={playerMeta[bottomSide].captured}
             clockSeconds={playerMeta[bottomSide].clock}
             materialAdvantage={materialAdvantage}
@@ -1390,7 +1431,7 @@ function MobileLayout({
         />
       ) : (
         <div className="min-w-0 md:space-y-4 space-y-2">
-          <PositionInfo
+          <MemoizedPositionInfo
             boardOrientation={boardOrientation}
             currentMove={currentMove}
             emptyMessage={ANALYSIS_LOADING_EMPTY_MESSAGE}
@@ -1410,7 +1451,7 @@ function MobileLayout({
               onStepClick={handleDiscoveryStepClick}
             />
           ) : null}
-          <EngineLinesSlot
+          <MemoizedEngineLinesSlot
             activePreview={preview}
             analysisFen={analysisFen}
             analysisPlayerSide={analysis.player_side}
@@ -1476,6 +1517,8 @@ function MobileBoardControls({
     </div>
   );
 }
+
+const MemoizedMobileBoardControls = memo(MobileBoardControls);
 
 function MobileFloatingLeftControls({
   arrowCount,
@@ -1667,6 +1710,7 @@ function EngineAwareUltraAnalysisBoard({
   allowDragging?: boolean;
   dimmed?: boolean;
   fen: string;
+  feedbackSide: BoardSide | null;
   highlightedMove: string | null;
   onWheel: (event: WheelEvent) => void;
   onPieceDrop: (args: {
@@ -1704,8 +1748,62 @@ function EngineAwareUltraAnalysisBoard({
     serverEngineLines,
     showMaiaArrow,
   ]);
+  const stableArrows = useStableBoardArrows(arrows);
 
-  return <UltraAnalysisBoard {...props} arrows={arrows} />;
+  return <UltraAnalysisBoard {...props} arrows={stableArrows} />;
+}
+
+const MemoizedEngineAwareUltraAnalysisBoard = memo(
+  EngineAwareUltraAnalysisBoard,
+  areEngineAwareBoardPropsEqual,
+);
+
+function useStableBoardArrows(arrows: BoardArrow[]): BoardArrow[] {
+  const previousRef = useRef<BoardArrow[]>(arrows);
+  if (!areBoardArrowsEqual(previousRef.current, arrows)) {
+    previousRef.current = arrows;
+  }
+  return previousRef.current;
+}
+
+function areEngineAwareBoardPropsEqual(
+  previous: Parameters<typeof EngineAwareUltraAnalysisBoard>[0],
+  next: Parameters<typeof EngineAwareUltraAnalysisBoard>[0],
+): boolean {
+  return (
+    previous.analysisFen === next.analysisFen &&
+    previous.arrowCount === next.arrowCount &&
+    previous.currentMarker === next.currentMarker &&
+    previous.discoveryActive === next.discoveryActive &&
+    previous.previewActive === next.previewActive &&
+    previous.serverEngineLines === next.serverEngineLines &&
+    previous.showMaiaArrow === next.showMaiaArrow &&
+    previous.allowDragging === next.allowDragging &&
+    previous.dimmed === next.dimmed &&
+    previous.feedbackSide === next.feedbackSide &&
+    previous.fen === next.fen &&
+    previous.highlightedMove === next.highlightedMove &&
+    previous.onWheel === next.onWheel &&
+    previous.onPieceDrop === next.onPieceDrop &&
+    previous.orientation === next.orientation &&
+    previous.shadowed === next.shadowed &&
+    areBoardTransitionMovesEqual(previous.transitionMove, next.transitionMove)
+  );
+}
+
+function areBoardTransitionMovesEqual(
+  previous: BoardTransitionMove | null,
+  next: BoardTransitionMove | null,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (previous === null || next === null) {
+    return false;
+  }
+  return (
+    previous.uci === next.uci && previous.direction === next.direction && previous.key === next.key
+  );
 }
 
 function EngineDiscoveryLineSidebar({
@@ -1788,6 +1886,29 @@ function EngineLinesSlot({
       playerSide={playerSideForLines}
       rootFen={engineLines?.fen ?? analysisFen}
     />
+  );
+}
+
+const MemoizedEngineLinesSlot = memo(EngineLinesSlot, areEngineLinesSlotPropsEqual);
+
+function areEngineLinesSlotPropsEqual(
+  previous: Parameters<typeof EngineLinesSlot>[0],
+  next: Parameters<typeof EngineLinesSlot>[0],
+): boolean {
+  return (
+    previous.activePreview === next.activePreview &&
+    previous.analysisFen === next.analysisFen &&
+    previous.analysisPlayerSide === next.analysisPlayerSide &&
+    previous.bookLineSet === next.bookLineSet &&
+    previous.bestMatchesContinuation === next.bestMatchesContinuation &&
+    previous.continuationLine === next.continuationLine &&
+    previous.discoveryActive === next.discoveryActive &&
+    previous.displayFen === next.displayFen &&
+    previous.maxLines === next.maxLines &&
+    previous.onBookPreview === next.onBookPreview &&
+    previous.onPreview === next.onPreview &&
+    previous.previewActive === next.previewActive &&
+    previous.serverEngineLines === next.serverEngineLines
   );
 }
 

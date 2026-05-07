@@ -1,7 +1,6 @@
 import { formatClock } from "../../lib/chess";
 import { cn } from "../../lib/utils";
 import type { CapturedPieces } from "../../types/analysis";
-import { MorphText } from "../ui/morph-text";
 
 const PIECE_UNICODE: Record<"white" | "black", Record<string, string>> = {
   white: { q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
@@ -61,7 +60,7 @@ export function PlayerBar({
         ) : null}
       </div>
       <div className="shrink-0 rounded border-stone-300 bg-stone-100/80 px-2 py-1 font-mono text-sm text-stone-700 tabular-nums dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
-        <MorphText>{formatClock(clockSeconds)}</MorphText>
+        {formatClock(clockSeconds)}
       </div>
     </div>
   );

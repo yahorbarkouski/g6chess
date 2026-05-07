@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,13 +47,21 @@ vi.mock("../../hooks/useStockfish", () => ({
   }),
 }));
 
-vi.mock("../../lib/use-chesscom-move-sound", () => ({
-  useChessComMoveSound: vi.fn(),
-}));
-
 vi.mock("./UltraAnalysisBoard", () => ({
-  UltraAnalysisBoard: ({ fen, orientation }: { fen: string | null; orientation?: string }) => (
-    <div data-orientation={orientation} data-testid="analysis-board">
+  UltraAnalysisBoard: ({
+    fen,
+    onWheel,
+    orientation,
+  }: {
+    fen: string | null;
+    onWheel?: (event: WheelEvent) => void;
+    orientation?: string;
+  }) => (
+    <div
+      data-orientation={orientation}
+      data-testid="analysis-board"
+      onWheel={(event) => onWheel?.(event.nativeEvent)}
+    >
       {fen}
     </div>
   ),
@@ -556,6 +564,54 @@ describe("AnalysisWorkspace imports", () => {
     await waitFor(() => expect(window.location.search).toBe("?analysis=analysis-1"));
   });
 
+  it("advances one ply for normal high-delta board wheel packets", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(6));
+
+    render(<AnalysisWorkspace />);
+
+    const board = await screen.findByTestId("analysis-board");
+    await waitFor(() => expect(board).toHaveTextContent("0 1"));
+
+    fireEvent.wheel(board, { deltaY: 120 });
+
+    await waitFor(() => expect(board).toHaveTextContent("0 2"));
+    expect(activeMoveButton(/1\.\.\. a5/)).toBeTruthy();
+    expect(board).not.toHaveTextContent("0 3");
+  });
+
+  it("does not turn a very large board wheel packet into multiple plies", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(6));
+
+    render(<AnalysisWorkspace />);
+
+    const board = await screen.findByTestId("analysis-board");
+    await waitFor(() => expect(board).toHaveTextContent("0 1"));
+
+    fireEvent.wheel(board, { deltaY: 720 });
+
+    await waitFor(() => expect(activeMoveButton(/1\.\.\. a5/)).toBeTruthy());
+    expect(activeMoveButton(/2\. M3/)).toBeUndefined();
+  });
+
+  it("accumulates tiny pixel wheel deltas before board navigation", async () => {
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMoves(6));
+
+    render(<AnalysisWorkspace />);
+
+    const board = await screen.findByTestId("analysis-board");
+    await waitFor(() => expect(board).toHaveTextContent("0 1"));
+
+    fireEvent.wheel(board, { deltaMode: WheelEvent.DOM_DELTA_PIXEL, deltaY: 4 });
+    expect(activeMoveButton(/1\. a4/)).toBeTruthy();
+
+    fireEvent.wheel(board, { deltaMode: WheelEvent.DOM_DELTA_PIXEL, deltaY: 6 });
+
+    await waitFor(() => expect(activeMoveButton(/1\.\.\. a5/)).toBeTruthy());
+  });
+
   it("does not chase a shared ply while a partial analysis grows", async () => {
     vi.useFakeTimers();
     window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=2");
@@ -687,6 +743,12 @@ async function waitForNoBrowserEngineTick(): Promise<void> {
   await new Promise((resolve) => window.setTimeout(resolve, 120));
 }
 
+function activeMoveButton(name: RegExp): HTMLElement | undefined {
+  return screen
+    .getAllByRole("button", { name })
+    .find((button) => button.getAttribute("aria-current") === "step");
+}
+
 function importedSource({
   externalGameId = "168193636078",
   sourceUrl = "https://www.chess.com/game/live/168193636078",
@@ -731,28 +793,29 @@ function snapshotWithMove(): GameAnalysisSnapshot {
   return snapshotWithMoves(1);
 }
 
-function gameSkeleton(count: 1 | 2 = 1): GameAnalysisGame {
-  const moves = count === 1 ? [mainlineMove(1)] : [mainlineMove(1), mainlineMove(2)];
+function gameSkeleton(count = 1): GameAnalysisGame {
+  const moves = Array.from({ length: count }, (_, index) => mainlineMove(index + 1));
   return {
     total_plies: count,
     moves,
   };
 }
 
-function mainlineMove(ply: 1 | 2): GameAnalysisGame["moves"][number] {
-  const isBlackMove = ply === 2;
+function mainlineMove(ply: number): GameAnalysisGame["moves"][number] {
+  const isBlackMove = ply % 2 === 0;
+  const moveNumber = Math.ceil(ply / 2);
   return {
     ply,
-    move_number: 1,
+    move_number: moveNumber,
     player_color: isBlackMove ? "black" : "white",
-    san: isBlackMove ? "a5" : "a4",
+    san: ply === 1 ? "a4" : ply === 2 ? "a5" : `M${ply}`,
     uci: isBlackMove ? "a7a5" : "a2a4",
     fen_before: isBlackMove
-      ? "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1"
-      : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1",
+      ? `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 ${moveNumber}`
+      : `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 ${moveNumber}`,
     fen_after: isBlackMove
-      ? "rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 2"
-      : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
+      ? `rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 ${moveNumber + 1}`
+      : `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 ${moveNumber}`,
   };
 }
 
@@ -787,7 +850,7 @@ function snapshotWithBookMove(): GameAnalysisSnapshot {
 }
 
 function snapshotWithMoves(
-  count: 1 | 2,
+  count: number,
   {
     status = "succeeded",
     totalPlies = count,
@@ -808,7 +871,7 @@ function snapshotWithMoves(
     started_at: "2026-05-04T10:00:00Z",
     completed_at: status === "succeeded" || status === "failed" ? "2026-05-04T10:00:01Z" : null,
     error: status === "failed" ? "Analysis failed." : null,
-    moves: count === 1 ? [moveAnalysis()] : [moveAnalysis(), moveAnalysis({ ply: 2 })],
+    moves: Array.from({ length: count }, (_, index) => moveAnalysis({ ply: index + 1 })),
   };
 }
 
@@ -821,19 +884,20 @@ function moveAnalysis({
 }: {
   engineTopLines?: EngineLine[] | null;
   openingBook?: NonNullable<GameMoveAnalysis["opening_book"]> | null;
-  ply?: 1 | 2;
+  ply?: number;
   requiresExplanation?: boolean;
   significance?: GameMoveAnalysis["significance"];
 } = {}): GameMoveAnalysis {
-  const isBlackMove = ply === 2;
-  const san = isBlackMove ? "a5" : "a4";
+  const isBlackMove = ply % 2 === 0;
+  const moveNumber = Math.ceil(ply / 2);
+  const san = ply === 1 ? "a4" : ply === 2 ? "a5" : `M${ply}`;
   const uci = isBlackMove ? "a7a5" : "a2a4";
   const fenBefore = isBlackMove
-    ? "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1"
-    : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1";
+    ? `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 ${moveNumber}`
+    : `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 ${moveNumber}`;
   const fenAfter = isBlackMove
-    ? "rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 2"
-    : "rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1";
+    ? `rn1qkbnr/1ppbpppp/8/p2p4/P7/8/1PPPPPPP/RNBQKBNR w KQkq a6 0 ${moveNumber + 1}`
+    : `rn1qkbnr/pppbpppp/8/3p4/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 ${moveNumber}`;
   const engineTopLines = providedEngineTopLines ?? [engineLine(uci, san)];
   return {
     ply,
@@ -871,7 +935,7 @@ function moveAnalysis({
           fen_before: fenBefore,
           fen_after: fenAfter,
           side_to_move: isBlackMove ? "black" : "white",
-          move_number: 1,
+          move_number: moveNumber,
           ply,
           phase: "opening",
           legal_moves_uci: [uci],

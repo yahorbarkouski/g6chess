@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fenAfterMoves, sanToSquares, sideToMoveFromFen, tryApplyMove } from "../lib/chess";
-import { useChessComMoveSound } from "../lib/use-chesscom-move-sound";
-import type { BoardSide } from "../types/analysis";
+import { fenAfterMoves, sanToSquares, tryApplyMove } from "../lib/chess";
 
 export interface PreviewState {
   rootFen: string;
@@ -22,22 +20,14 @@ export interface DiscoveryState {
 interface UseAnalysisBoardOptions {
   baseFen: string | null;
   currentPly: number;
-  playerSide: BoardSide | null;
   baseHighlightedMove: string | null;
-  baseSoundKey: string | null;
-  baseSan: string | null;
-  baseMovedByPlayer: boolean;
   onExitDiscovery?: (anchorPly: number) => void;
 }
 
 export function useAnalysisBoard({
   baseFen,
   currentPly,
-  playerSide,
   baseHighlightedMove,
-  baseSoundKey,
-  baseSan,
-  baseMovedByPlayer,
   onExitDiscovery,
 }: UseAnalysisBoardOptions) {
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -67,11 +57,6 @@ export function useAnalysisBoard({
       const moveSquares = moveSan ? sanToSquares(fenBeforeStep, moveSan) : null;
       return {
         highlightedMove: moveSquares ? `${moveSquares[0]}${moveSquares[1]}` : null,
-        sound: {
-          positionKey: `preview:${preview.rootFen.slice(0, 16)}:${preview.step}`,
-          san: moveSan,
-          movedByPlayer: playerSide !== null && sideToMoveFromFen(fenBeforeStep) === playerSide,
-        },
       };
     }
 
@@ -83,40 +68,16 @@ export function useAnalysisBoard({
       const moveSquares = moveSan ? sanToSquares(fenBeforeStep, moveSan) : null;
       return {
         highlightedMove: moveSquares ? `${moveSquares[0]}${moveSquares[1]}` : null,
-        sound: {
-          positionKey: `discovery:${discovery.anchorPly}:${discovery.currentStep}`,
-          san: moveSan,
-          movedByPlayer: playerSide !== null && sideToMoveFromFen(fenBeforeStep) === playerSide,
-        },
       };
     }
 
-    if (!baseSoundKey) {
+    if (!baseHighlightedMove) {
       return null;
     }
     return {
       highlightedMove: baseHighlightedMove,
-      sound: {
-        positionKey: baseSoundKey,
-        san: baseSan,
-        movedByPlayer: baseMovedByPlayer,
-      },
     };
-  }, [
-    baseHighlightedMove,
-    baseMovedByPlayer,
-    baseSan,
-    baseSoundKey,
-    discovery,
-    playerSide,
-    preview,
-  ]);
-
-  useChessComMoveSound(
-    boardFeedback?.sound.positionKey ?? null,
-    boardFeedback?.sound.san ?? null,
-    boardFeedback?.sound.movedByPlayer ?? false,
-  );
+  }, [baseHighlightedMove, discovery, preview]);
 
   const clearPreview = useCallback(() => {
     setPreview(null);

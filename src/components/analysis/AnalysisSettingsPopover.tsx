@@ -1,7 +1,7 @@
+import { triggerHaptic } from "@ultrachess/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpDown, Settings2 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { triggerHaptic } from "../../lib/haptics";
 import { cn } from "../../lib/utils";
 import { AnimatedIconButton } from "../ui/animated-icon-button";
 import type { MarkerDisplayMode } from "./MoveList";
