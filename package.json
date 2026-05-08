@@ -20,7 +20,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@ultrachess/core": "1.1.3",
     "@ultrachess/pieces": "1.1.1",
-    "@ultrachess/react": "1.2.2",
+    "@ultrachess/react": "1.2.3",
     "@ultrachess/themes": "1.1.1",
     "@vercel/analytics": "^2.0.1",
     "border-beam": "^1.0.1",
