@@ -24,6 +24,7 @@ import {
   useAnalysisBoard,
 } from "../../hooks/useAnalysisBoard";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { isCriticalMarker } from "../../lib/analysis-format";
 import {
   type AnalysisRouteState,
   analysisStatusUrl,
@@ -102,6 +103,7 @@ import {
 } from "./UltraAnalysisBoard";
 import { WorkspaceFooter } from "./WorkspaceFooter";
 
+const MOCK_ANALYSIS_ID = "morphy-opera-explanation-local";
 const EMPTY_BOARD_ARROWS: BoardArrow[] = [];
 const EMPTY_BEST_LINES: BestLine[] = [];
 const DESKTOP_MEDIA_QUERY = "(min-width: 1100px)";
@@ -299,6 +301,16 @@ export function AnalysisWorkspace() {
     }
     const job = activeJob;
 
+    if (job.analysis_id === MOCK_ANALYSIS_ID) {
+      if (import.meta.env.DEV) {
+        import("../../data/mock-analysis").then(({ MOCK_ANALYSIS }) => {
+          setAnalysis(MOCK_ANALYSIS);
+          setImportStatus("succeeded");
+        });
+      }
+      return;
+    }
+
     let cancelled = false;
     let timer: number | undefined;
     const abortController = new AbortController();
@@ -391,6 +403,37 @@ export function AnalysisWorkspace() {
       setActiveJob(null);
       setAnalysis(null);
       try {
+        if (request.url === "mock") {
+          if (import.meta.env.DEV) {
+            import("../../data/mock-analysis").then(({ MOCK_ANALYSIS }) => {
+              const nextJob: StoredGameAnalysisJob = {
+                analysis_id: MOCK_ANALYSIS_ID,
+                status_url: "",
+                source: {
+                  source: "chess_com_live_url",
+                  source_url: "",
+                  external_game_id: "mock",
+                  title: "Mock Game Analysis",
+                  white_username: "Paul Morphy",
+                  black_username: "Duke Karl / Count Isouard",
+                  white_rating: 2400,
+                  black_rating: 2200,
+                  time_control: "Classical",
+                  result: "1-0",
+                  allows_global_training: false,
+                  rights_basis: "Local mock data",
+                },
+                game: null,
+                boardOrientation: "white",
+              };
+              setActiveJob(nextJob);
+              setAnalysis(MOCK_ANALYSIS);
+              setImportStatus("succeeded");
+              navigateToImportedGamePath(MOCK_ANALYSIS_ID, null, null, "push");
+            });
+          }
+          return;
+        }
         const response = await startImportedGameAnalysis(request);
         const requestTarget =
           request.url === undefined || request.url === null
@@ -729,6 +772,7 @@ function AnalysisGameWorkspace({
   const [arrowCount, setArrowCount] = useState(1);
   const [engineLineCount, setEngineLineCount] = useState(2);
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
+  const [showMoveMarkersOnBoard, setShowMoveMarkersOnBoard] = useState(true);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
   const [mobileTab, setMobileTab] = useState<MobileTab>("analysis");
   const [ratingPromptDismissed, setRatingPromptDismissed] = useState(false);
@@ -1079,6 +1123,8 @@ function AnalysisGameWorkspace({
               serverEngineLines={serverEngineLines}
               bestMatchesContinuation={bestMatchesContinuation}
               showMaiaArrow={showMaiaArrow}
+              showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+              onShowMoveMarkersOnBoardChange={setShowMoveMarkersOnBoard}
               topSide={topSide}
             />
           ) : (
@@ -1127,6 +1173,8 @@ function AnalysisGameWorkspace({
               serverEngineLines={serverEngineLines}
               bestMatchesContinuation={bestMatchesContinuation}
               showMaiaArrow={showMaiaArrow}
+              showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+              onShowMoveMarkersOnBoardChange={setShowMoveMarkersOnBoard}
               topSide={topSide}
             />
           )}
@@ -1371,6 +1419,8 @@ function DesktopLayout({
   onEngineLineCountChange,
   showMaiaArrow,
   onShowMaiaArrowChange,
+  showMoveMarkersOnBoard,
+  onShowMoveMarkersOnBoardChange,
   markerDisplayMode,
   onMarkerDisplayModeChange,
   flippedBoard,
@@ -1410,6 +1460,8 @@ function DesktopLayout({
               onFlipBoard={onFlipBoard}
               onMarkerDisplayModeChange={onMarkerDisplayModeChange}
               onShowMaiaArrowChange={onShowMaiaArrowChange}
+              showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+              onShowMoveMarkersOnBoardChange={onShowMoveMarkersOnBoardChange}
               orientation={boardOrientation}
               markerDisplayMode={markerDisplayMode}
               showMaiaArrow={showMaiaArrow}
@@ -1427,7 +1479,11 @@ function DesktopLayout({
                 allowDragging
                 analysisFen={analysisFen}
                 arrowCount={arrowCount}
-                currentMarker={currentMarker}
+                currentMarker={
+                  markerDisplayMode === "all" || (currentMarker && isCriticalMarker(currentMarker))
+                    ? currentMarker
+                    : null
+                }
                 dimmed={dimmed}
                 discoveryActive={Boolean(discovery)}
                 feedbackSide={analysis.player_side}
@@ -1440,6 +1496,7 @@ function DesktopLayout({
                 serverEngineLines={serverEngineLines}
                 shadowed={false}
                 showMaiaArrow={showMaiaArrow}
+                showMoveMarkers={showMoveMarkersOnBoard}
                 transitionMove={boardTransitionMove}
               />
               <MemoizedPlayerBar
@@ -1552,6 +1609,8 @@ function MobileLayout({
   onMarkerDisplayModeChange,
   onFlipBoard,
   onShowMaiaArrowChange,
+  showMoveMarkersOnBoard,
+  onShowMoveMarkersOnBoardChange,
   onPreview,
   onBookPreview,
   onBoardWheel,
@@ -1587,7 +1646,11 @@ function MobileLayout({
             allowDragging
             analysisFen={analysisFen}
             arrowCount={arrowCount}
-            currentMarker={currentMarker}
+            currentMarker={
+              markerDisplayMode === "all" || (currentMarker && isCriticalMarker(currentMarker))
+                ? currentMarker
+                : null
+            }
             dimmed={dimmed}
             discoveryActive={Boolean(discovery)}
             feedbackSide={analysis.player_side}
@@ -1600,6 +1663,7 @@ function MobileLayout({
             serverEngineLines={serverEngineLines}
             shadowed={false}
             showMaiaArrow={showMaiaArrow}
+            showMoveMarkers={showMoveMarkersOnBoard}
             transitionMove={boardTransitionMove}
           />
           <MemoizedPlayerBar
@@ -1680,6 +1744,8 @@ function MobileLayout({
         onSetMobileTab={onSetMobileTab}
         onShowMaiaArrowChange={onShowMaiaArrowChange}
         showMaiaArrow={showMaiaArrow}
+        showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+        onShowMoveMarkersOnBoardChange={onShowMoveMarkersOnBoardChange}
       />
       <MobileFloatingNav
         canGoBack={currentPly > 1 || Boolean(discovery)}
@@ -1732,6 +1798,8 @@ function MobileFloatingLeftControls({
   onSetMobileTab,
   onShowMaiaArrowChange,
   showMaiaArrow,
+  showMoveMarkersOnBoard,
+  onShowMoveMarkersOnBoardChange,
 }: {
   arrowCount: number;
   engineLineCount: number;
@@ -1745,6 +1813,8 @@ function MobileFloatingLeftControls({
   onSetMobileTab: (tab: MobileTab) => void;
   onShowMaiaArrowChange: (value: boolean) => void;
   showMaiaArrow: boolean;
+  showMoveMarkersOnBoard: boolean;
+  onShowMoveMarkersOnBoardChange: (value: boolean) => void;
 }) {
   return (
     <div className="pointer-events-auto fixed bottom-[1px] left-3 z-30 flex items-center gap-2">
@@ -1762,6 +1832,8 @@ function MobileFloatingLeftControls({
         onShowMaiaArrowChange={onShowMaiaArrowChange}
         placement="top-start"
         showMaiaArrow={showMaiaArrow}
+        showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+        onShowMoveMarkersOnBoardChange={onShowMoveMarkersOnBoardChange}
       />
       <MobileTabToggleButton activeTab={mobileTab} onChange={onSetMobileTab} />
     </div>
@@ -1880,6 +1952,8 @@ function EngineBoardSidebar({
   onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
+  showMoveMarkersOnBoard: boolean;
+  onShowMoveMarkersOnBoardChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
   className?: string;
@@ -1897,6 +1971,7 @@ function EngineAwareUltraAnalysisBoard({
   previewActive,
   serverEngineLines,
   showMaiaArrow,
+  showMoveMarkers,
   ...props
 }: {
   analysisFen: string;
@@ -1906,6 +1981,7 @@ function EngineAwareUltraAnalysisBoard({
   previewActive: boolean;
   serverEngineLines: EngineLineSet | null;
   showMaiaArrow: boolean;
+  showMoveMarkers: boolean;
   allowDragging?: boolean;
   dimmed?: boolean;
   fen: string;
@@ -1949,7 +2025,14 @@ function EngineAwareUltraAnalysisBoard({
   ]);
   const stableArrows = useStableBoardArrows(arrows);
 
-  return <UltraAnalysisBoard {...props} arrows={stableArrows} />;
+  return (
+    <UltraAnalysisBoard
+      {...props}
+      arrows={stableArrows}
+      showMoveMarkers={showMoveMarkers}
+      marker={currentMarker}
+    />
+  );
 }
 
 const MemoizedEngineAwareUltraAnalysisBoard = memo(
@@ -1977,6 +2060,7 @@ function areEngineAwareBoardPropsEqual(
     previous.previewActive === next.previewActive &&
     previous.serverEngineLines === next.serverEngineLines &&
     previous.showMaiaArrow === next.showMaiaArrow &&
+    previous.showMoveMarkers === next.showMoveMarkers &&
     previous.allowDragging === next.allowDragging &&
     previous.dimmed === next.dimmed &&
     previous.feedbackSide === next.feedbackSide &&
@@ -2250,6 +2334,8 @@ interface WorkspaceLayoutProps {
   onEngineLineCountChange: (value: number) => void;
   showMaiaArrow: boolean;
   onShowMaiaArrowChange: (value: boolean) => void;
+  showMoveMarkersOnBoard: boolean;
+  onShowMoveMarkersOnBoardChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
   flippedBoard: boolean;
@@ -2329,6 +2415,22 @@ function sourceForRoute(
   route: AnalysisRouteState,
   storedJob: StoredGameAnalysisJob | null,
 ): ImportedGameMetadata | null {
+  if (route.analysisId === MOCK_ANALYSIS_ID) {
+    return {
+      source: "chess_com_live_url",
+      source_url: "",
+      external_game_id: "mock",
+      title: "Mock Game Analysis",
+      white_username: "Paul Morphy",
+      black_username: "Duke Karl / Count Isouard",
+      white_rating: 2400,
+      black_rating: 2200,
+      time_control: "Classical",
+      result: "1-0",
+      allows_global_training: false,
+      rights_basis: "Local mock data",
+    };
+  }
   const target = externalTargetFromRoute(route);
   if (target === null) {
     return storedJob?.analysis_id === route.analysisId ? storedJob.source : null;
@@ -2759,9 +2861,9 @@ export function buildPreAnalysisFens(
     addFen(indexes.timelineByPly.get(currentPly - distance)?.fen_before);
   }
 
-  const nearbyMarkers = [...analysis.move_markers].sort(
-    (a, b) => Math.abs(a.ply - currentPly) - Math.abs(b.ply - currentPly),
-  );
+  const nearbyMarkers = [...analysis.move_markers]
+    .filter(isCriticalMarker)
+    .sort((a, b) => Math.abs(a.ply - currentPly) - Math.abs(b.ply - currentPly));
   for (const marker of nearbyMarkers) {
     addFen(indexes.moveByPly.get(marker.ply)?.fen_before);
     if (out.length >= MAX_PRE_ANALYZE_FENS) {

@@ -376,6 +376,19 @@ export function AnalysisImportPanel({
     }
   }
 
+  async function handleMockAnalysis() {
+    if (isBusy) {
+      return;
+    }
+    clearErrors();
+    const request = buildRequest("url", { url: "mock", pgn: "", turnstileToken: null });
+    try {
+      await onImport(request);
+    } catch (err) {
+      setLocalError(importErrorMessage(err));
+    }
+  }
+
   function toggleMode() {
     clearErrors();
     clearPendingVerification();
@@ -431,11 +444,20 @@ export function AnalysisImportPanel({
           mode={mode}
           onToggle={toggleMode}
         />
-        {displayedError ? (
-          <RightStatus error={displayedError} mode={mode} />
-        ) : RANDOM_GAMES.length > 0 ? (
-          <RandomGameLink disabled={isBusy} onClick={handleRandomGame} />
-        ) : null}
+        <div className="flex items-center gap-4">
+          {displayedError ? (
+            <RightStatus error={displayedError} mode={mode} />
+          ) : (
+            <>
+              {RANDOM_GAMES.length > 0 && (
+                <RandomGameLink disabled={isBusy} onClick={handleRandomGame} />
+              )}
+              {import.meta.env.DEV && (
+                <MockAnalysisLink disabled={isBusy} onClick={handleMockAnalysis} />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <SuggestionCards />
@@ -844,9 +866,8 @@ function ModeToggle({
 function RandomGameLink({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
     <button
-      aria-label="Analyze a random iconic game"
       className={cn(
-        "inline-flex items-center gap-1 rounded-full text-xs outline-none transition-colors",
+        "inline-flex items-center gap-1.5 font-medium text-xs transition-colors",
         disabled
           ? "cursor-default text-stone-300 dark:text-stone-600"
           : "cursor-pointer text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300",
@@ -862,6 +883,26 @@ function RandomGameLink({ disabled, onClick }: { disabled: boolean; onClick: () 
   );
 }
 
+function MockAnalysisLink({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center gap-1.5 font-medium text-xs transition-colors",
+        disabled
+          ? "cursor-default text-stone-300 dark:text-stone-600"
+          : "cursor-pointer text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      title="Analyze the mock Morphy Opera game"
+      type="button"
+    >
+      <Smile aria-hidden="true" className="size-3.5" strokeWidth={2} />
+      try mock
+    </button>
+  );
+}
+
 function stripNewlines(value: string): string {
   return value.replace(/[\r\n]+/g, "");
 }
@@ -871,7 +912,11 @@ function isValidInput(mode: Mode, value: string): boolean {
 }
 
 function isValidGameUrl(value: string): boolean {
-  return isSupportedGameAnalysisUrl(value);
+  const clean = value.trim().toLowerCase();
+  return (
+    isSupportedGameAnalysisUrl(value) ||
+    (import.meta.env.DEV && (clean === "mock" || clean === "local"))
+  );
 }
 
 function isValidPgn(value: string): boolean {
@@ -931,6 +976,16 @@ function buildRequest(
   mode: Mode,
   values: { url: string; pgn: string; turnstileToken: string | null },
 ): GameAnalysisImportRequest {
+  const cleanUrl = values.url.trim().toLowerCase();
+  if (mode === "url" && import.meta.env.DEV && (cleanUrl === "mock" || cleanUrl === "local")) {
+    return {
+      source: "chess_com_live_url",
+      url: "mock",
+      explain_significance: [...DEFAULT_EXPLAIN_SIGNIFICANCE],
+      include_context: false,
+      use_baseline_fallback: false,
+    };
+  }
   const target = mode === "url" ? extractGameImportTarget(values.url) : null;
   const sourceFields =
     mode === "url"

@@ -1,3 +1,5 @@
+import { ArrowRight, BookOpen, Star, ThumbsUp } from "lucide-react";
+import type { ReactNode } from "react";
 import type { AnalysisMoveMarker, MovePrimaryClass } from "../types/analysis";
 
 export function primaryClassLabel(
@@ -58,4 +60,67 @@ export function analysisTagLabel(tag: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function isCriticalMarker(marker: AnalysisMoveMarker): boolean {
+  return (
+    marker.label_metadata.requires_explanation === true ||
+    marker.tags.includes("critical_significance")
+  );
+}
+
+export interface QualityTokenOptions {
+  size?: "sm" | "lg";
+}
+
+export function qualityToken(
+  marker: AnalysisMoveMarker | undefined | null,
+  options?: QualityTokenOptions,
+): { content: ReactNode; className: string } | null {
+  if (!marker) {
+    return null;
+  }
+  const pc = marker.primary_class;
+  const isLg = options?.size === "lg";
+
+  if (pc === "blunder") {
+    return { content: "??", className: "bg-rose-500/80 text-white" };
+  }
+  if (pc === "mistake" || pc === "miss") {
+    return { content: "?", className: "bg-orange-400 text-white" };
+  }
+  if (pc === "inaccuracy") {
+    return { content: "?!", className: "bg-yellow-400 text-stone-900" };
+  }
+  if (pc === "brilliant") {
+    return { content: "!!", className: "bg-purple-600 text-white" };
+  }
+  if (pc === "great") {
+    return { content: "!", className: "bg-blue-500 text-white" };
+  }
+  if (pc === "best") {
+    return {
+      content: <Star className={isLg ? "h-4 w-4 fill-current" : "size-2 fill-current"} />,
+      className: "bg-emerald-500 text-white",
+    };
+  }
+  if (pc === "excellent") {
+    return {
+      content: <ThumbsUp className={isLg ? "h-3.5 w-3.5 fill-current" : "size-2 fill-current"} />,
+      className: "bg-emerald-500 text-white",
+    };
+  }
+  if (pc === "book") {
+    return {
+      content: <BookOpen className={isLg ? "h-3.5 w-3.5 fill-current" : "size-2 fill-current"} />,
+      className: "bg-amber-800/80 text-amber-100 dark:bg-amber-700/80",
+    };
+  }
+  if (marker.tags.includes("forced")) {
+    return {
+      content: <ArrowRight className={isLg ? "h-4 w-4" : "size-2"} />,
+      className: "bg-stone-400 text-white dark:bg-stone-500",
+    };
+  }
+  return { content: "✓", className: "bg-[#7a8a72] text-white" };
 }

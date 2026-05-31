@@ -28,7 +28,7 @@ describe("buildPreAnalysisFens", () => {
     const currentFen = indexes.moveByPly.get(currentPly)?.fen_after ?? "";
 
     const fens = buildPreAnalysisFens(MOCK_ANALYSIS, indexes, currentPly, currentFen);
-    const markedPlyBeforeFen = indexes.moveByPly.get(28)?.fen_before;
+    const markedPlyBeforeFen = indexes.moveByPly.get(34)?.fen_before;
 
     expect(markedPlyBeforeFen).toBeDefined();
     expect(fens).toContain(markedPlyBeforeFen);

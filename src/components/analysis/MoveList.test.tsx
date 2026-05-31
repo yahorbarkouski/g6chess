@@ -109,6 +109,46 @@ describe("MoveList", () => {
     expect(screen.getByText("!!")).toHaveClass("bg-purple-600", "text-white", "size-3.5");
     expect(screen.getByRole("button", { name: /1\. M1 Brilliant/ })).toHaveClass("bg-stone-100");
   });
+
+  it("filters out non-critical markers when markerDisplayMode is critical", () => {
+    const moves = buildMoves(2);
+    const onSelectPly = vi.fn();
+
+    const bookMarker = buildMarker({ ply: 1, primary_class: "book" });
+    bookMarker.label_metadata.requires_explanation = false;
+
+    const blunderMarker = buildMarker({ ply: 2, primary_class: "blunder" });
+    blunderMarker.label_metadata.requires_explanation = true;
+
+    const { rerender } = render(
+      <MoveList
+        currentPly={1}
+        markerDisplayMode="critical"
+        moveMarkers={[bookMarker, blunderMarker]}
+        moves={moves}
+        onSelectPly={onSelectPly}
+      />,
+    );
+
+    // Book marker (non-critical) should not show its description or badge in critical display mode
+    expect(screen.getByRole("button", { name: /^1\. M1$/ })).toBeInTheDocument();
+    // Blunder marker (critical) should show its description
+    expect(screen.getByRole("button", { name: /1\.\.\. M2 Blunder/ })).toBeInTheDocument();
+
+    // In 'all' display mode, both should be shown
+    rerender(
+      <MoveList
+        currentPly={1}
+        markerDisplayMode="all"
+        moveMarkers={[bookMarker, blunderMarker]}
+        moves={moves}
+        onSelectPly={onSelectPly}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /1\. M1 Book/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /1\.\.\. M2 Blunder/ })).toBeInTheDocument();
+  });
 });
 
 function setScrollMetrics(

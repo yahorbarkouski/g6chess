@@ -27,6 +27,12 @@ const OPERA_SAN = [
   "Nc3",
   "c6",
   "Bg5",
+  "h5",
+  "h4",
+  "Rh6",
+  "a3",
+  "Rh8",
+  "a4",
   "b5",
   "Nxb5",
   "cxb5",
@@ -46,8 +52,9 @@ const OPERA_SAN = [
 ] as const;
 
 const TIMELINE_EVALS = [
-  24, 18, 29, 38, 52, 94, 88, 71, 112, 96, 130, 155, 178, 150, 194, 205, 248, 420, 690, 610, 740,
-  705, 880, 820, 1330, 1190, 1640, 920, 2100, 1950, 99_998, 99_999, 100_000,
+  24, 18, 29, 38, 52, 94, 88, 71, 112, 96, 130, 155, 178, 150, 194, 205, 248, 248, 240, 250, 245,
+  255, 260, 420, 690, 610, 740, 705, 880, 820, 1330, 1190, 1640, 920, 2100, 1950, 99_998, 99_999,
+  100_000,
 ] as const;
 
 export const MOCK_ANALYSIS = buildMockAnalysis();
@@ -128,7 +135,7 @@ function buildTimeline(moves: GameMove[]): AnalysisTimelinePoint[] {
 }
 
 function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
-  return [
+  const explicitList = [
     marker({
       moves,
       ply: 9,
@@ -144,7 +151,19 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
     }),
     marker({
       moves,
-      ply: 18,
+      ply: 22,
+      rank_order: 7,
+      primary_class: "mistake",
+      eval_before_cp: 250,
+      eval_after_cp: 255,
+      drop_cp: 0,
+      explanation: "Rh8 retreats the rook to the corner, losing time.",
+      bestLine: line("Rh8", "h6h8", 255, ["Rh8"]),
+      tags: ["losing_tempo"],
+    }),
+    marker({
+      moves,
+      ply: 24,
       rank_order: 1,
       primary_class: "blunder",
       best_move_san: "Nbd7",
@@ -161,7 +180,7 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
     }),
     marker({
       moves,
-      ply: 19,
+      ply: 25,
       rank_order: 3,
       primary_class: "brilliant",
       best_move_san: "Bxb5+",
@@ -178,7 +197,7 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
     }),
     marker({
       moves,
-      ply: 25,
+      ply: 31,
       rank_order: 2,
       primary_class: "great",
       eval_before_cp: 820,
@@ -191,7 +210,7 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
     }),
     marker({
       moves,
-      ply: 28,
+      ply: 34,
       rank_order: 5,
       primary_class: "mistake",
       best_move_san: "Qe6",
@@ -206,7 +225,19 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
     }),
     marker({
       moves,
-      ply: 33,
+      ply: 37,
+      rank_order: 8,
+      primary_class: "brilliant",
+      eval_before_cp: 920,
+      eval_after_cp: 1950,
+      drop_cp: 0,
+      explanation: "Qb8+ is a brilliant queen sacrifice leading to forced checkmate.",
+      bestLine: line("Qb8+", "b3b8+", 1950, ["Qb8+", "Nxb8", "Rd8#"]),
+      tags: ["sacrifice", "forcing_sequence"],
+    }),
+    marker({
+      moves,
+      ply: 39,
       rank_order: 6,
       primary_class: "best",
       eval_before_cp: 99_999,
@@ -218,6 +249,44 @@ function buildMarkers(moves: GameMove[]): AnalysisMoveMarker[] {
       tags: ["checkmate", "back_rank", "coordination"],
     }),
   ];
+
+  const explicitMap = new Map(explicitList.map((m) => [m.ply, m]));
+  const allMarkers: AnalysisMoveMarker[] = [];
+
+  for (let index = 0; index < moves.length; index++) {
+    const ply = index + 1;
+    const move = moves[index];
+    if (move === undefined) {
+      continue;
+    }
+    const explicitMarker = explicitMap.get(ply);
+    if (explicitMarker !== undefined) {
+      allMarkers.push(explicitMarker);
+    } else {
+      const isBook = ply <= 8;
+      const primary_class = isBook ? "book" : ply % 2 === 0 ? "good" : "best";
+      const evalCp = TIMELINE_EVALS[index] ?? 0;
+      allMarkers.push(
+        marker({
+          moves,
+          ply,
+          rank_order: ply,
+          primary_class,
+          eval_before_cp: evalCp,
+          eval_after_cp: evalCp,
+          drop_cp: 0,
+          explanation: isBook
+            ? `${move.san} is a standard book move.`
+            : `${move.san} is a solid move maintaining the evaluation.`,
+          bestLine: line(move.san, move.uci, evalCp, [move.san]),
+          tags: isBook ? ["opening"] : ["developing_move"],
+          requires_explanation: false,
+        }),
+      );
+    }
+  }
+
+  return allMarkers;
 }
 
 function marker({
@@ -235,6 +304,7 @@ function marker({
   explanation,
   bestLine,
   tags,
+  requires_explanation = true,
 }: {
   moves: GameMove[];
   ply: number;
@@ -250,6 +320,7 @@ function marker({
   explanation: string;
   bestLine: BestLine;
   tags: string[];
+  requires_explanation?: boolean;
 }): AnalysisMoveMarker {
   const move = moves[ply - 1];
   if (move === undefined) {
@@ -270,6 +341,7 @@ function marker({
     primary_class,
     tags,
     label_metadata: {
+      requires_explanation,
       score_loss_vs_best_cp: drop_cp,
       swing_from_root: eval_after_cp - eval_before_cp,
       context_version: "mock-context-v1",

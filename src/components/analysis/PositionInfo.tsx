@@ -15,6 +15,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { TextShimmer } from "@/components/loading-ui/text-shimmer";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { analysisTagLabel, primaryClassClass, primaryClassLabel } from "../../lib/analysis-format";
 import { fenAfterMoves, sanToSquares, sideToMoveFromFen } from "../../lib/chess";
 import { cn } from "../../lib/utils";
@@ -885,30 +886,6 @@ function lineStepSquares(rootFen: string, moves: string[], step: number): string
   const beforeFen = fenAfterMoves(rootFen, moves, step - 1) ?? rootFen;
   const squares = sanToSquares(beforeFen, move);
   return squares ? `${squares[0]}${squares[1]}` : null;
-}
-
-function useCoarsePointer(): boolean {
-  const [isCoarse, setIsCoarse] = useState(() => coarsePointerMatches());
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(hover: none), (pointer: coarse)");
-    const handleChange = () => setIsCoarse(mediaQuery.matches);
-    handleChange();
-    mediaQuery.addEventListener?.("change", handleChange);
-    return () => mediaQuery.removeEventListener?.("change", handleChange);
-  }, []);
-
-  return isCoarse;
-}
-
-function coarsePointerMatches(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia("(hover: none), (pointer: coarse)").matches;
 }
 
 function parseExplanationWithMoves(

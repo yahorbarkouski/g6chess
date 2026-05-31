@@ -17,6 +17,8 @@ interface BoardSidebarProps {
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  showMoveMarkersOnBoard: boolean;
+  onShowMoveMarkersOnBoardChange: (value: boolean) => void;
   className?: string;
 }
 
@@ -33,6 +35,8 @@ export function BoardSidebar({
   onShowMaiaArrowChange,
   markerDisplayMode,
   onMarkerDisplayModeChange,
+  showMoveMarkersOnBoard,
+  onShowMoveMarkersOnBoardChange,
   className,
 }: BoardSidebarProps) {
   const prefersReducedMotion = useReducedMotion();
@@ -49,6 +53,8 @@ export function BoardSidebar({
         onShowMaiaArrowChange={onShowMaiaArrowChange}
         markerDisplayMode={markerDisplayMode}
         showMaiaArrow={showMaiaArrow}
+        showMoveMarkersOnBoard={showMoveMarkersOnBoard}
+        onShowMoveMarkersOnBoardChange={onShowMoveMarkersOnBoardChange}
       />
       <EvalBar evalCp={evalCp} orientation={orientation} className="flex-1" />
       <button
