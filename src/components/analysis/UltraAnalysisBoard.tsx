@@ -22,11 +22,13 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { parseSquare } from "ultrachess";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { qualityToken } from "../../lib/analysis-format";
 import { pieceCodeAtSquare, squareName, uciToSquares } from "../../lib/chess";
 import { cn } from "../../lib/utils";
+import type { AnalysisMoveMarker } from "../../types/analysis";
 
 const BOARD_ANIMATION = {
   durationMs: 45,
@@ -43,7 +45,6 @@ const HIGHLIGHTED_SQUARE_STYLE: CSSProperties = {
 const EMPTY_ARROWS: readonly Arrow[] = Object.freeze([]);
 const EMPTY_BOARD_ARROWS: ReadonlyArray<BoardArrow> = [];
 const NO_ANIMATION = { durationMs: 0 } as const;
-const COARSE_POINTER_QUERY = "(hover: none), (pointer: coarse)";
 
 export type BoardArrow = readonly [string, string, string?];
 export type BoardTransitionMove = PositionTransition;
@@ -68,6 +69,8 @@ interface UltraAnalysisBoardProps {
   feedbackSide?: "white" | "black" | null;
   onWheel?: (event: WheelEvent) => void;
   className?: string;
+  showMoveMarkers?: boolean;
+  marker?: AnalysisMoveMarker | null;
 }
 
 function UltraAnalysisBoardBase({
@@ -86,6 +89,8 @@ function UltraAnalysisBoardBase({
   feedbackSide = null,
   onWheel,
   className,
+  showMoveMarkers = true,
+  marker = null,
 }: UltraAnalysisBoardProps) {
   const game = useChessGame();
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -95,7 +100,12 @@ function UltraAnalysisBoardBase({
     () => (animationMs > 0 ? { ...BOARD_ANIMATION, durationMs: animationMs } : NO_ANIMATION),
     [animationMs],
   );
-  const renderSquare = useHighlightedSquareOverlay(highlightedMove);
+  const renderSquare = useHighlightedSquareOverlay(
+    highlightedMove,
+    showMoveMarkers,
+    marker,
+    orientation,
+  );
   const handleMove = useOnMoveAdapter(game, onPieceDrop);
   const coarsePointer = useCoarsePointer();
   const feedbackPerspective = useMemo(
@@ -189,6 +199,8 @@ function areUltraAnalysisBoardPropsEqual(
     (previous.dimmed ?? false) === (next.dimmed ?? false) &&
     (previous.showCoordinates ?? true) === (next.showCoordinates ?? true) &&
     (previous.feedbackSide ?? null) === (next.feedbackSide ?? null) &&
+    (previous.showMoveMarkers ?? true) === (next.showMoveMarkers ?? true) &&
+    (previous.marker ?? null) === (next.marker ?? null) &&
     previous.onWheel === next.onWheel &&
     previous.className === next.className
   );
@@ -202,30 +214,6 @@ function sideToFeedbackPerspective(side: "white" | "black" | null): 0 | 1 | unde
     return 1;
   }
   return undefined;
-}
-
-function useCoarsePointer(): boolean {
-  const [coarsePointer, setCoarsePointer] = useState(readCoarsePointer);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-    const mediaQuery = window.matchMedia(COARSE_POINTER_QUERY);
-    const update = () => setCoarsePointer(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener?.("change", update);
-    return () => mediaQuery.removeEventListener?.("change", update);
-  }, []);
-
-  return coarsePointer;
-}
-
-function readCoarsePointer(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(COARSE_POINTER_QUERY).matches;
 }
 
 function areBoardArrowsEqual(
@@ -289,23 +277,68 @@ function useManagedArrows(arrows: ReadonlyArray<BoardArrow>): readonly Arrow[] {
 
 function useHighlightedSquareOverlay(
   highlightedMove: string | null,
+  showMoveMarkers: boolean,
+  marker: AnalysisMoveMarker | null,
+  orientation: "white" | "black",
 ): (ctx: { index: SquareIndex }) => ReactNode {
   const highlighted = useMemo(() => {
     if (!highlightedMove) {
       return null;
     }
     const squares = uciToSquares(highlightedMove);
-    return squares ? new Set(squares) : null;
+    return squares ? { source: squares[0], target: squares[1] } : null;
   }, [highlightedMove]);
 
   return useCallback(
     ({ index }) => {
-      if (highlighted === null || !highlighted.has(squareName(index))) {
+      const squareStr = squareName(index);
+      if (
+        highlighted === null ||
+        (squareStr !== highlighted.source && squareStr !== highlighted.target)
+      ) {
         return null;
       }
-      return <div aria-hidden style={HIGHLIGHTED_SQUARE_STYLE} />;
+
+      const isTarget = squareStr === highlighted.target;
+      const token =
+        isTarget && showMoveMarkers && marker ? qualityToken(marker, { size: "lg" }) : null;
+
+      // Adjust positioning classes if target is on visual top row or visual right-most column
+      let topClass = "-top-1.5";
+      let rightClass = "-right-1.5";
+
+      if (isTarget) {
+        const file = squareStr[0];
+        const rank = squareStr[1];
+        const isTopRow = orientation === "white" ? rank === "8" : rank === "1";
+        const isRightCol = orientation === "white" ? file === "h" : file === "a";
+
+        if (isTopRow) {
+          topClass = "top-1.5";
+        }
+        if (isRightCol) {
+          rightClass = "right-1.5";
+        }
+      }
+
+      return (
+        <div aria-hidden style={HIGHLIGHTED_SQUARE_STYLE}>
+          {token ? (
+            <div
+              className={cn(
+                "absolute z-10 flex h-7 w-7 items-center justify-center rounded-full text-[14px] font-bold shadow-sm",
+                topClass,
+                rightClass,
+                token.className,
+              )}
+            >
+              {token.content}
+            </div>
+          ) : null}
+        </div>
+      );
     },
-    [highlighted],
+    [highlighted, showMoveMarkers, marker, orientation],
   );
 }
 

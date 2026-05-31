@@ -15,6 +15,8 @@ interface AnalysisSettingsPopoverProps {
   onShowMaiaArrowChange: (value: boolean) => void;
   markerDisplayMode: MarkerDisplayMode;
   onMarkerDisplayModeChange: (value: MarkerDisplayMode) => void;
+  showMoveMarkersOnBoard: boolean;
+  onShowMoveMarkersOnBoardChange: (value: boolean) => void;
   flippedBoard?: boolean;
   onFlipBoard?: () => void;
   buttonClassName?: string;
@@ -37,7 +39,7 @@ const ENGINE_LINE_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 3, label: "3" },
 ];
 
-const MAIA_OPTIONS: ReadonlyArray<{ value: boolean; label: string }> = [
+const ON_OFF_OPTIONS: ReadonlyArray<{ value: boolean; label: string }> = [
   { value: false, label: "Off" },
   { value: true, label: "On" },
 ];
@@ -61,6 +63,8 @@ export function AnalysisSettingsPopover({
   onShowMaiaArrowChange,
   markerDisplayMode,
   onMarkerDisplayModeChange,
+  showMoveMarkersOnBoard,
+  onShowMoveMarkersOnBoardChange,
   placement = "side",
   popoverClassName,
 }: AnalysisSettingsPopoverProps) {
@@ -172,11 +176,24 @@ export function AnalysisSettingsPopover({
               <SegmentedControl
                 ariaLabel="Show Maia human move"
                 layoutId={`${popoverId}-maia`}
-                options={MAIA_OPTIONS.map((option) => ({
+                options={ON_OFF_OPTIONS.map((option) => ({
                   key: String(option.value),
                   label: option.label,
                   active: option.value === showMaiaArrow,
                   onSelect: () => onShowMaiaArrowChange(option.value),
+                }))}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </SettingsRow>
+            <SettingsRow label="Move markers">
+              <SegmentedControl
+                ariaLabel="Show move markers on board"
+                layoutId={`${popoverId}-move-markers-board`}
+                options={ON_OFF_OPTIONS.map((option) => ({
+                  key: String(option.value),
+                  label: option.label,
+                  active: option.value === showMoveMarkersOnBoard,
+                  onSelect: () => onShowMoveMarkersOnBoardChange(option.value),
                 }))}
                 prefersReducedMotion={prefersReducedMotion}
               />

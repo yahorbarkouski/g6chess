@@ -52,14 +52,17 @@ vi.mock("./UltraAnalysisBoard", () => ({
     fen,
     onWheel,
     orientation,
+    marker,
   }: {
     fen: string | null;
     onWheel?: (event: WheelEvent) => void;
     orientation?: string;
+    marker?: { primary_class: string } | null;
   }) => (
     <div
       data-orientation={orientation}
       data-testid="analysis-board"
+      data-marker={marker ? marker.primary_class : "none"}
       onWheel={(event) => onWheel?.(event.nativeEvent)}
     >
       {fen}
@@ -771,7 +774,7 @@ describe("AnalysisWorkspace imports", () => {
     render(<AnalysisWorkspace />);
 
     expect((await screen.findAllByText("King's Pawn Game")).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("button", { name: /1\. a4 Book/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^1\. a4$/i })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Preview e5 Nf3" }));
 
     expect(screen.getByRole("button", { name: "Preview e5 Nf3" })).toBeTruthy();
@@ -779,6 +782,25 @@ describe("AnalysisWorkspace imports", () => {
     await waitForNoBrowserEngineTick();
     expect(stockfishMocks.analyze).not.toHaveBeenCalled();
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
+  });
+
+  it("filters non-critical markers from the board when markerDisplayMode is critical", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithBookMove());
+
+    render(<AnalysisWorkspace />);
+
+    // By default, markerDisplayMode is "critical"
+    const board = await screen.findByTestId("analysis-board");
+    expect(board).toHaveAttribute("data-marker", "none");
+
+    // Open settings and switch to 'all' markers
+    await user.click(screen.getByRole("button", { name: "Board settings" }));
+    await user.click(screen.getByRole("button", { name: "Move markers: All" }));
+
+    // Now the book move marker should be passed to the board
+    await waitFor(() => expect(board).toHaveAttribute("data-marker", "book"));
   });
 });
 
