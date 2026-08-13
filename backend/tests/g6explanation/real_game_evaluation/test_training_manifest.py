@@ -111,7 +111,7 @@ def _record(
     model: str | None = "openai/gpt-5.5-20260423",
     explanation: str | None = "e4 claims the center and opens lines for White.",
     source: ExplanationDataSource | None = PROJECT_SYNTHETIC_SOURCE,
-    llm_context: LLMContext | None | object = _DEFAULT_LLM_CONTEXT,
+    llm_context: LLMContext | object | None = _DEFAULT_LLM_CONTEXT,
     prompt_version: str | None = "single_move_coach.v9",
 ) -> RealExplanationEvalRecord:
     resolved_llm_context = (

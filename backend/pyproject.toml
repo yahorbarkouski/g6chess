@@ -3,6 +3,7 @@ name = "g6explanation"
 version = "0.1.0"
 description = "Evidence-grounded context engine for single-move chess explanations."
 requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
 dependencies = [
   "chess>=1.10,<2",
   "fastapi>=0.115,<1",
@@ -10,6 +11,9 @@ dependencies = [
   "redis>=5,<6",
   "uvicorn[standard]>=0.30,<1",
 ]
+
+[project.urls]
+Repository = "https://github.com/yahorbarkouski/g6chess"
 
 [project.optional-dependencies]
 deployment = [
@@ -30,7 +34,7 @@ maia = [
 
 [dependency-groups]
 dev = [
-  "httpx>=0.28",
+  "httpx2>=2.10,<3",
   "mypy>=1.15",
   "pyright>=1.1",
   "pytest>=8",
