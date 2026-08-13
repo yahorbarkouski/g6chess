@@ -60,7 +60,7 @@ The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
 `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
 `G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
 `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and optional
-`G6EXPLANATION_OPENROUTER_MAX_TOKENS`. There is no default completion-token cap;
+`G6EXPLANATION_OPENROUTER_MAX_TOKENS`. The default completion-token cap is 4096;
 set the env var only for constrained experiments.
 
 Current prompt version: `single_move_coach.v23`. Current explanation schema

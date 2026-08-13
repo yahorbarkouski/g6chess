@@ -9,6 +9,7 @@ import pytest
 
 from g6explanation.explanation_generation.exceptions import CoachModelError
 from g6explanation.explanation_generation.openrouter_chat import (
+    DEFAULT_MAX_COMPLETION_TOKENS,
     DEFAULT_OPENROUTER_MODEL,
     DEFAULT_TIMEOUT_SECONDS,
     OpenRouterCoachModelProvider,
@@ -57,7 +58,7 @@ def test_openrouter_provider_sends_structured_output_request() -> None:
     assert payload["model"] == DEFAULT_OPENROUTER_MODEL
     assert payload["response_format"] == prompt.response_format
     assert payload["reasoning"] == {"effort": "high", "exclude": True}
-    assert "max_completion_tokens" not in payload
+    assert payload["max_completion_tokens"] == DEFAULT_MAX_COMPLETION_TOKENS
     assert response.content == _coach_response("e4 claimed the center.")
 
 
@@ -194,7 +195,7 @@ def test_openrouter_provider_defaults_timeout_policy() -> None:
 
     assert provider.timeout_seconds == DEFAULT_TIMEOUT_SECONDS
     assert provider.max_retries == 1
-    assert provider.max_completion_tokens is None
+    assert provider.max_completion_tokens == DEFAULT_MAX_COMPLETION_TOKENS
 
 
 def _openrouter_response() -> bytes:

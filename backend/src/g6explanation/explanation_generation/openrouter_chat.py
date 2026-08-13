@@ -24,7 +24,7 @@ DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
-DEFAULT_MAX_COMPLETION_TOKENS: int | None = None
+DEFAULT_MAX_COMPLETION_TOKENS = 4096
 RETRYABLE_HTTP_STATUSES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 HttpTransport = Callable[[str, Mapping[str, str], bytes, float], tuple[int, bytes]]
@@ -99,7 +99,10 @@ class OpenRouterCoachModelProvider:
                 "G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS",
                 DEFAULT_RETRY_BACKOFF_SECONDS,
             ),
-            max_completion_tokens=_optional_int_env("G6EXPLANATION_OPENROUTER_MAX_TOKENS"),
+            max_completion_tokens=_int_env(
+                "G6EXPLANATION_OPENROUTER_MAX_TOKENS",
+                DEFAULT_MAX_COMPLETION_TOKENS,
+            ),
         )
 
     def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
@@ -185,11 +188,6 @@ def _dotenv_value(path: Path, key: str) -> str | None:
 def _int_env(name: str, default: int) -> int:
     value = os.environ.get(name)
     return default if value is None else int(value)
-
-
-def _optional_int_env(name: str) -> int | None:
-    value = os.environ.get(name)
-    return None if value is None else int(value)
 
 
 def _float_env(name: str, default: float) -> float:
