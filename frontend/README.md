@@ -1,0 +1,129 @@
+# g6: Free Chess Analysis
+
+https://github.com/user-attachments/assets/983c9ebf-1496-47e1-a61a-580f2b8c7dca
+
+Public frontend for [g6](https://g6chess.com), an evidence-grounded chess analysis product.
+
+The app lets someone paste a Chess.com game, Lichess game, or Lichess study
+chapter link, open a `g6chess.com/game/live/...`, `g6chess.com/lichess/...`, or
+`g6chess.com/lichess/study/.../...` route, or paste PGN. It
+imports the game through the analysis API, polls for completed move analysis,
+and renders a board-first review with move labels, engine/book continuations,
+and coach-style explanations
+
+## Product Direction
+
+g6 is not an LLM chess calculator, the product boundary is:
+
+```text
+Stockfish + human-likelihood evidence + rules + verifiers = chess truth
+LLM or deterministic renderer = wording for verified explanations
+```
+
+The user question we are trying to answer is:
+
+```text
+At this move in my game, what happened, how good was my move, and what should I understand?
+```
+
+The frontend turns that into a usable review surface: import a real game,
+navigate the move list, inspect critical moments, preview verified lines on the
+board, and explore alternatives without losing the main game.
+
+## What Is In The Frontend
+
+- Vite + React + TypeScript frontend.
+- Chess.com URL, Lichess URL, Lichess study chapter URL, and PGN import UI.
+- Route parsing for shareable game links and selected ply state.
+- Polling client for the game-analysis API.
+- Board-first analysis workspace with move list, eval bar, player bars,
+  explanation panel, opening-book lines, and engine-line previews.
+- UltraChess React board integration.
+- Browser Stockfish as an exploration fallback for positions not covered by the
+  server snapshot.
+
+The complete backend and generated API contract live beside this project at
+`../backend` and `../contracts`.
+
+## Related Work
+
+- [`ultrachess`](https://github.com/yahorbarkouski/ultrachess): Rust/WASM chess
+  library with TypeScript bindings for legal move generation, FEN/SAN/PGN, perft,
+  and hashing.
+- [`ultrachess-react`](https://github.com/yahorbarkouski/ultrachess-react):
+  React chessboard subsystem used by this app, with external board state,
+  byte-scoped square subscriptions, WAAPI piece animation, and canvas arrows.
+- [`../backend`](../backend): evidence packets, move labels, verified
+  explanation generation, source-rights policy, and eval infrastructure.
+- Older `g6chess-*` repos: product lineage around imports, live-game sync,
+  narratives, puzzles, and the broader g6 application.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+bun install
+```
+
+Start the dev server:
+
+```bash
+bun run dev
+```
+
+The app runs at:
+
+```text
+http://127.0.0.1:5173/
+```
+
+Point it at a local analysis API with:
+```bash
+VITE_G6_API_BASE_URL=http://127.0.0.1:8001
+```
+
+Enable Cloudflare Turnstile for anonymous import starts with:
+
+```bash
+VITE_G6_TURNSTILE_SITE_KEY=...
+```
+
+Expected API shape today:
+
+- `POST /api/game-analysis/import`
+- `GET /api/game-analysis/import/chess-com/live/{externalGameId}`
+- `GET /api/game-analysis/import/lichess/{externalGameId}`
+- `GET /api/game-analysis/import/lichess/study/{studyId}/{chapterId}`
+- polling through the returned `status_url`
+- Lichess study chapter imports use `source=lichess_study_chapter_url`,
+  `url=https://lichess.org/study/{studyId}/{chapterId}`, and
+  `external_game_id={studyId}/{chapterId}`. The backend should fetch the clean
+  chapter PGN from Lichess with comments, clocks, and variations disabled, then
+  pass standard mainline chapters through the same PGN-derived game skeleton
+  path as normal PGN imports.
+- Import responses and game-analysis snapshots include a `game` skeleton with
+  PGN-derived SAN/UCI/FEN move data. The client can render the board from that
+  skeleton while deeper context and explanations are still pending.
+- Normal import requests use `include_context=false`. Completed move snapshots
+  include compact board, engine-line, label, and explanation fields for the UI;
+  full context packets are reserved for internal/debug tooling.
+- Engine `top_lines` describe pre-move alternatives from `fen_before`. When the
+  played move matches the best line, the UI pairs that with the next ply's best
+  line as a `Best continuation` row and shows the remaining current-position
+  alternatives below. The visible row count defaults to two and can be changed
+  in board settings. Engine WDL and Maia move-choice probabilities are kept for
+  analysis data but are not shown as human win-probability percentages in the
+  engine-line list.
+
+## Checks
+
+```bash
+bun run typecheck
+bun run lint
+bun run test
+bun run build
+```
+
+`bun install` copies the browser Stockfish worker assets into
+`public/stockfish/`.

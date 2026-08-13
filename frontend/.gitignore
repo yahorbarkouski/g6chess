@@ -1,0 +1,13 @@
+dist
+node_modules
+*.local
+.DS_Store
+.env
+.env.*.local
+*.tsbuildinfo
+
+public/stockfish/
+public/demo.mov
+public/demo.mp4
+.vercel
+.playwright-mcp/
