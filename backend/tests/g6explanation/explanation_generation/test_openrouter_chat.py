@@ -61,7 +61,10 @@ def test_openrouter_provider_sends_structured_output_request() -> None:
     assert response.content == _coach_response("e4 claimed the center.")
 
 
-def test_openrouter_provider_loads_api_key_from_dotenv(tmp_path: Path) -> None:
+def test_openrouter_provider_loads_api_key_from_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     dotenv = tmp_path / ".env"
     dotenv.write_text("OPENROUTER_API_KEY='dotenv-key'\n", encoding="utf-8")
 
