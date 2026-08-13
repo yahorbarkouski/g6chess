@@ -1,0 +1,94 @@
+[project]
+name = "g6explanation"
+version = "0.1.0"
+description = "Evidence-grounded context engine for single-move chess explanations."
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+dependencies = [
+  "chess>=1.10,<2",
+  "fastapi>=0.115,<1",
+  "pydantic>=2,<3",
+  "redis>=5,<6",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.urls]
+Repository = "https://github.com/yahorbarkouski/g6chess"
+
+[project.optional-dependencies]
+deployment = [
+  "modal>=1.1,<2",
+]
+maia = [
+  "einops>=0.8",
+  "gdown>=5",
+  "maia2==0.9",
+  "numpy>=1.26",
+  "pandas>=2",
+  "pyyaml>=6",
+  "pyzstd>=0.16",
+  "requests>=2",
+  "torch>=2",
+  "tqdm>=4",
+]
+
+[dependency-groups]
+dev = [
+  "httpx2>=2.10,<3",
+  "mypy>=1.15",
+  "pyright>=1.1",
+  "pytest>=8",
+  "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests/g6explanation"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unreachable = true
+show_error_codes = true
+
+[tool.pydantic-mypy]
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "B",
+  "C4",
+  "E",
+  "F",
+  "I",
+  "PIE",
+  "PT",
+  "RET",
+  "RUF",
+  "SIM",
+  "UP",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

@@ -1,0 +1,125 @@
+name: Deploy Modal
+
+on:
+  workflow_dispatch:
+    inputs:
+      modal_environment:
+        description: Modal environment to deploy into.
+        required: true
+        default: main
+      api_min_containers:
+        description: Warm API containers to keep running.
+        required: true
+        default: "0"
+      worker_min_containers:
+        description: Warm worker containers to keep running.
+        required: true
+        default: "0"
+      worker_max_containers:
+        description: Maximum concurrent worker containers.
+        required: true
+        default: "5"
+      worker_cpu:
+        description: Worker CPU cores for one analysis container.
+        required: true
+        default: "16"
+      worker_memory_mb:
+        description: Worker memory in MiB.
+        required: true
+        default: "16384"
+      context_workers:
+        description: Per-job Stockfish/Maia context workers.
+        required: true
+        default: "8"
+      openrouter_concurrency:
+        description: Per-job OpenRouter explanation concurrency.
+        required: true
+        default: "30"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modal-deploy-${{ github.event.inputs.modal_environment || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test And Deploy
+    runs-on: ubuntu-latest
+    environment: modal-${{ github.event.inputs.modal_environment || 'main' }}
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      MODAL_ENVIRONMENT: ${{ github.event.inputs.modal_environment || 'main' }}
+      G6EXPLANATION_CORS_ORIGINS: ${{ vars.G6EXPLANATION_CORS_ORIGINS }}
+      G6EXPLANATION_MODAL_CUSTOM_DOMAINS: ${{ vars.G6EXPLANATION_MODAL_CUSTOM_DOMAINS }}
+      G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH: ${{ vars.G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH }}
+      G6EXPLANATION_MODAL_API_MIN_CONTAINERS: ${{ github.event.inputs.api_min_containers || '0' }}
+      G6EXPLANATION_MODAL_WORKER_MIN_CONTAINERS: ${{ github.event.inputs.worker_min_containers || '0' }}
+      G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS: ${{ github.event.inputs.worker_max_containers || '5' }}
+      G6EXPLANATION_MODAL_WORKER_CPU: ${{ github.event.inputs.worker_cpu || '16' }}
+      G6EXPLANATION_MODAL_WORKER_MEMORY_MB: ${{ github.event.inputs.worker_memory_mb || '16384' }}
+      G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS: ${{ github.event.inputs.context_workers || '8' }}
+      G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY: ${{ github.event.inputs.openrouter_concurrency || '30' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --locked --dev --extra deployment
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check with mypy
+        run: uv run mypy src tests
+
+      - name: Type check with pyright
+        run: uv run pyright
+
+      - name: Test
+        env:
+          G6EXPLANATION_REDIS_URL: redis://localhost:6379/0
+        run: uv run pytest -q
+
+      - name: Validate deployment credentials
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          missing=0
+          for name in MODAL_TOKEN_ID MODAL_TOKEN_SECRET; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for Modal deployment."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Deploy Modal app
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          G6EXPLANATION_MODAL_CUSTOM_DOMAINS: ${{ vars.G6EXPLANATION_MODAL_CUSTOM_DOMAINS }}
+          G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH: ${{ vars.G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH }}
+        run: uv run modal deploy deploy/modal_app.py

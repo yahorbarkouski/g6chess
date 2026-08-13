@@ -1,0 +1,44 @@
+{
+  "reviews": [
+    {
+      "case_id": "capablanca-g4",
+      "category": "model_wording_issue",
+      "notes": "2026-05-03 full no-mock eval: the first attempt was rejected for recommendation_policy_violation. The verifier was correct to block it, and the retry produced a caveated explanation that treated hard engine-best Kh3 as a review point rather than an easy practical recommendation. No context or prompt change is justified from this isolated retry.",
+      "model": "openai/gpt-5.5-20260423",
+      "attempts": 2,
+      "failure_codes": [
+        "recommendation_policy_violation"
+      ]
+    },
+    {
+      "case_id": "en-passant-intermediate",
+      "category": "model_wording_issue",
+      "notes": "2026-05-03 full no-mock eval rerun: the first attempt was rejected for recommendation_policy_violation. The verifier was correct to block it, and the retry produced a direct d4 recommendation that passed because d4 was the supported recommended alternative. This is the second observed recommendation-policy retry, so the next prompt iteration should make policy-specific move wording more explicit.",
+      "model": "openai/gpt-5.5-20260423",
+      "attempts": 2,
+      "failure_codes": [
+        "recommendation_policy_violation"
+      ]
+    },
+    {
+      "case_id": "fools-mate-g4-blunder",
+      "category": "model_wording_issue",
+      "notes": "2026-05-03 prompt-v2 full no-mock eval: the first attempt was rejected for unsupported_tactic_claim. The verifier was correct to block unsupported tactic wording, and the retry used the supported king-safety and forced-mate evidence instead. No context-policy change is justified from this isolated retry.",
+      "model": "openai/gpt-5.5-20260423",
+      "attempts": 2,
+      "failure_codes": [
+        "unsupported_tactic_claim"
+      ]
+    },
+    {
+      "case_id": "forced-only-legal-defense",
+      "category": "model_wording_issue",
+      "notes": "2026-05-03 prompt-v3 full no-mock eval: the first attempt was rejected for unsupported_concept_claim. The verifier correctly blocked unsupported concept wording, and the retry stayed within the forced-move, capture, material, and forced-mate evidence. The reporting gap found during this review was later closed by persisting schema-valid failed-attempt text in eval records.",
+      "model": "openai/gpt-5.5-20260423",
+      "attempts": 2,
+      "failure_codes": [
+        "unsupported_concept_claim"
+      ]
+    }
+  ]
+}
