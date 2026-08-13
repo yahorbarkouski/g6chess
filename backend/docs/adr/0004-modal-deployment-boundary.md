@@ -24,6 +24,8 @@ Stockfish, Maia2, OpenRouter, and Redis snapshot persistence.
 - Keep Maia model files on a Modal Volume, not in repository source.
 - Keep runtime secrets in the Modal `g6explanation-runtime` secret.
 - Keep CI responsible for required local quality gates before deployment.
+- Deploy only by manual dispatch through a protected GitHub environment. The
+  workflow must not create, overwrite, or print runtime secrets.
 - Limit Modal worker concurrency with `G6EXPLANATION_MODAL_WORKER_MAX_CONTAINERS`
   and product request limits before public traffic.
 - This deployment boundary does not change chess truth, explanation policy,

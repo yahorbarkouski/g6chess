@@ -17,10 +17,9 @@ spawns a Modal worker and returns `analysis_id` immediately.
 
 - `.github/workflows/ci.yml`: required local quality gates on pull requests,
   `main`, and manual dispatch.
-- `.github/workflows/deploy-modal.yml`: automatic `main` deploy workflow that
-  repeats the required gates, syncs the Modal runtime secret, and runs
-  `modal deploy`. Manual dispatch remains available for warm-container and
-  worker-cap overrides.
+- `.github/workflows/deploy-modal.yml`: manually dispatched deployment workflow
+  that repeats the required gates and runs `modal deploy` through a protected
+  GitHub environment.
 - `deploy/modal_app.py`: Modal App with a lightweight FastAPI endpoint and a
   heavier Stockfish/Maia worker function.
 - `src/g6explanation/game_analysis/modal_job_executor.py`: testable executor
@@ -44,14 +43,11 @@ download on the first analysis job.
 
 ## Required GitHub Secrets
 
-Add these repository or environment secrets before merging to `main` or running
-`Deploy Modal` manually:
+Add these protected-environment secrets before running `Deploy Modal`:
 
 ```text
 MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
-OPENROUTER_API_KEY
-G6EXPLANATION_REDIS_URL
 ```
 
 `G6EXPLANATION_REDIS_URL` should point at a managed Redis service reachable from
@@ -67,17 +63,20 @@ G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true
 
 Use a comma-separated list for multiple frontend origins.
 
-Optional GitHub secret:
+Provision runtime values directly in Modal's `g6explanation-runtime` secret:
 
 ```text
+OPENROUTER_API_KEY
+G6EXPLANATION_REDIS_URL
+G6EXPLANATION_CORS_ORIGINS
 G6EXPLANATION_TURNSTILE_SECRET_KEY
+G6EXPLANATION_REQUIRE_TURNSTILE
 ```
 
-When this secret is present, the deploy workflow syncs it into the Modal runtime
-secret and requires Turnstile validation for expensive anonymous starts.
-
-The deploy workflow syncs these values into the Modal secret named
-`g6explanation-runtime`.
+The workflow deliberately does not create or overwrite runtime secrets. This
+keeps code publication and deployment from mutating credentials or replacing a
+working production configuration. Restrict each `modal-*` GitHub environment to
+trusted reviewers.
 
 ## Cloudflare Gateway
 
@@ -114,11 +113,8 @@ curl https://api.your-frontend.example/api/visualization/health
 
 ## Deploy
 
-Merging to `main` automatically runs `Deploy Modal`. The deploy happens only
-after formatting, linting, typing, and tests pass in that workflow.
-
-Run the workflow manually when you need to override warm-container or worker-cap
-settings without merging code.
+Run `Deploy Modal` manually from a reviewed commit. The protected environment
+must approve the deployment after formatting, linting, typing, and tests pass.
 
 Useful inputs:
 

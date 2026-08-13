@@ -1,9 +1,6 @@
 name: Deploy Modal
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       modal_environment:
@@ -105,42 +102,19 @@ jobs:
           G6EXPLANATION_REDIS_URL: redis://localhost:6379/0
         run: uv run pytest -q
 
-      - name: Validate deployment secrets
+      - name: Validate deployment credentials
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-          MODAL_RUNTIME_REDIS_URL: ${{ secrets.G6EXPLANATION_REDIS_URL }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           missing=0
-          for name in MODAL_TOKEN_ID MODAL_TOKEN_SECRET MODAL_RUNTIME_REDIS_URL OPENROUTER_API_KEY; do
+          for name in MODAL_TOKEN_ID MODAL_TOKEN_SECRET; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required for Modal deployment."
               missing=1
             fi
           done
           exit "$missing"
-
-      - name: Sync Modal runtime secret
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-          MODAL_RUNTIME_REDIS_URL: ${{ secrets.G6EXPLANATION_REDIS_URL }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          G6EXPLANATION_TURNSTILE_SECRET_KEY: ${{ secrets.G6EXPLANATION_TURNSTILE_SECRET_KEY }}
-        run: |
-          args=(
-            OPENROUTER_API_KEY="$OPENROUTER_API_KEY"
-            G6EXPLANATION_REDIS_URL="$MODAL_RUNTIME_REDIS_URL"
-            G6EXPLANATION_CORS_ORIGINS="$G6EXPLANATION_CORS_ORIGINS"
-          )
-          if [ -n "${G6EXPLANATION_TURNSTILE_SECRET_KEY:-}" ]; then
-            args+=(G6EXPLANATION_TURNSTILE_SECRET_KEY="$G6EXPLANATION_TURNSTILE_SECRET_KEY")
-            args+=(G6EXPLANATION_REQUIRE_TURNSTILE="true")
-          fi
-          uv run modal secret create g6explanation-runtime \
-            "${args[@]}" \
-            --force
 
       - name: Deploy Modal app
         env:
