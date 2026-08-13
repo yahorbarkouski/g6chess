@@ -1,4 +1,8 @@
 {
+  "framework": "vite",
+  "installCommand": "cd frontend && bun install --frozen-lockfile",
+  "buildCommand": "cd frontend && bun run build",
+  "outputDirectory": "frontend/dist",
   "headers": [
     {
       "source": "/(.*)",

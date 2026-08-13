@@ -5,12 +5,14 @@ on:
     paths:
       - "frontend/**"
       - "contracts/**"
+      - "vercel.json"
       - ".github/workflows/frontend-ci.yml"
   push:
     branches: [main]
     paths:
       - "frontend/**"
       - "contracts/**"
+      - "vercel.json"
       - ".github/workflows/frontend-ci.yml"
   workflow_dispatch:
 
