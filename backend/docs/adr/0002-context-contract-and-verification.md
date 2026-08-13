@@ -23,6 +23,9 @@ product-ready.
 ## Rules
 
 - Stockfish is the required objective-strength source for production context.
+- External datasets that affect chess metadata must use an immutable revision,
+  committed digests, and an explicit source license. Runtime code must reject
+  bytes that do not match the reviewed manifest.
 - Stockfish depth-limited analysis must use depth 16 or deeper for production,
   engine-backed integration tests, evaluations, and visualization packets.
 - `EvidenceVerifier` rejects non-static Stockfish evidence that cannot prove

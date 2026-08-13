@@ -187,6 +187,30 @@ def test_download_file_retries_transient_url_errors(
     assert destination.read_bytes() == b"eco\tname\tpgn\n"
 
 
+def test_download_file_rejects_unpinned_content_without_replacing_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "a.tsv"
+    destination.write_bytes(b"known-good-cache")
+
+    def fake_urlopen(_url: str, *, timeout: float) -> FakeUrlResponse:
+        del timeout
+        return FakeUrlResponse(b"unexpected-content")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    with pytest.raises(opening_book.OpeningBookIntegrityError, match="digest mismatch"):
+        opening_book._download_file(  # pyright: ignore[reportPrivateUsage]
+            "https://example.test/a.tsv",
+            destination,
+            max_retries=0,
+            expected_sha256="0" * 64,
+        )
+
+    assert destination.read_bytes() == b"known-good-cache"
+
+
 class FakeUrlResponse:
     def __init__(self, body: bytes) -> None:
         self._body = body

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import http.client
 import io
 import logging
@@ -26,8 +27,18 @@ from g6explanation.game_analysis.contracts import (
 
 LOGGER = logging.getLogger(__name__)
 
-LICHESS_OPENINGS_BASE_URL = "https://raw.githubusercontent.com/lichess-org/chess-openings/master"
+LICHESS_OPENINGS_REVISION = "4b8622759e7ae6f93f011cc6c83a3823401ab45e"
+LICHESS_OPENINGS_BASE_URL = (
+    f"https://raw.githubusercontent.com/lichess-org/chess-openings/{LICHESS_OPENINGS_REVISION}"
+)
 LICHESS_OPENINGS_FILES = ("a.tsv", "b.tsv", "c.tsv", "d.tsv", "e.tsv")
+LICHESS_OPENINGS_SHA256 = {
+    "a.tsv": "41722fa3d44f294357326fe2ca1b956d9e56490b30efcfa68db61114c9df7e10",
+    "b.tsv": "310f0997d5a26ac6c9abfabac028e47e78f24356a6ba322cfffbf8f5a3f88d25",
+    "c.tsv": "b2e64f32e42e6418b327d03a55af65f3a18e762f7cbc0efffc7e9d1ed3aa7343",
+    "d.tsv": "58cad40b886bd499717eabcce281d4bfcf00eeadbdc00552f42042cf4aac50d2",
+    "e.tsv": "f1f8494f488f660e284f23527d5acfbeccdbbc3acc76e74f05d125f39d2f8a74",
+}
 LICHESS_OPENINGS_SOURCE = "https://github.com/lichess-org/chess-openings"
 DEFAULT_OPENING_BOOK_CACHE_DIR = Path.home() / ".cache" / "g6explanation" / "lichess-openings"
 DOWNLOAD_TIMEOUT_SECONDS = 20
@@ -45,6 +56,10 @@ SleepFn = Callable[[float], None]
 
 _default_book: OpeningBookDatabase | None = None
 _default_book_lock = threading.Lock()
+
+
+class OpeningBookIntegrityError(RuntimeError):
+    """Raised when downloaded opening data does not match its pinned digest."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,15 +337,26 @@ def ensure_default_opening_data(
     paths: list[Path] = []
     for filename in LICHESS_OPENINGS_FILES:
         path = cache_dir / filename
-        if not path.exists() or path.stat().st_size == 0:
-            _download_file(f"{LICHESS_OPENINGS_BASE_URL}/{filename}", path)
+        expected_sha256 = LICHESS_OPENINGS_SHA256[filename]
+        if not path.exists() or _file_sha256(path) != expected_sha256:
+            _download_file(
+                f"{LICHESS_OPENINGS_BASE_URL}/{filename}",
+                path,
+                expected_sha256=expected_sha256,
+            )
         paths.append(path)
     source_path = cache_dir / "SOURCE.txt"
-    if not source_path.exists():
-        source_path.write_text(
-            f"Source: {LICHESS_OPENINGS_SOURCE}\nLicense: CC0-1.0\n",
-            encoding="utf-8",
-        )
+    checksums = "\n".join(
+        f"SHA256 ({filename}) = {LICHESS_OPENINGS_SHA256[filename]}"
+        for filename in LICHESS_OPENINGS_FILES
+    )
+    source_path.write_text(
+        f"Source: {LICHESS_OPENINGS_SOURCE}\n"
+        f"Revision: {LICHESS_OPENINGS_REVISION}\n"
+        "License: CC0-1.0\n"
+        f"{checksums}\n",
+        encoding="utf-8",
+    )
     return tuple(paths)
 
 
@@ -354,6 +380,7 @@ def _download_file(
     max_retries: int = DOWNLOAD_MAX_RETRIES,
     retry_backoff_seconds: float = DOWNLOAD_RETRY_BACKOFF_SECONDS,
     sleep: SleepFn = time.sleep,
+    expected_sha256: str | None = None,
 ) -> None:
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative.")
@@ -363,7 +390,7 @@ def _download_file(
     attempts = max_retries + 1
     for attempt_index in range(1, attempts + 1):
         try:
-            _download_file_once(url, destination)
+            _download_file_once(url, destination, expected_sha256=expected_sha256)
             return
         except urllib.error.HTTPError as exc:
             if exc.code not in RETRYABLE_DOWNLOAD_STATUSES or attempt_index == attempts:
@@ -374,6 +401,7 @@ def _download_file(
             http.client.HTTPException,
             TimeoutError,
             ConnectionError,
+            OpeningBookIntegrityError,
         ) as exc:
             if attempt_index == attempts:
                 raise
@@ -382,16 +410,38 @@ def _download_file(
             sleep(retry_backoff_seconds * attempt_index)
 
 
-def _download_file_once(url: str, destination: Path) -> None:
+def _download_file_once(
+    url: str,
+    destination: Path,
+    *,
+    expected_sha256: str | None = None,
+) -> None:
     LOGGER.info("Downloading opening-book source: url=%s destination=%s", url, destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with (
-        urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response,
-        tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as tmp,
-    ):
-        tmp.write(response.read())
-        temporary_path = Path(tmp.name)
-    temporary_path.replace(destination)
+    temporary_path: Path | None = None
+    try:
+        with (
+            urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response,
+            tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as tmp,
+        ):
+            tmp.write(response.read())
+            temporary_path = Path(tmp.name)
+        actual_sha256 = _file_sha256(temporary_path)
+        if expected_sha256 is not None and actual_sha256 != expected_sha256:
+            raise OpeningBookIntegrityError(
+                f"Opening-book digest mismatch for {url}: expected "
+                f"{expected_sha256}, got {actual_sha256}."
+            )
+        temporary_path.replace(destination)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _file_sha256(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
 
 
 def _log_download_retry(

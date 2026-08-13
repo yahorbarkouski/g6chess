@@ -117,8 +117,8 @@ Production-shaped local game analysis uses:
   `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`, defaulting to `30` in
   Modal
 - opening-book metadata enabled by default from the CC0 Lichess openings
-  dataset; the backend downloads and caches the TSV source automatically when
-  local data is missing
+  dataset; the backend downloads one immutable upstream revision and verifies
+  every TSV against its committed SHA-256 digest before using or caching it
 
 Redis defaults to `redis://localhost:6379/0` and can be overridden with
 `G6EXPLANATION_REDIS_URL`.
