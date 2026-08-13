@@ -7,7 +7,11 @@ import re
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-README_PATHS = (REPOSITORY_ROOT / "README.md", REPOSITORY_ROOT / "frontend/README.md")
+README_PATHS = (
+    REPOSITORY_ROOT / "README.md",
+    REPOSITORY_ROOT / "frontend/README.md",
+    REPOSITORY_ROOT / "backend/README.md",
+)
 DISALLOWED_PATTERNS = (
     re.compile(r"\bthe point is not\b", re.IGNORECASE),
     re.compile(r"\bnot\s+(?:just|only|simply|merely)\b", re.IGNORECASE),

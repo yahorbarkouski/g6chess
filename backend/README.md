@@ -1,17 +1,9 @@
-# G6 Chess Backend
+# g6 backend
 
-Evidence-grounded chess analysis and verified coaching API.
+Python services for importing chess games, analyzing every ply, and returning
+progressive move reviews to the g6 frontend.
 
-This product is not an LLM chess calculator. Chess truth comes from deterministic
-position reconstruction, Stockfish, optional Maia or clean human-frequency
-evidence, rules, and verifiers. The LLM only words one verified explanation.
-
-```text
-Stockfish + Maia + rules + verifiers = truth and diagnosis
-LLM = wording for one verified move explanation
-```
-
-## Current Slice
+## Packages
 
 Implemented:
 
@@ -20,9 +12,10 @@ Implemented:
 - `g6explanation.explanation_generation`: turns verified context into one
   schema-valid, deterministically verified explanation string. The OpenRouter
   adapter defaults to `openai/gpt-5.6-terra` with high reasoning.
-- `g6explanation.game_analysis`: starts Redis-backed asynchronous full-game
-  jobs, classifies every completed ply, and adds verified GPT explanations for
-  configured criticality labels.
+- `g6explanation.game_analysis`: submits asynchronous full-game analysis to a
+  local thread or Modal worker, stores progressive snapshots in Redis,
+  classifies every completed ply, and adds verified explanations for configured
+  significance labels.
 - `g6explanation.game_imports`: resolves user-requested Chess.com URLs, Lichess
   URLs, or pasted PGN into canonical PGN plus source-rights metadata for game
   analysis.
@@ -31,14 +24,29 @@ Implemented:
 - `g6explanation.visualization`: local inspection API for real-game experiment
   metadata and fresh per-ply context packets.
 
-Next:
+## Technology
 
-- review real LLM eval records, harden verifier gaps, and broaden the case list
-  where failures reveal missing context or unsupported wording.
+| Technology | Purpose in the backend |
+| --- | --- |
+| Python 3.11+ | Runs the API, analysis pipeline, provider adapters, verification, and evaluation tools. |
+| FastAPI | Exposes health, import, analysis-start, and polling endpoints. |
+| Pydantic 2 | Validates API and internal contracts and produces the authoritative OpenAPI schema. |
+| python-chess | Parses PGN, reconstructs legal positions, converts UCI and SAN, and communicates with Stockfish. |
+| Stockfish | Produces objective evaluations and principal variations at depth 16 or deeper. |
+| Maia2 0.9 | Estimates move likelihoods by player rating and time control. |
+| OpenRouter | Sends structured explanation requests to `openai/gpt-5.6-terra` with high reasoning by default. |
+| Redis | Stores expiring analysis snapshots, resolved-import caches, import-to-analysis indexes, and fixed-window rate-limit counters. |
+| Modal | Runs a lightweight FastAPI container and separate Stockfish/Maia analysis workers in production. |
+| Cloudflare | Forwards the public API hostname to Modal and validates Turnstile tokens for protected imports. |
+| OpenAPI | Carries the backend contract into generated TypeScript transport types in the frontend. |
+| uv and Hatchling | Resolve locked Python environments and build the Python package. |
+| Ruff, mypy, Pyright, and pytest | Enforce formatting, lint, static typing, and behavior. |
 
-Do not move chess truth into the generation layer.
+Stockfish supplies objective chess evidence. Maia supplies human move
+likelihoods. Deterministic classifiers and verifiers turn that evidence into
+move labels and validate the explanation returned by the model provider.
 
-## Start Here
+## Start here
 
 - Agent operating rules: `AGENTS.md`
 - Documentation map: `docs/README.md`
@@ -59,15 +67,15 @@ Install project dependencies:
 uv sync
 ```
 
-Install optional Maia dependencies only when work needs real Maia behavior:
+Install Maia dependencies for real game analysis:
 
 ```text
 uv sync --extra maia
 ```
 
-Keep local secrets and machine-specific paths in `.env`. Do not commit `.env`.
+Keep local secrets and machine-specific paths in `.env`. Git ignores this file.
 
-## Local Tools
+## Local tools
 
 Stockfish:
 
@@ -82,7 +90,8 @@ Stockfish:
 
 Maia:
 
-- Maia is optional human-likeness evidence, not move quality.
+- Maia estimates the moves a similarly rated player may choose. Stockfish
+  supplies objective move evaluation.
 - Model files default to `./maia2_models`.
 - Override model location with `MAIA2_MODEL_ROOT`.
 - Real Maia tests are opt-in with `G6EXPLANATION_RUN_MAIA2=1`.
@@ -101,10 +110,12 @@ OpenRouter:
   `G6EXPLANATION_RUN_REAL_LLM_EVAL=1`.
 - Write real eval JSONL records with `G6EXPLANATION_REAL_LLM_EVAL_OUTPUT`.
 
-Redis game analysis:
+Redis state:
 
-- Use the Docker Compose Redis service before using the async game-analysis API.
+- Use the Docker Compose Redis service with the asynchronous game-analysis API.
 - Override Redis with `G6EXPLANATION_REDIS_URL`.
+- Analysis runs in a local worker thread during development and in a spawned
+  Modal worker in production. Redis holds the state shared with polling clients.
 - Tune context workers with `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`.
 - Tune OpenRouter fan-out with
   `G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY`.
@@ -113,8 +124,8 @@ Redis game analysis:
 
 Game imports:
 
-- Chess.com and Lichess URL imports are user-requested acquisition only, not
-  training data.
+- Chess.com and Lichess URL imports resolve a user-requested game into canonical
+  PGN and source-rights metadata for analysis.
 - Useful overrides include `G6EXPLANATION_CHESS_COM_USER_AGENT`,
   `G6EXPLANATION_CHESS_COM_TIMEOUT_SECONDS`,
   `G6EXPLANATION_LICHESS_USER_AGENT`,
@@ -130,9 +141,9 @@ Visualization API:
 ```
 
 The context endpoint needs local Stockfish and Maia setup. Catalog metadata tests
-use deterministic fixtures and do not require those optional tools.
+use deterministic fixtures.
 
-## Start Local Game Analysis
+## Start local game analysis
 
 Start Redis and the API:
 
@@ -166,7 +177,7 @@ PGN-derived SAN, UCI, and FEN data, so clients can render the board immediately
 before context generation finishes. Completed moves additionally include
 quality, significance, beauty, and explanations when they are ready.
 
-## Deploy On Modal
+## Deploy on Modal
 
 The first public deployment path is documented in
 `docs/development/modal-deployment.md`.
@@ -180,7 +191,7 @@ It deploys one Modal App with:
 
 The deploy workflow is `.github/workflows/deploy-modal.yml`.
 
-## Required Checks
+## Required checks
 
 Run before checkpoint commits:
 
@@ -192,5 +203,5 @@ uv run pyright
 uv run pytest -q
 ```
 
-Use static providers for cheap deterministic tests. Do not lower real Stockfish
-depth below 16 for speed.
+Use static providers for cheap deterministic tests. Real Stockfish checks run at
+depth 16 or deeper.

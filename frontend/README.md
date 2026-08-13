@@ -19,14 +19,24 @@ review as the backend completes each move.
 The board renders from the PGN-derived game skeleton immediately after import.
 Deeper analysis fills the same workspace without replacing the game state.
 
-## Stack
+## Technology
 
-- Bun
-- Vite
-- React
-- TypeScript
-- Tailwind CSS
-- UltraChess React
+| Technology | Purpose in the frontend |
+| --- | --- |
+| Bun 1.3 | Installs dependencies and runs development, contract, test, and build scripts. |
+| React 19 and TypeScript 6 | Implement the analysis workspace with typed UI and API state. |
+| Vite 8 | Provides the development server and production bundler. |
+| Tailwind CSS 4 | Provides the styling system. |
+| UltraChess and UltraChess React | Load the WebAssembly chess core, parse chess notation, enforce legal board state, and render the interactive board. |
+| Stockfish.js 18 | Runs local position analysis in a browser Web Worker. |
+| Framer Motion 12 | Handles interface transitions with reduced-motion support. |
+| openapi-typescript 7 | Generates transport types from the backend OpenAPI document. |
+| Vitest, Testing Library, and jsdom | Exercise mapping, state, interaction, performance, and component behavior. |
+| Biome | Formats and lints TypeScript, TSX, and frontend configuration. |
+| Vercel Analytics | Records frontend usage analytics in deployed builds. |
+
+The production frontend is a static Vite build hosted by Vercel. It polls the
+FastAPI backend for progressive snapshots while a game is being analyzed.
 
 ## Run
 
@@ -45,7 +55,7 @@ Point the frontend at a local backend:
 VITE_G6_API_BASE_URL=http://127.0.0.1:8001
 ```
 
-Enable Cloudflare Turnstile for public imports:
+Enable Cloudflare Turnstile challenges for public imports:
 
 ```text
 VITE_G6_TURNSTILE_SITE_KEY=...
@@ -55,7 +65,7 @@ VITE_G6_TURNSTILE_SITE_KEY=...
 
 The backend owns the OpenAPI schema in `../contracts/openapi.json`. Frontend
 transport types are generated into `src/generated/g6-api.ts`; UI mapping stays
-in `src/lib/analysis-mapping.ts`.
+in `src/lib/game-analysis-mapping.ts`.
 
 The main frontend flow uses:
 

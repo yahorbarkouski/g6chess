@@ -44,6 +44,30 @@ Backend Pydantic models define the API contract. The repository exports them to
 [`contracts/openapi.json`](contracts/openapi.json) and generates matching
 TypeScript types for the frontend.
 
+## Technology
+
+| Technology | Purpose in g6 |
+| --- | --- |
+| Bun 1.3 | Installs frontend dependencies and runs repository scripts. |
+| React 19 and TypeScript 6 | Build the analysis workspace and keep UI state, API data, and chess data typed. |
+| Vite 8 | Serves the frontend during development and creates the production bundle. |
+| Tailwind CSS 4 and Framer Motion 12 | Style the interface and provide focused, reduced-motion-aware transitions. |
+| UltraChess and UltraChess React | Provide WebAssembly chess rules, PGN/FEN/SAN handling, the board, piece animation, and arrows. |
+| Stockfish.js 18 | Runs in a browser Web Worker for interactive analysis of the position being viewed. |
+| Python 3.11+, FastAPI, and Pydantic 2 | Serve the HTTP API, validate requests and responses, and define the OpenAPI contract. |
+| python-chess and native Stockfish | Reconstruct legal positions and produce the objective engine evidence used by the backend review. |
+| Maia2 0.9 | Estimates move likelihoods for a player rating and time control. |
+| OpenRouter and GPT-5.6 Terra | Generate structured explanations from the verified evidence selected for each move. |
+| Redis | Stores progressive analysis snapshots, resolved-import caches, import-to-analysis indexes, and rate-limit counters. |
+| OpenAPI and openapi-typescript | Generate the frontend transport types from backend Pydantic schemas. |
+| Vercel | Builds and hosts the frontend from `main`. |
+| Modal | Runs the FastAPI service and separate CPU-heavy analysis workers. |
+| Cloudflare | Proxies the public API hostname to Modal and supplies Turnstile protection for public imports. |
+
+Backend Stockfish produces the review evidence. Stockfish.js responds to board
+navigation in the browser and can analyze positions outside the stored server
+snapshot.
+
 ## Run locally
 
 You need:
