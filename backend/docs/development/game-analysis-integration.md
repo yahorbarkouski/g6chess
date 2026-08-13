@@ -37,9 +37,10 @@ A local real-provider deployment needs:
 - Maia2 installed with local model files
 - `OPENROUTER_API_KEY` in `.env` or the process environment
 
-The current runner is single-process: the Python process that accepts the job
-owns the in-flight work. Redis stores partial snapshots for polling, but it is
-not yet a durable distributed queue.
+The local runner uses an in-process thread executor, so the API process owns its
+in-flight work. The production Modal deployment instead spawns a separate Modal
+worker for each job. In both modes Redis stores partial snapshots for polling;
+it is not a durable queue and does not provide retry or recovery semantics.
 
 ## Start Locally
 
@@ -427,7 +428,6 @@ Do not set context workers blindly higher than CPU capacity. For this machine,
 Before using this as a multi-user production service, add or decide:
 
 - durable queue semantics for job ownership and retries
-- separate worker process or worker pool instead of in-process background work
 - cancellation and timeout policy
 - user/job ownership in Redis keys or a database table
 - request size, ply count, and rate limits
@@ -438,9 +438,9 @@ Before using this as a multi-user production service, add or decide:
 - result retention policy
 - privacy policy for user-imported games
 
-The current implementation is suitable for local product integration and
-single-process deployment experiments. It is intentionally not yet a distributed
-job system.
+The production deployment separates request handling from analysis workers, but
+it is intentionally not yet a durable job system. A worker lost after submission
+is not automatically retried or recovered.
 
 ## Verification
 

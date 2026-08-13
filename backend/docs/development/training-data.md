@@ -52,4 +52,4 @@ not merely that it passed deterministic verification. Reviewers should check:
 Broaden accepted seed coverage from the real eval suite. Use Lichess CC0
 positions for random/open-web coverage, keep Chess.com out of training until
 authorization exists, and compare any future fine-tune against the verified
-GPT-5.5 baseline on frozen and blind no-mock evals.
+GPT-5.6 Terra baseline on frozen and blind no-mock evals.

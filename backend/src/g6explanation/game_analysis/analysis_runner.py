@@ -43,6 +43,8 @@ from g6explanation.game_analysis.state_store import GameAnalysisStore
 
 DEFAULT_GAME_ANALYSIS_CONTEXT_WORKERS = min(os.cpu_count() or 1, 16)
 DEFAULT_GAME_ANALYSIS_OPENROUTER_CONCURRENCY = 30
+PUBLIC_ANALYSIS_FAILURE = "Analysis failed. See server logs."
+PUBLIC_EXPLANATION_FAILURE = "Explanation generation failed. See server logs."
 PGN_CLOCK_RE = re.compile(r"\[%clk\s+(?P<clock>[^\]]+)\]")
 LOGGER = logging.getLogger(__name__)
 
@@ -217,7 +219,7 @@ class GameAnalysisRunner:
             snapshot = snapshot.model_copy(
                 update={
                     "status": "failed",
-                    "error": str(exc),
+                    "error": PUBLIC_ANALYSIS_FAILURE,
                     "completed_at": failed_at,
                     "updated_at": failed_at,
                 }
@@ -322,7 +324,7 @@ class GameAnalysisRunner:
                     snapshot = _snapshot_with_explanation_error(
                         snapshot,
                         ply=ply,
-                        error=str(exc),
+                        error=PUBLIC_EXPLANATION_FAILURE,
                         updated_at=self._timestamp_factory(),
                     )
                 store.save(snapshot)

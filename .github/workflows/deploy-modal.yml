@@ -75,10 +75,12 @@ jobs:
       G6EXPLANATION_GAME_ANALYSIS_OPENROUTER_CONCURRENCY: ${{ github.event.inputs.openrouter_concurrency || '30' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
 

@@ -6,38 +6,41 @@
 .
   AGENTS.md
   README.md
-  pyproject.toml
-  uv.lock
-  docs/
-    README.md
-    product/
-    development/
-    adr/
-  src/
-    g6explanation/
-      __init__.py
-      py.typed
-      context_engine/
-        candidate_moves/
-        signals/
-      explanation_generation/
-      game_analysis/
-      game_imports/
-      real_game_evaluation/
-      visualization/
-  tests/
-    g6explanation/
-      context_engine/
-      explanation_generation/
-      game_analysis/
-      game_imports/
-      real_game_evaluation/
-      visualization/
+  LICENSE
+  contracts/
+    openapi.json
+  frontend/
+    src/
+    public/
+    package.json
+  backend/
+    AGENTS.md
+    pyproject.toml
+    uv.lock
+    docs/
+      README.md
+      product/
+      development/
+      adr/
+    src/
+      g6explanation/
+        context_engine/
+          candidate_moves/
+          signals/
+        explanation_generation/
+        game_analysis/
+        game_imports/
+        real_game_evaluation/
+        visualization/
+    tests/
+      g6explanation/
+  tools/
+    prove.sh
 ```
 
 ## Strategy
 
-- Use `src/` layout so tests import the installed package shape.
+- Use `backend/src/` layout so tests import the installed package shape.
 - Keep the root package small and stable.
 - Put code under the bounded context it serves.
 - Mirror tests by package path when it improves navigation.
@@ -46,9 +49,9 @@
   `docs/development/`.
 - Keep ADRs under `docs/adr/`.
 - Add top-level folders only for real implementation boundaries.
-- Keep `frontend/` as the independently runnable React application in this
-  repository. It consumes the generated API contract and requests fresh
-  analysis data rather than relying on cached context packets.
+- Keep `frontend/` and `backend/` independently runnable. The frontend consumes
+  the backend-owned generated API contract and requests fresh analysis data
+  rather than relying on cached context packets.
 
 ## Production Module Rules
 

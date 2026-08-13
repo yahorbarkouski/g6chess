@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from collections.abc import Callable
@@ -10,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from g6explanation.game_analysis.analysis_runner import (
+    PUBLIC_ANALYSIS_FAILURE,
     GameAnalysisRunner,
     game_analysis_context_workers_from_env,
     game_analysis_game,
@@ -27,6 +29,11 @@ from g6explanation.game_analysis.state_store import (
 
 DEFAULT_GAME_ANALYSIS_REDIS_URL = "redis://localhost:6379/0"
 DEFAULT_GAME_ANALYSIS_JOB_WORKERS = 1
+LOGGER = logging.getLogger(__name__)
+
+
+class GameAnalysisSubmissionError(RuntimeError):
+    """Raised when a background analysis job cannot be submitted."""
 
 
 class GameAnalysisExecutor(Protocol):
@@ -80,12 +87,31 @@ class GameAnalysisService:
             game=game,
         )
         self._store.save(snapshot)
-        self._executor.submit(
-            self._runner.run,
-            analysis_id=analysis_id,
-            request=request,
-            store=self._store,
-        )
+        try:
+            self._executor.submit(
+                self._runner.run,
+                analysis_id=analysis_id,
+                request=request,
+                store=self._store,
+            )
+        except Exception as exc:
+            failed_at = _utc_now()
+            self._store.save(
+                snapshot.model_copy(
+                    update={
+                        "status": "failed",
+                        "error": PUBLIC_ANALYSIS_FAILURE,
+                        "completed_at": failed_at,
+                        "updated_at": failed_at,
+                    }
+                )
+            )
+            LOGGER.exception(
+                "Game analysis submission failed: analysis_id=%s error=%s",
+                analysis_id,
+                exc,
+            )
+            raise GameAnalysisSubmissionError("Could not start game analysis.") from exc
         return GameAnalysisStartResponse(
             analysis_id=analysis_id,
             status=snapshot.status,

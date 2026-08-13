@@ -21,6 +21,7 @@ from g6explanation.game_analysis.contracts import (
 )
 from g6explanation.game_analysis.job_service import (
     GameAnalysisService,
+    GameAnalysisSubmissionError,
     game_analysis_service_from_env,
 )
 from g6explanation.game_analysis.modal_job_executor import ModalSpawnGameAnalysisExecutor
@@ -53,6 +54,7 @@ __all__ = [
     "GameAnalysisStartResponse",
     "GameAnalysisStore",
     "GameAnalysisStoreError",
+    "GameAnalysisSubmissionError",
     "GameMainlineMove",
     "GameMoveAnalysis",
     "InMemoryGameAnalysisStore",

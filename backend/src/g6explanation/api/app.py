@@ -16,6 +16,7 @@ from g6explanation.game_analysis import (
     GameAnalysisStartRequest,
     GameAnalysisStartResponse,
     GameAnalysisStoreError,
+    GameAnalysisSubmissionError,
     game_analysis_service_from_env,
 )
 from g6explanation.game_imports import (
@@ -284,7 +285,11 @@ def start_game_analysis(
         raise _admission_http_exception(exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except (GameAnalysisSetupError, GameAnalysisStoreError) as exc:
+    except (
+        GameAnalysisSetupError,
+        GameAnalysisStoreError,
+        GameAnalysisSubmissionError,
+    ) as exc:
         raise _public_http_exception(
             503, "analysis_unavailable", "Analysis is unavailable."
         ) from exc

@@ -132,6 +132,69 @@ def test_game_analysis_http_api_returns_404_for_unknown_job() -> None:
     assert response.status_code == 404
 
 
+def test_game_analysis_http_api_marks_worker_submission_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    store = RecordingGameAnalysisStore()
+    service = GameAnalysisService(
+        store=store,
+        runner=GameAnalysisRunner(),
+        executor=FailingExecutor("private Modal failure details"),
+    )
+    client = TestClient(create_app(game_analysis_service=service))
+
+    with caplog.at_level(logging.ERROR, logger="g6explanation.game_analysis.job_service"):
+        response = client.post(
+            "/api/game-analysis",
+            json=GameAnalysisStartRequest(
+                pgn=TINY_PGN,
+                player_level=PlayerLevel.rating(1500),
+            ).to_dict(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "analysis_unavailable",
+        "message": "Analysis is unavailable.",
+    }
+    assert store.saved[-1].status == "failed"
+    assert store.saved[-1].error == "Analysis failed. See server logs."
+    assert "private Modal failure details" not in response.text
+    assert "private Modal failure details" in caplog.text
+
+
+def test_game_analysis_http_api_hides_context_provider_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    store = RecordingGameAnalysisStore()
+    service = GameAnalysisService(
+        store=store,
+        runner=GameAnalysisRunner(
+            context_builder_factory=lambda: MoveContextBuilder(FailingAnalysisProvider()),
+            coach_provider_factory=PromptEchoCoachProvider,
+            opening_book_pass=empty_opening_book_pass,
+            context_workers=1,
+        ),
+        executor=InlineExecutor(),
+    )
+    client = TestClient(create_app(game_analysis_service=service))
+
+    with caplog.at_level(logging.ERROR, logger="g6explanation.game_analysis.analysis_runner"):
+        response = client.post(
+            "/api/game-analysis",
+            json=GameAnalysisStartRequest(
+                pgn=TINY_PGN,
+                player_level=PlayerLevel.rating(1500),
+            ).to_dict(),
+        )
+
+    snapshot = client.get(response.json()["status_url"]).json()
+    assert snapshot["status"] == "failed"
+    assert snapshot["error"] == "Analysis failed. See server logs."
+    assert "private Stockfish failure details" not in json.dumps(snapshot)
+    assert "private Stockfish failure details" in caplog.text
+
+
 def test_game_analysis_http_api_uses_configured_cors_origins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -230,8 +293,10 @@ def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCapt
     )
     assert snapshot["explanation_failed"] == 3
     assert all(
-        "OpenRouter returned HTTP 400" in move["explanation_error"] for move in snapshot["moves"]
+        move["explanation_error"] == "Explanation generation failed. See server logs."
+        for move in snapshot["moves"]
     )
+    assert "OpenRouter returned HTTP 400" not in json.dumps(snapshot)
     assert "Explanation generation failed" in caplog.text
     assert "OpenRouter returned HTTP 400" in caplog.text
     assert "line_card_anchor" in caplog.text
@@ -315,6 +380,21 @@ class InlineExecutor:
         return future
 
 
+@dataclass(frozen=True)
+class FailingExecutor:
+    error: str
+
+    def submit(
+        self,
+        fn: Callable[..., object],
+        /,
+        *args: object,
+        **kwargs: object,
+    ) -> Future[object]:
+        del fn, args, kwargs
+        raise RuntimeError(self.error)
+
+
 class DynamicStaticAnalysisProvider:
     def analyze(
         self,
@@ -333,6 +413,17 @@ class DynamicStaticAnalysisProvider:
             if not after_board.is_game_over()
             else None,
         )
+
+
+class FailingAnalysisProvider:
+    def analyze(
+        self,
+        board: chess.Board,
+        played_move: chess.Move,
+        player_color: ColorName,
+    ) -> EngineAnalysis:
+        del board, played_move, player_color
+        raise RuntimeError("private Stockfish failure details")
 
 
 class PromptEchoCoachProvider:
