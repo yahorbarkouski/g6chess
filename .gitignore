@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.playwright-mcp/
+.vercel/
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+dist/
+coverage/
+*.egg-info/
+maia2_models/
+eval-output/
