@@ -193,6 +193,28 @@ describe("AnalysisImportPanel", () => {
     );
   });
 
+  it("accepts a Lichess study chapter URL and sends the canonical study chapter source", async () => {
+    const user = userEvent.setup();
+    const onImport = vi.fn().mockResolvedValue(undefined);
+
+    render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
+
+    await user.type(
+      screen.getByLabelText("Game URL"),
+      "https://lichess.org/study/ybdiAVdQ/2pHkbFS9#12",
+    );
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(onImport).toHaveBeenCalledWith({
+      source: "lichess_study_chapter_url",
+      url: "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+      include_context: false,
+      use_baseline_fallback: false,
+      explain_significance: ["critical"],
+    });
+  });
+
   it("verifies with Turnstile before starting an import when protection is enabled", async () => {
     vi.stubEnv("VITE_G6_TURNSTILE_SITE_KEY", "site-key");
     vi.resetModules();

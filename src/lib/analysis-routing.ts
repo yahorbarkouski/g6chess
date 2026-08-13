@@ -4,9 +4,13 @@ const G6_HOSTS = new Set(["g6chess.com", "www.g6chess.com"]);
 const ANALYSIS_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const NUMERIC_ID_PATTERN = /^\d+$/;
 const LICHESS_ID_PATTERN = /^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{4})?$/;
+const LICHESS_STUDY_CHAPTER_ID_PATTERN = /^[A-Za-z0-9]{8}$/;
 const LICHESS_GAME_ID_LENGTH = 8;
 
-export type ExternalGameSource = "chess_com_live_url" | "lichess_game_url";
+export type ExternalGameSource =
+  | "chess_com_live_url"
+  | "lichess_game_url"
+  | "lichess_study_chapter_url";
 export type ExternalGameOrientation = "white" | "black";
 
 export interface ExternalGameTarget {
@@ -16,7 +20,7 @@ export interface ExternalGameTarget {
 }
 
 export interface AnalysisRouteState {
-  kind: "home" | "chess_com_live" | "lichess_game" | "analysis";
+  kind: "home" | "chess_com_live" | "lichess_game" | "lichess_study_chapter" | "analysis";
   externalSource: ExternalGameSource | null;
   externalGameId: string | null;
   boardOrientation: ExternalGameOrientation | null;
@@ -66,16 +70,20 @@ export function parseAnalysisRoute(pathname: string, search = ""): AnalysisRoute
 
   const lichessRouteTarget = matchLichessRouteParts(parts);
   if (lichessRouteTarget !== null) {
+    const kind =
+      lichessRouteTarget.source === "lichess_study_chapter_url"
+        ? "lichess_study_chapter"
+        : "lichess_game";
     return {
-      kind: "lichess_game",
-      externalSource: "lichess_game_url",
+      kind,
+      externalSource: lichessRouteTarget.source,
       externalGameId: lichessRouteTarget.externalGameId,
       boardOrientation: lichessRouteTarget.boardOrientation,
       analysisId: queryAnalysisId,
       ply,
       canonicalPath: canonicalPathForRoute({
         analysisId: queryAnalysisId,
-        externalSource: "lichess_game_url",
+        externalSource: lichessRouteTarget.source,
         externalGameId: lichessRouteTarget.externalGameId,
         boardOrientation: lichessRouteTarget.boardOrientation,
         ply,
@@ -165,7 +173,9 @@ export function normalizeGameImportUrl(value: string): string {
   }
   return target.source === "lichess_game_url"
     ? lichessGameUrl(target.externalGameId)
-    : chessComLiveGameUrl(target.externalGameId);
+    : target.source === "lichess_study_chapter_url"
+      ? lichessStudyChapterUrl(target.externalGameId)
+      : chessComLiveGameUrl(target.externalGameId);
 }
 
 export function chessComLiveGameUrl(externalGameId: string): string {
@@ -174,6 +184,13 @@ export function chessComLiveGameUrl(externalGameId: string): string {
 
 export function lichessGameUrl(externalGameId: string): string {
   return `https://lichess.org/${externalGameId}`;
+}
+
+export function lichessStudyChapterUrl(externalGameId: string): string {
+  const ids = lichessStudyChapterIds(externalGameId);
+  return ids === null
+    ? `https://lichess.org/study/${externalGameId}`
+    : `https://lichess.org/study/${ids.studyId}/${ids.chapterId}`;
 }
 
 export function analysisStatusUrl(analysisId: string): string {
@@ -195,10 +212,11 @@ export function canonicalPathForRoute({
 }): string | null {
   if (externalGameId !== null) {
     const source = externalSource ?? "chess_com_live_url";
-    const path =
-      source === "lichess_game_url"
-        ? lichessRoutePath(externalGameId, boardOrientation ?? null)
-        : `/game/live/${externalGameId}`;
+    const path = routePathForExternalTarget({
+      source,
+      externalGameId,
+      boardOrientation: boardOrientation ?? null,
+    });
     return withAnalysisQuery(path, analysisId, ply);
   }
   if (analysisId !== null) {
@@ -334,6 +352,13 @@ function matchChessComRouteParts(parts: string[]): string | null {
 
 function matchLichessRouteParts(parts: string[]): ExternalGameTarget | null {
   if (parts[0] === "lichess") {
+    if (parts[1] === "study") {
+      return targetFromId(
+        "lichess_study_chapter_url",
+        normalizeLichessStudyChapterExternalId(parts[2], parts[3]),
+        normalizeBoardSide(parts[4]),
+      );
+    }
     return targetFromId(
       "lichess_game_url",
       normalizeLichessId(parts[1]),
@@ -350,6 +375,13 @@ function matchChessComPath(pathname: string): string | null {
 
 function matchLichessPath(pathname: string): ExternalGameTarget | null {
   const parts = pathParts(pathname);
+  if (parts[0] === "study") {
+    return targetFromId(
+      "lichess_study_chapter_url",
+      normalizeLichessStudyChapterExternalId(parts[1], parts[2]),
+      normalizeBoardSide(parts[3]),
+    );
+  }
   if (parts[0] === "game" && parts[1] === "export") {
     return targetFromId("lichess_game_url", normalizeLichessId(parts[2]), null);
   }
@@ -400,8 +432,37 @@ function normalizeLichessId(value: string | undefined): string | null {
   return LICHESS_ID_PATTERN.test(trimmed) ? trimmed.slice(0, LICHESS_GAME_ID_LENGTH) : null;
 }
 
+function normalizeLichessStudyChapterExternalId(
+  studyId: string | undefined,
+  chapterId: string | undefined,
+): string | null {
+  const normalizedStudyId = normalizeLichessStudyChapterId(studyId);
+  const normalizedChapterId = normalizeLichessStudyChapterId(chapterId);
+  return normalizedStudyId === null || normalizedChapterId === null
+    ? null
+    : `${normalizedStudyId}/${normalizedChapterId}`;
+}
+
+function normalizeLichessStudyChapterId(value: string | undefined): string | null {
+  if (value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return LICHESS_STUDY_CHAPTER_ID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
 function normalizeBoardSide(value: string | undefined): ExternalGameOrientation | null {
   return value === "white" || value === "black" ? value : null;
+}
+
+function routePathForExternalTarget(target: ExternalGameTarget): string {
+  if (target.source === "lichess_game_url") {
+    return lichessRoutePath(target.externalGameId, target.boardOrientation ?? null);
+  }
+  if (target.source === "lichess_study_chapter_url") {
+    return lichessStudyChapterRoutePath(target.externalGameId, target.boardOrientation ?? null);
+  }
+  return `/game/live/${encodeURIComponent(target.externalGameId)}`;
 }
 
 function lichessRoutePath(
@@ -410,4 +471,30 @@ function lichessRoutePath(
 ): string {
   const basePath = `/lichess/${encodeURIComponent(externalGameId)}`;
   return boardOrientation === null ? basePath : `${basePath}/${boardOrientation}`;
+}
+
+function lichessStudyChapterRoutePath(
+  externalGameId: string,
+  boardOrientation: ExternalGameOrientation | null,
+): string {
+  const ids = lichessStudyChapterIds(externalGameId);
+  const basePath =
+    ids === null
+      ? `/lichess/study/${encodeURIComponent(externalGameId)}`
+      : `/lichess/study/${encodeURIComponent(ids.studyId)}/${encodeURIComponent(ids.chapterId)}`;
+  return boardOrientation === null ? basePath : `${basePath}/${boardOrientation}`;
+}
+
+export function lichessStudyChapterIds(
+  externalGameId: string,
+): { studyId: string; chapterId: string } | null {
+  const [studyId, chapterId, ...rest] = externalGameId.split("/");
+  if (rest.length > 0) {
+    return null;
+  }
+  const normalizedStudyId = normalizeLichessStudyChapterId(studyId);
+  const normalizedChapterId = normalizeLichessStudyChapterId(chapterId);
+  return normalizedStudyId === null || normalizedChapterId === null
+    ? null
+    : { studyId: normalizedStudyId, chapterId: normalizedChapterId };
 }

@@ -36,6 +36,8 @@ import {
   type ExternalGameTarget,
   extractGameImportTarget,
   lichessGameUrl,
+  lichessStudyChapterIds,
+  lichessStudyChapterUrl,
   pushWithPath,
   readAnalysisRoute,
   replaceAnalysisUrl,
@@ -46,6 +48,7 @@ import {
   ApiError,
   getCachedChessComLiveGameAnalysis,
   getCachedLichessGameAnalysis,
+  getCachedLichessStudyChapterAnalysis,
   pollGameAnalysis,
   startImportedGameAnalysis,
 } from "../../lib/api";
@@ -772,7 +775,7 @@ function AnalysisGameWorkspace({
   const [arrowCount, setArrowCount] = useState(1);
   const [engineLineCount, setEngineLineCount] = useState(2);
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
-  const [showMoveMarkersOnBoard, setShowMoveMarkersOnBoard] = useState(true);
+  const [showMoveMarkersOnBoard, setShowMoveMarkersOnBoard] = useState(false);
   const [markerDisplayMode, setMarkerDisplayMode] = useState<MarkerDisplayMode>("critical");
   const [mobileTab, setMobileTab] = useState<MobileTab>("analysis");
   const [ratingPromptDismissed, setRatingPromptDismissed] = useState(false);
@@ -2442,12 +2445,12 @@ function sourceForRoute(
 }
 
 function sourceFromExternalTarget(target: ExternalGameTarget): ImportedGameMetadata {
-  const isLichess = target.source === "lichess_game_url";
+  const sourceLabel = sourceLabelForTarget(target);
   return {
     source: target.source,
     source_url: sourceUrlForTarget(target),
     external_game_id: target.externalGameId,
-    title: `${isLichess ? "Lichess" : "Chess.com"} game ${target.externalGameId}`,
+    title: `${sourceLabel} ${target.externalGameId}`,
     white_username: null,
     black_username: null,
     white_rating: null,
@@ -2455,8 +2458,18 @@ function sourceFromExternalTarget(target: ExternalGameTarget): ImportedGameMetad
     time_control: null,
     result: null,
     allows_global_training: false,
-    rights_basis: `Public ${isLichess ? "Lichess" : "Chess.com"} game link.`,
+    rights_basis: `Public ${sourceLabel} link.`,
   };
+}
+
+function sourceLabelForTarget(target: ExternalGameTarget): string {
+  if (target.source === "lichess_game_url") {
+    return "Lichess game";
+  }
+  if (target.source === "lichess_study_chapter_url") {
+    return "Lichess study chapter";
+  }
+  return "Chess.com game";
 }
 
 function hasPlayerIdentity(source: ImportedGameMetadata | null): boolean {
@@ -2487,15 +2500,27 @@ function buildRouteImportRequest(
 }
 
 function sourceUrlForTarget(target: ExternalGameTarget): string {
-  return target.source === "lichess_game_url"
-    ? lichessGameUrl(target.externalGameId)
-    : chessComLiveGameUrl(target.externalGameId);
+  if (target.source === "lichess_game_url") {
+    return lichessGameUrl(target.externalGameId);
+  }
+  if (target.source === "lichess_study_chapter_url") {
+    return lichessStudyChapterUrl(target.externalGameId);
+  }
+  return chessComLiveGameUrl(target.externalGameId);
 }
 
 async function getCachedImportedGameAnalysis(target: ExternalGameTarget, signal: AbortSignal) {
-  return target.source === "lichess_game_url"
-    ? getCachedLichessGameAnalysis(target.externalGameId, signal)
-    : getCachedChessComLiveGameAnalysis(target.externalGameId, signal);
+  if (target.source === "lichess_game_url") {
+    return getCachedLichessGameAnalysis(target.externalGameId, signal);
+  }
+  if (target.source === "lichess_study_chapter_url") {
+    const ids = lichessStudyChapterIds(target.externalGameId);
+    if (ids === null) {
+      throw new ApiError(400, "Invalid Lichess study chapter URL.");
+    }
+    return getCachedLichessStudyChapterAnalysis(ids.studyId, ids.chapterId, signal);
+  }
+  return getCachedChessComLiveGameAnalysis(target.externalGameId, signal);
 }
 
 function activateImportedGameResponse(
@@ -2646,7 +2671,11 @@ function mergeExternalTargetHints(
 function isExternalGameSource(
   source: ImportedGameMetadata["source"],
 ): source is ExternalGameSource {
-  return source === "chess_com_live_url" || source === "lichess_game_url";
+  return (
+    source === "chess_com_live_url" ||
+    source === "lichess_game_url" ||
+    source === "lichess_study_chapter_url"
+  );
 }
 
 function clampPly(ply: number, moveCount: number): number {

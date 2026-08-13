@@ -36,6 +36,19 @@ export async function getCachedLichessGameAnalysis(
   );
 }
 
+export async function getCachedLichessStudyChapterAnalysis(
+  studyId: string,
+  chapterId: string,
+  signal?: AbortSignal,
+): Promise<GameAnalysisImportResponse> {
+  return getJson<GameAnalysisImportResponse>(
+    `/api/game-analysis/import/lichess/study/${encodeURIComponent(studyId)}/${encodeURIComponent(
+      chapterId,
+    )}`,
+    signal,
+  );
+}
+
 export async function pollGameAnalysis(
   statusUrl: string,
   signal?: AbortSignal,

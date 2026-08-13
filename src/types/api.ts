@@ -86,7 +86,11 @@ export type ConceptClaimSource =
   | "human_likelihood"
   | "deterministic_detector";
 
-export type GameImportSource = "chess_com_live_url" | "lichess_game_url" | "pgn";
+export type GameImportSource =
+  | "chess_com_live_url"
+  | "lichess_game_url"
+  | "lichess_study_chapter_url"
+  | "pgn";
 
 export type GameAnalysisStatus = "pending" | "running" | "succeeded" | "failed";
 

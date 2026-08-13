@@ -4,8 +4,9 @@ https://github.com/user-attachments/assets/983c9ebf-1496-47e1-a61a-580f2b8c7dca
 
 Public frontend for [g6](https://g6chess.com), an evidence-grounded chess analysis product.
 
-The app lets someone paste a Chess.com or Lichess game link, open a
-`g6chess.com/game/live/...` or `g6chess.com/lichess/...` route, or paste PGN. It
+The app lets someone paste a Chess.com game, Lichess game, or Lichess study
+chapter link, open a `g6chess.com/game/live/...`, `g6chess.com/lichess/...`, or
+`g6chess.com/lichess/study/.../...` route, or paste PGN. It
 imports the game through the analysis API, polls for completed move analysis,
 and renders a board-first review with move labels, engine/book continuations,
 and coach-style explanations
@@ -32,7 +33,7 @@ board, and explore alternatives without losing the main game.
 ## What Is In This Repo
 
 - Vite + React + TypeScript frontend.
-- Chess.com URL, Lichess URL, and PGN import UI.
+- Chess.com URL, Lichess URL, Lichess study chapter URL, and PGN import UI.
 - Route parsing for shareable game links and selected ply state.
 - Polling client for the game-analysis API.
 - Board-first analysis workspace with move list, eval bar, player bars,
@@ -96,7 +97,14 @@ Expected API shape today:
 - `POST /api/game-analysis/import`
 - `GET /api/game-analysis/import/chess-com/live/{externalGameId}`
 - `GET /api/game-analysis/import/lichess/{externalGameId}`
+- `GET /api/game-analysis/import/lichess/study/{studyId}/{chapterId}`
 - polling through the returned `status_url`
+- Lichess study chapter imports use `source=lichess_study_chapter_url`,
+  `url=https://lichess.org/study/{studyId}/{chapterId}`, and
+  `external_game_id={studyId}/{chapterId}`. The backend should fetch the clean
+  chapter PGN from Lichess with comments, clocks, and variations disabled, then
+  pass standard mainline chapters through the same PGN-derived game skeleton
+  path as normal PGN imports.
 - Import responses and game-analysis snapshots include a `game` skeleton with
   PGN-derived SAN/UCI/FEN move data. The client can render the board from that
   skeleton while deeper context and explanations are still pending.

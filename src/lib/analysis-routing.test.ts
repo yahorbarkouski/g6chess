@@ -92,4 +92,36 @@ describe("analysis routing", () => {
       boardOrientation: null,
     });
   });
+
+  it("parses Lichess study chapter URLs and normalizes to the canonical chapter URL", () => {
+    expect(extractGameImportTarget("https://lichess.org/study/ybdiAVdQ/2pHkbFS9")).toEqual({
+      source: "lichess_study_chapter_url",
+      externalGameId: "ybdiAVdQ/2pHkbFS9",
+      boardOrientation: null,
+    });
+    expect(normalizeGameImportUrl("https://lichess.org/study/ybdiAVdQ/2pHkbFS9#12")).toBe(
+      "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+    );
+    expect(
+      extractGameImportTarget("https://www.g6chess.com/lichess/study/ybdiAVdQ/2pHkbFS9"),
+    ).toEqual({
+      source: "lichess_study_chapter_url",
+      externalGameId: "ybdiAVdQ/2pHkbFS9",
+      boardOrientation: null,
+    });
+  });
+
+  it("parses shareable Lichess study chapter routes", () => {
+    expect(
+      parseAnalysisRoute("/lichess/study/ybdiAVdQ/2pHkbFS9", "?analysis=analysis-1&ply=3"),
+    ).toEqual({
+      kind: "lichess_study_chapter",
+      externalSource: "lichess_study_chapter_url",
+      externalGameId: "ybdiAVdQ/2pHkbFS9",
+      boardOrientation: null,
+      analysisId: "analysis-1",
+      ply: 3,
+      canonicalPath: "/lichess/study/ybdiAVdQ/2pHkbFS9?analysis=analysis-1&ply=3",
+    });
+  });
 });

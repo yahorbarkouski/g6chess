@@ -423,7 +423,7 @@ export function AnalysisImportPanel({
       </h1>
       <p className="text-center text-stone-500 text-sm dark:text-stone-500 mt-3">
         or simply add <span className="text-stone-600 dark:text-stone-400">g6</span> before your
-        chess.com / lichess.org game url and press enter
+        chess.com / lichess.org game or study url and press enter
       </p>
 
       <form className="mt-8" onSubmit={handleSubmit}>

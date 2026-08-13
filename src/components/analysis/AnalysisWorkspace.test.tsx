@@ -15,6 +15,7 @@ import { AnalysisWorkspace } from "./AnalysisWorkspace";
 const apiMocks = vi.hoisted(() => ({
   getCachedChessComLiveGameAnalysis: vi.fn(),
   getCachedLichessGameAnalysis: vi.fn(),
+  getCachedLichessStudyChapterAnalysis: vi.fn(),
   startImportedGameAnalysis: vi.fn(),
   pollGameAnalysis: vi.fn(),
 }));
@@ -30,6 +31,7 @@ vi.mock("../../lib/api", async () => {
     ...actual,
     getCachedChessComLiveGameAnalysis: apiMocks.getCachedChessComLiveGameAnalysis,
     getCachedLichessGameAnalysis: apiMocks.getCachedLichessGameAnalysis,
+    getCachedLichessStudyChapterAnalysis: apiMocks.getCachedLichessStudyChapterAnalysis,
     startImportedGameAnalysis: apiMocks.startImportedGameAnalysis,
     pollGameAnalysis: apiMocks.pollGameAnalysis,
   };
@@ -53,16 +55,19 @@ vi.mock("./UltraAnalysisBoard", () => ({
     onWheel,
     orientation,
     marker,
+    showMoveMarkers,
   }: {
     fen: string | null;
     onWheel?: (event: WheelEvent) => void;
     orientation?: string;
     marker?: { primary_class: string } | null;
+    showMoveMarkers?: boolean;
   }) => (
     <div
       data-orientation={orientation}
       data-testid="analysis-board"
       data-marker={marker ? marker.primary_class : "none"}
+      data-show-move-markers={String(showMoveMarkers)}
       onWheel={(event) => onWheel?.(event.nativeEvent)}
     >
       {fen}
@@ -100,6 +105,10 @@ describe("AnalysisWorkspace imports", () => {
     apiMocks.getCachedLichessGameAnalysis.mockReset();
     apiMocks.getCachedLichessGameAnalysis.mockRejectedValue(
       new ApiError(404, "Cached game analysis not found."),
+    );
+    apiMocks.getCachedLichessStudyChapterAnalysis.mockReset();
+    apiMocks.getCachedLichessStudyChapterAnalysis.mockRejectedValue(
+      new ApiError(404, "Cached study chapter analysis not found."),
     );
     apiMocks.startImportedGameAnalysis.mockReset();
     apiMocks.pollGameAnalysis.mockReset();
@@ -349,6 +358,69 @@ describe("AnalysisWorkspace imports", () => {
     expect(await screen.findByText("1. a4")).toBeTruthy();
     expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
     expect(window.location.pathname).toBe("/lichess/fY44h4OY/black");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("starts a Lichess study chapter route import from a production-domain path", async () => {
+    window.history.replaceState(null, "", "/lichess/study/ybdiAVdQ/2pHkbFS9");
+    const source = lichessStudySource();
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(screen.getByLabelText("Game URL")).toHaveValue(
+      "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+    );
+    await waitFor(() =>
+      expect(apiMocks.getCachedLichessStudyChapterAnalysis).toHaveBeenCalledWith(
+        "ybdiAVdQ",
+        "2pHkbFS9",
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.startImportedGameAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "lichess_study_chapter_url",
+          url: "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+        }),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(window.location.pathname).toBe("/lichess/study/ybdiAVdQ/2pHkbFS9");
+    expect(window.location.search).toBe("?analysis=analysis-1");
+  });
+
+  it("reuses a cached Lichess study chapter route analysis without starting a new import", async () => {
+    window.history.replaceState(null, "", "/lichess/study/ybdiAVdQ/2pHkbFS9");
+    const source = lichessStudySource();
+    apiMocks.getCachedLichessStudyChapterAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "succeeded",
+      status_url: "/api/game-analysis/analysis-1",
+      source,
+      game: gameSkeleton(1),
+    });
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    await waitFor(() =>
+      expect(apiMocks.getCachedLichessStudyChapterAnalysis).toHaveBeenCalledWith(
+        "ybdiAVdQ",
+        "2pHkbFS9",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(apiMocks.startImportedGameAnalysis).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/lichess/study/ybdiAVdQ/2pHkbFS9");
     expect(window.location.search).toBe("?analysis=analysis-1");
   });
 
@@ -802,6 +874,24 @@ describe("AnalysisWorkspace imports", () => {
     // Now the book move marker should be passed to the board
     await waitFor(() => expect(board).toHaveAttribute("data-marker", "book"));
   });
+
+  it("disables move markers on the board by default", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/game/live/168193636078?analysis=analysis-1&ply=1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithBookMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute(
+      "data-show-move-markers",
+      "false",
+    );
+    await user.click(screen.getByRole("button", { name: "Board settings" }));
+    expect(screen.getByRole("button", { name: "Show move markers on board: Off" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
 });
 
 async function waitForNoBrowserEngineTick(): Promise<void> {
@@ -855,6 +945,23 @@ function lichessSource(): ImportedGameMetadata {
     result: "1-0",
     allows_global_training: false,
     rights_basis: "User-requested analysis input only.",
+  };
+}
+
+function lichessStudySource(): ImportedGameMetadata {
+  return {
+    source: "lichess_study_chapter_url",
+    source_url: "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+    external_game_id: "ybdiAVdQ/2pHkbFS9",
+    title: "Capablanca study chapter",
+    white_username: "Alpha",
+    black_username: "Beta",
+    white_rating: 1600,
+    black_rating: 1500,
+    time_control: null,
+    result: "1-0",
+    allows_global_training: false,
+    rights_basis: "Public Lichess study chapter link.",
   };
 }
 

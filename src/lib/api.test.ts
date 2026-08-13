@@ -3,6 +3,7 @@ import {
   type ApiError,
   getCachedChessComLiveGameAnalysis,
   getCachedLichessGameAnalysis,
+  getCachedLichessStudyChapterAnalysis,
   startImportedGameAnalysis,
 } from "./api";
 
@@ -118,6 +119,42 @@ describe("startImportedGameAnalysis", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8001/api/game-analysis/import/lichess/fY44h4OY",
+      {},
+    );
+  });
+
+  it("reads cached Lichess study chapter analyses by study and chapter id", async () => {
+    const responsePayload = {
+      analysis_id: "analysis-1",
+      status: "succeeded",
+      status_url: "/api/game-analysis/analysis-1",
+      source: {
+        source: "lichess_study_chapter_url",
+        source_url: "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+        external_game_id: "ybdiAVdQ/2pHkbFS9",
+        title: "Capablanca study chapter",
+        white_username: "Jose Raul Capablanca",
+        black_username: "Borislav Kostic",
+        white_rating: null,
+        black_rating: null,
+        time_control: null,
+        result: "1-0",
+        allows_global_training: false,
+        rights_basis: "Public Lichess study chapter link.",
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(responsePayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCachedLichessStudyChapterAnalysis("ybdiAVdQ", "2pHkbFS9");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8001/api/game-analysis/import/lichess/study/ybdiAVdQ/2pHkbFS9",
       {},
     );
   });
