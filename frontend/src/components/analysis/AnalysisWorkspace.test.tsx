@@ -977,7 +977,7 @@ function gameSkeleton(count = 1): GameAnalysisGame {
   };
 }
 
-function mainlineMove(ply: number): GameAnalysisGame["moves"][number] {
+function mainlineMove(ply: number): NonNullable<GameAnalysisGame["moves"]>[number] {
   const isBlackMove = ply % 2 === 0;
   const moveNumber = Math.ceil(ply / 2);
   return {
@@ -1084,7 +1084,7 @@ function moveAnalysis({
     requires_explanation: requiresExplanation,
     quality: "excellent",
     significance,
-    beauty: { label: "ordinary", score: 0 },
+    beauty: { label: "low", score: 0 },
     context_latency_seconds: 0.01,
     opening_book: openingBook,
     explanation: "a4 gains space without weakening the center.",
@@ -1121,6 +1121,7 @@ function moveAnalysis({
           san,
           legal: true,
           is_check: false,
+          is_checkmate: false,
           is_capture: false,
           promotion: null,
         },
@@ -1141,7 +1142,7 @@ function moveAnalysis({
           severity_text: "excellent",
         },
         significance,
-        beauty: { label: "ordinary", score: 0 },
+        beauty: { label: "low", score: 0 },
         candidates: [],
         main_point: {
           concept: "space",
@@ -1154,9 +1155,9 @@ function moveAnalysis({
         played: san,
         quality: "excellent",
         significance,
-        beauty: { label: "ordinary", score: 0 },
+        beauty: { label: "low", score: 0 },
         player_level: "1500",
-        time_situation: "normal",
+        time_situation: "rapid_normal",
         severity: "excellent",
         main_point: "a4 gains useful queenside space.",
         best_or_key_move: null,

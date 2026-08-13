@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).parents[3]
+REPOSITORY_ROOT = Path(__file__).parents[4]
 
 
 def test_modal_deployment_is_manual_and_does_not_overwrite_runtime_secrets() -> None:

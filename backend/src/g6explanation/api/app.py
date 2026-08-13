@@ -1,4 +1,4 @@
-"""HTTP API for the local context visualization frontend."""
+"""Public HTTP composition for analysis, imports, polling, and inspection."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from g6explanation.game_imports import (
     GameAnalysisImportResponse,
     GameImportError,
     GameImportService,
+    ImportPlayerLevelRequiredError,
     LichessGameInvalidPgnError,
     LichessGameNotFinishedError,
     LichessGameNotFoundError,
@@ -82,7 +83,7 @@ def create_app(
     api_protection: ApiProtectionBoundary | None = None,
 ) -> FastAPI:
     app = FastAPI(
-        title="G6 Explanation Visualization API",
+        title="G6 Chess API",
         version="0.1.0",
         docs_url=_docs_url_from_env(),
         redoc_url=_redoc_url_from_env(),
@@ -260,9 +261,11 @@ def example_context(example_id: str, ply: int) -> VisualizationMoveContext:
     try:
         selected = build_visualization_context(example_id, ply)
     except VisualizationSetupError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise _public_http_exception(
+            503, "visualization_unavailable", "Visualization unavailable."
+        ) from exc
     except AnalysisError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise _public_http_exception(500, "analysis_failed", "Analysis failed.") from exc
     if selected is None:
         raise HTTPException(status_code=404, detail="Visualization context not found.")
     return selected
@@ -282,7 +285,9 @@ def start_game_analysis(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (GameAnalysisSetupError, GameAnalysisStoreError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise _public_http_exception(
+            503, "analysis_unavailable", "Analysis is unavailable."
+        ) from exc
 
 
 def start_imported_game_analysis(
@@ -311,7 +316,14 @@ def start_imported_game_analysis(
         GameAnalysisSetupError,
         GameAnalysisStoreError,
     ) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise _public_http_exception(
+            503, "import_unavailable", "Game import is unavailable."
+        ) from exc
+    except ImportPlayerLevelRequiredError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "import_player_level_required", "message": str(exc)},
+        ) from exc
     except (
         GameImportError,
         LichessGameInvalidPgnError,
@@ -386,7 +398,9 @@ def game_analysis_state(
     except AdmissionDenied as exc:
         raise _admission_http_exception(exc) from exc
     except GameAnalysisStoreError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise _public_http_exception(
+            503, "analysis_unavailable", "Analysis is unavailable."
+        ) from exc
     if snapshot is None:
         raise HTTPException(status_code=404, detail="Game analysis not found.")
     return snapshot
@@ -402,6 +416,13 @@ def _admission_http_exception(exc: AdmissionDenied) -> HTTPException:
         status_code=exc.status_code,
         detail={"code": exc.code, "message": exc.detail},
         headers=headers,
+    )
+
+
+def _public_http_exception(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message},
     )
 
 

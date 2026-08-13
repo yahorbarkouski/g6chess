@@ -46,10 +46,9 @@
   `docs/development/`.
 - Keep ADRs under `docs/adr/`.
 - Add top-level folders only for real implementation boundaries.
-- Keep `/Users/yahorbarkouski/g6explanation-frontend` as the companion local
-  React visualization app for inspecting context packets from the Python API.
-  It should use real-game experiment metadata and request fresh per-ply context
-  packets from the API rather than relying on cached/static example packets.
+- Keep `frontend/` as the independently runnable React application in this
+  repository. It consumes the generated API contract and requests fresh
+  analysis data rather than relying on cached context packets.
 
 ## Production Module Rules
 

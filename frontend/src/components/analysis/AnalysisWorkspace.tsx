@@ -326,7 +326,7 @@ export function AnalysisWorkspace() {
           return;
         }
         setImportSnapshot(snapshot);
-        setImportError(snapshot.status === "failed" ? snapshot.error : null);
+        setImportError(snapshot.status === "failed" ? (snapshot.error ?? null) : null);
         const nextAnalysis = analysisFromSnapshot(snapshot, job.source, job.game);
         if (nextAnalysis !== null) {
           setAnalysis(nextAnalysis);
@@ -406,7 +406,7 @@ export function AnalysisWorkspace() {
       setActiveJob(null);
       setAnalysis(null);
       try {
-        if (request.url === "mock") {
+        if ("url" in request && request.url === "mock") {
           if (import.meta.env.DEV) {
             import("../../data/mock-analysis").then(({ MOCK_ANALYSIS }) => {
               const nextJob: StoredGameAnalysisJob = {
@@ -438,10 +438,7 @@ export function AnalysisWorkspace() {
           return;
         }
         const response = await startImportedGameAnalysis(request);
-        const requestTarget =
-          request.url === undefined || request.url === null
-            ? null
-            : extractGameImportTarget(request.url);
+        const requestTarget = "url" in request ? extractGameImportTarget(request.url) : null;
         const target = mergeExternalTargetHints(
           mergeExternalTargetHints(
             mergeExternalTargetHints(externalTargetFromSource(response.source), requestTarget),
@@ -2604,7 +2601,7 @@ function externalTargetFromRoute(route: AnalysisRouteState): ExternalGameTarget 
 }
 
 function externalTargetFromSource(source: ImportedGameMetadata | null): ExternalGameTarget | null {
-  if (source === null || source.external_game_id === null || !isExternalGameSource(source.source)) {
+  if (source === null || source.external_game_id == null || !isExternalGameSource(source.source)) {
     return null;
   }
   return {
@@ -2716,7 +2713,7 @@ function analysisFromSnapshot(
   fallbackGame: GameAnalysisGame | null,
 ): AnalysisResponse | null {
   const game = snapshot.game ?? fallbackGame;
-  if (game?.moves.length || snapshot.moves.length > 0) {
+  if ((game?.moves?.length ?? 0) > 0 || (snapshot.moves?.length ?? 0) > 0) {
     return mapGameAnalysisSnapshot(snapshot, source, game ?? null);
   }
   return null;

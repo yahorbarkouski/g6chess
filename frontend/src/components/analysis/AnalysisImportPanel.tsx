@@ -63,8 +63,6 @@ const FIELD_HEIGHT_URL = 46;
 const FIELD_HEIGHT_PGN = 232;
 const BUTTON_SIZE = 36;
 const BUTTON_INSET = 6;
-const DEFAULT_ELO = 1500;
-
 const PGN_TAG_PATTERN = /\[\s*\w+\s+"[^"]*"\s*\]/;
 const PGN_MOVE_PATTERN = /\b\d+\s*\.{1,3}\s*[A-Za-z0-9]/;
 
@@ -294,6 +292,10 @@ export function AnalysisImportPanel({
     try {
       await importWithOptionalHint(onImport, request, hintedTarget);
     } catch (err) {
+      if (isPlayerLevelRequired(err) && request.source === "lichess_study_chapter_url") {
+        setPendingPgnEloImport({ request, hintedTarget, needsWhite: true, needsBlack: true });
+        return;
+      }
       if (needsTurnstile && isTurnstileFailure(err)) {
         promptForTurnstile(request, hintedTarget);
         return;
@@ -333,14 +335,25 @@ export function AnalysisImportPanel({
     if (pendingPgnEloImport === null) {
       return;
     }
-    const basePgn = pendingPgnEloImport.request.pgn ?? "";
-    const nextPgn = addPgnEloHeaders(basePgn, values);
-    const request = {
-      ...pendingPgnEloImport.request,
-      pgn: nextPgn,
-    };
+    const request =
+      pendingPgnEloImport.request.source === "pgn"
+        ? {
+            ...pendingPgnEloImport.request,
+            pgn: addPgnEloHeaders(pendingPgnEloImport.request.pgn, values),
+          }
+        : {
+            ...pendingPgnEloImport.request,
+            ...(values.whiteElo === null
+              ? {}
+              : { white_player_level: explicitPlayerLevel(values.whiteElo) }),
+            ...(values.blackElo === null
+              ? {}
+              : { black_player_level: explicitPlayerLevel(values.blackElo) }),
+          };
     const { hintedTarget } = pendingPgnEloImport;
-    setPgn(nextPgn);
+    if (request.source === "pgn") {
+      setPgn(request.pgn);
+    }
     setPendingPgnEloImport(null);
     await submitRequest(request, hintedTarget);
   }
@@ -479,12 +492,7 @@ export function AnalysisImportPanel({
           needsWhite={pendingPgnEloImport.needsWhite}
           onDismiss={() => setPendingPgnEloImport(null)}
           onSubmit={submitPendingPgnElo}
-          onUseDefault={() =>
-            submitPendingPgnElo({
-              whiteElo: pendingPgnEloImport.needsWhite ? String(DEFAULT_ELO) : null,
-              blackElo: pendingPgnEloImport.needsBlack ? String(DEFAULT_ELO) : null,
-            })
-          }
+          source={pendingPgnEloImport.request.source}
         />
       ) : null}
     </section>
@@ -496,13 +504,13 @@ function PgnEloDialog({
   needsWhite,
   onDismiss,
   onSubmit,
-  onUseDefault,
+  source,
 }: {
   needsBlack: boolean;
   needsWhite: boolean;
   onDismiss: () => void;
   onSubmit: (values: { whiteElo: string | null; blackElo: string | null }) => void;
-  onUseDefault: () => void;
+  source: GameAnalysisImportRequest["source"];
 }) {
   const [whiteElo, setWhiteElo] = useState("");
   const [blackElo, setBlackElo] = useState("");
@@ -541,7 +549,9 @@ function PgnEloDialog({
               Add missing Elo
             </h2>
             <p className="mt-1 text-stone-500 text-xs leading-5 dark:text-stone-400">
-              This PGN needs ratings before analysis can start.
+              {source === "pgn"
+                ? "This PGN needs ratings before analysis can start."
+                : "This study chapter does not include ratings. Add them before analysis starts."}
             </p>
           </div>
           <button
@@ -568,13 +578,6 @@ function PgnEloDialog({
             type="button"
           >
             Cancel
-          </button>
-          <button
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-3 font-medium text-stone-700 text-xs leading-none hover:bg-stone-100 active:scale-[0.96] dark:text-stone-200 dark:hover:bg-stone-900"
-            onClick={onUseDefault}
-            type="button"
-          >
-            Use default
           </button>
           <button
             className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-stone-900 px-3 font-medium text-white text-xs leading-none disabled:cursor-default disabled:opacity-30 active:scale-[0.96] disabled:active:scale-100 dark:bg-stone-100 dark:text-stone-950"
@@ -972,6 +975,14 @@ function isValidEloInput(value: string): boolean {
   return /^\d+$/.test(clean) && rating >= 100 && rating <= 4000;
 }
 
+function explicitPlayerLevel(value: string) {
+  return {
+    kind: "rating" as const,
+    value: Number.parseInt(value, 10),
+    system: "user-provided",
+  };
+}
+
 function buildRequest(
   mode: Mode,
   values: { url: string; pgn: string; turnstileToken: string | null },
@@ -1035,6 +1046,10 @@ function importErrorMessage(error: unknown): string {
 
 function isTurnstileFailure(error: unknown): boolean {
   return error instanceof ApiError && error.code === "turnstile_failed";
+}
+
+function isPlayerLevelRequired(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "import_player_level_required";
 }
 
 interface TurnstileApi {

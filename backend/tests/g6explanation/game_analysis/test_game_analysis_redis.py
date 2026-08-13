@@ -8,6 +8,7 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
+from g6explanation.api import create_app
 from g6explanation.context_engine import PlayerLevel
 from g6explanation.game_analysis import (
     GameAnalysisRunner,
@@ -18,7 +19,6 @@ from g6explanation.game_analysis import (
 from g6explanation.game_analysis.contracts import GameAnalysisSnapshot
 from g6explanation.game_analysis.state_store import GameAnalysisStoreError
 from g6explanation.real_game_evaluation.real_games import OPERA_GAME
-from g6explanation.visualization.http_api import create_app
 
 REDIS_URL = os.getenv("G6EXPLANATION_REDIS_URL", "redis://localhost:6379/0")
 

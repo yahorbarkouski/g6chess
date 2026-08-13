@@ -15,7 +15,7 @@ spawns a Modal worker and returns `analysis_id` immediately.
 
 ## Files
 
-- `.github/workflows/ci.yml`: required local quality gates on pull requests,
+- `.github/workflows/backend-ci.yml`: required backend quality gates on pull requests,
   `main`, and manual dispatch.
 - `.github/workflows/deploy-modal.yml`: manually dispatched deployment workflow
   that repeats the required gates and runs `modal deploy` through a protected
@@ -92,6 +92,10 @@ The generated `.modal.run` URL remains reachable unless proxy auth is enabled.
 With proxy auth on, Cloudflare must add `Modal-Key` and `Modal-Secret` as origin
 request headers. A Worker template is provided at
 `deploy/cloudflare/modal-proxy-worker.js`.
+
+Forwarding headers are ignored by default. The Modal entrypoint enables them
+only when `G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true`, so direct clients
+cannot spoof rate-limit identity with `X-Forwarded-For`.
 
 Worker secrets:
 

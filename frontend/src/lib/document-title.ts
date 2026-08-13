@@ -17,8 +17,8 @@ export function buildDocumentTitle({ source, importStatus }: DocumentTitleInput)
     return importStatus === "idle" ? HOME_DOCUMENT_TITLE : GAME_TITLE_SUFFIX;
   }
 
-  const white = normalizeNickname(source.white_username);
-  const black = normalizeNickname(source.black_username);
+  const white = normalizeNickname(source.white_username ?? null);
+  const black = normalizeNickname(source.black_username ?? null);
 
   if (white === null && black === null) {
     return GAME_TITLE_SUFFIX;

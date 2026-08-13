@@ -10,12 +10,11 @@ Use a conservative Python `src/` layout. Current implementation boundaries are
 `g6explanation.explanation_generation` for verified model wording,
 `g6explanation.game_analysis` for Redis-backed asynchronous full-game
 orchestration, `g6explanation.game_imports` for user-requested PGN acquisition,
-`g6explanation.real_game_evaluation` for no-mock provider evals, and
-`g6explanation.visualization` for local inspection. The local React
-visualization app lives in the companion
-`/Users/yahorbarkouski/g6explanation-frontend` folder and consumes the narrow
-visualization HTTP API for real-game experiment metadata and fresh per-ply
-verified context packets. Keep documentation split by purpose:
+`g6explanation.real_game_evaluation` for no-mock provider evals,
+`g6explanation.api` for public HTTP composition, and
+`g6explanation.visualization` for local inspection data. The React application
+lives at `frontend/` in the same repository and consumes the generated public
+API contract. Keep documentation split by purpose:
 
 - `docs/product/` for product scope, context, model behavior, and prompts
 - `docs/development/` for workflow, quality, testing, and structure

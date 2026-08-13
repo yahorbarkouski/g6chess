@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../../lib/api";
 import { AnalysisImportPanel } from "./AnalysisImportPanel";
 
 describe("AnalysisImportPanel", () => {
@@ -64,23 +65,35 @@ describe("AnalysisImportPanel", () => {
     });
   });
 
-  it("can apply default Elo values for missing PGN ratings", async () => {
+  it("asks for explicit Elo when a study chapter has no ratings", async () => {
     const user = userEvent.setup();
-    const onImport = vi.fn().mockResolvedValue(undefined);
+    const onImport = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError(422, "Study ratings are required", {
+          code: "import_player_level_required",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
 
     render(<AnalysisImportPanel error={null} onImport={onImport} status="idle" />);
 
-    await user.click(screen.getByTitle("PGN fallback"));
-    fireEvent.change(screen.getByLabelText("PGN fallback"), {
-      target: { value: '[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *' },
-    });
-    await user.click(screen.getByRole("button", { name: "Analyze PGN" }));
-    await user.click(await screen.findByRole("button", { name: "Use default" }));
+    await user.type(
+      screen.getByLabelText("Game URL"),
+      "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+    );
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    expect(await screen.findByText(/study chapter does not include ratings/i)).toBeTruthy();
+    await user.type(screen.getByLabelText("White Elo"), "1725");
+    await user.type(screen.getByLabelText("Black Elo"), "1680");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    expect(onImport).toHaveBeenCalledWith(
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(2));
+    expect(onImport).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        pgn: '[White "Alpha"]\n[Black "Beta"]\n[WhiteElo "1500"]\n[BlackElo "1500"]\n\n1. e4 e5 *',
+        source: "lichess_study_chapter_url",
+        white_player_level: { kind: "rating", value: 1725, system: "user-provided" },
+        black_player_level: { kind: "rating", value: 1680, system: "user-provided" },
       }),
     );
   });

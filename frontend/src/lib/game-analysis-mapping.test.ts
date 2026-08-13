@@ -448,7 +448,7 @@ function moveAnalysis({
   conceptClaims?: ConceptClaim[];
   withContext?: boolean;
 }): GameMoveAnalysis {
-  const moveBeauty = beauty ?? { label: "ordinary", score: 0 };
+  const moveBeauty = beauty ?? { label: "low", score: 0 };
   const topLine = line(san, uci, topScore);
   const playedLine = line(san, uci, playedScore);
   const mainPoint = {
@@ -483,7 +483,7 @@ function moveAnalysis({
     allowed_claims: ["center"],
     human_common_candidate: commonCandidate,
     player_level: "1500",
-    time_situation: "normal",
+    time_situation: "rapid_normal",
     best_or_key_move: null,
     context_latency_seconds: 0.01,
     clock_before_seconds:
@@ -575,6 +575,7 @@ function context({
         san,
         legal: true,
         is_check: false,
+        is_checkmate: false,
         is_capture: false,
         promotion: null,
       },
@@ -613,7 +614,7 @@ function context({
       significance: { label: "critical", score: 1 },
       beauty,
       player_level: "1500",
-      time_situation: "normal",
+      time_situation: "rapid_normal",
       severity: quality,
       main_point: `${san} changes the center.`,
       best_or_key_move: null,
@@ -647,7 +648,11 @@ function line(san: string, uci: string, score: Score): EngineLine {
   };
 }
 
-function candidate(san: string, uci: string, role: CandidateMove["roles"][number]): CandidateMove {
+function candidate(
+  san: string,
+  uci: string,
+  role: NonNullable<CandidateMove["roles"]>[number],
+): CandidateMove {
   return {
     san,
     uci,
@@ -663,6 +668,7 @@ function candidate(san: string, uci: string, role: CandidateMove["roles"][number
     time_adjusted_findability: "unknown",
     findability_source: "test",
     findability_confidence: "unknown",
+    forcing_tier: "quiet",
     teachable_skill_gap: false,
     practicality: "unknown_practicality",
     recommendation_policy: "do_not_recommend",

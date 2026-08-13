@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -23,8 +24,11 @@ def client_identity(request: Request) -> ClientIdentity:
     """Extract a stable, privacy-light client identity from request headers."""
 
     headers = request.headers
-    cf_ip = _blank_to_none(headers.get("cf-connecting-ip"))
-    forwarded_for = _first_forwarded_for(headers.get("x-forwarded-for"))
+    trust_proxy_headers = _bool_env("G6EXPLANATION_TRUST_PROXY_HEADERS", False)
+    cf_ip = _blank_to_none(headers.get("cf-connecting-ip")) if trust_proxy_headers else None
+    forwarded_for = (
+        _first_forwarded_for(headers.get("x-forwarded-for")) if trust_proxy_headers else None
+    )
     client_host = request.client.host if request.client is not None else None
     ip = cf_ip or forwarded_for or client_host or "unknown"
     user_agent = headers.get("user-agent", "")
@@ -50,3 +54,10 @@ def _blank_to_none(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}

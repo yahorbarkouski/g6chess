@@ -1,6 +1,6 @@
-# g6explanation
+# G6 Chess Backend
 
-Evidence-grounded context engine for single-move chess explanations.
+Evidence-grounded chess analysis and verified coaching API.
 
 This product is not an LLM chess calculator. Chess truth comes from deterministic
 position reconstruction, Stockfish, optional Maia or clean human-frequency

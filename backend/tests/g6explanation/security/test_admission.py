@@ -159,10 +159,10 @@ def _request() -> Request:
             "method": "POST",
             "path": "/",
             "headers": [
-                (b"x-forwarded-for", CLIENT_IP.encode("ascii")),
+                (b"x-forwarded-for", b"192.0.2.99"),
                 (b"user-agent", b"pytest"),
             ],
-            "client": ("198.51.100.20", 49500),
+            "client": (CLIENT_IP, 49500),
         }
     )
 

@@ -36,9 +36,9 @@ export function mapGameAnalysisSnapshot(
 ): AnalysisResponse {
   // The polling contract uses snapshot.moves as the completed/labeled ply stream.
   // Full context and engine lines are optional payload enrichments.
-  const analyzedMoves = [...snapshot.moves].sort((a, b) => a.ply - b.ply);
+  const analyzedMoves = [...(snapshot.moves ?? [])].sort((a, b) => a.ply - b.ply);
   const game = snapshot.game ?? fallbackGame;
-  const moves = game?.moves.length
+  const moves = game?.moves?.length
     ? game.moves.map(mapMainlineMove)
     : analyzedMoves.map(mapGameMove);
   const timeline = analyzedMoves.map(mapTimelinePoint);
@@ -74,7 +74,7 @@ export function mapGameAnalysisSnapshot(
 export function mapGameAnalysisImportResponse(
   response: GameAnalysisImportResponse,
 ): AnalysisResponse | null {
-  if (!response.game?.moves.length) {
+  if (!response.game.moves?.length) {
     return null;
   }
   return mapGameAnalysisGame(response.analysis_id, response.game, response.source);
@@ -90,7 +90,7 @@ export function mapGameAnalysisGame(
     title: source?.title ?? `Game analysis ${analysisId.slice(0, 8)}`,
     player_side: "white",
     headers: sourceHeaders(source),
-    moves: game.moves.map(mapMainlineMove),
+    moves: (game.moves ?? []).map(mapMainlineMove),
     timeline: [],
     move_markers: [],
     summary: {
@@ -150,8 +150,8 @@ function moveConceptClaims(move: GameMoveAnalysis) {
 }
 
 function humanCommonCandidateForMove(move: GameMoveAnalysis): CandidateMove | null {
-  if (move.context !== null) {
-    return humanCommonCandidate(move.context.evidence.candidates);
+  if (move.context != null) {
+    return humanCommonCandidate(move.context.evidence.candidates ?? []);
   }
   return move.human_common_candidate ?? null;
 }
@@ -256,7 +256,7 @@ function mapMoveMarker(move: GameMoveAnalysis, index: number): AnalysisMoveMarke
       beauty_score: move.beauty.score,
       phase: move.context?.evidence.position.phase ?? move.phase,
       legal_move_count:
-        move.context?.evidence.position.legal_moves_uci.length ?? move.legal_move_count,
+        move.context?.evidence.position.legal_moves_uci?.length ?? move.legal_move_count,
       main_point_concept: mainPoint?.concept ?? null,
       main_point_claim: mainPoint?.claim ?? null,
       allowed_claims: move.context?.evidence.allowed_claims ?? move.allowed_claims ?? [],
@@ -296,7 +296,7 @@ function mapMoveMarker(move: GameMoveAnalysis, index: number): AnalysisMoveMarke
 }
 
 function mapBookLines(apiBookLines: OpeningBookMetadata["book_lines"]): BookLine[] {
-  return apiBookLines
+  return (apiBookLines ?? [])
     .map((line) => {
       const moves = line.moves
         .map((move) => ({
@@ -384,29 +384,29 @@ function mapBestLine(line: EngineLine, playerColor: ColorName): BestLine {
     uci: line.move_uci,
     eval_cp: evalCp,
     ...(winProbability === null ? {} : { win_probability: winProbability }),
-    pv_san: line.pv_san,
-    pv_uci: line.pv_uci,
+    pv_san: line.pv_san ?? [],
+    pv_uci: line.pv_uci ?? [],
   };
 }
 
 function scoreToPlayerPovCp(score: Score): number | null {
   if (score.kind === "cp") {
-    return score.value;
+    return score.value ?? null;
   }
   if (score.mate_for === null || score.mate_in === null) {
     return null;
   }
-  const distance = Math.max(0, score.mate_in);
+  const distance = Math.max(0, score.mate_in ?? 0);
   const sign = score.mate_for === "player" ? 1 : -1;
   return sign * Math.max(90_000, MATE_SCORE_BASE - distance);
 }
 
 function winProbabilityFromWdl(
-  wdl: Wdl | null,
+  wdl: Wdl | null | undefined,
   playerColor: ColorName,
   evalCpWhitePov: number,
 ): number | null {
-  if (wdl === null) {
+  if (wdl == null) {
     return null;
   }
   const total = wdl.win + wdl.draw + wdl.loss;
@@ -462,7 +462,8 @@ function humanCommonCandidate(candidates: CandidateMove[]): CandidateMove | null
   return (
     candidates.find(
       (candidate) =>
-        candidate.roles.includes("human_common_move") && !candidate.roles.includes("played_move"),
+        (candidate.roles ?? []).includes("human_common_move") &&
+        !(candidate.roles ?? []).includes("played_move"),
     ) ?? null
   );
 }
@@ -485,7 +486,7 @@ function markerTags(
   if (move.significance.label !== "low") {
     tags.add(`${move.significance.label}_significance`);
   }
-  if (move.beauty.label !== "ordinary") {
+  if (move.beauty.label !== "low") {
     tags.add(safeTag(move.beauty.label));
   }
   const conceptTag = safeTag(concept);

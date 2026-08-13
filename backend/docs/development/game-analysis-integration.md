@@ -31,7 +31,7 @@ provider record cannot be resolved.
 
 A local real-provider deployment needs:
 
-- Python API process running `g6explanation.visualization.http_api:app`
+- Python API process running `g6explanation.api:app`
 - Redis for job snapshots
 - Stockfish available on `PATH` or configured by environment
 - Maia2 installed with local model files
@@ -371,6 +371,10 @@ intentionally needs full evidence packets. Context packets contain detailed
 engine and model metadata that are useful for debugging but heavy for UI traffic.
 
 ## Error Handling
+
+Public failures use a stable `{code, message}` detail object when the frontend
+must branch on recovery behavior. Infrastructure and provider exception text is
+logged server-side and is never returned to anonymous callers.
 
 HTTP failures:
 

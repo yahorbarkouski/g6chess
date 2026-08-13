@@ -6,8 +6,7 @@ node_modules
 .env.*.local
 *.tsbuildinfo
 
-public/stockfish/stockfish-18-single.js
-public/stockfish/stockfish-18-single.wasm
+public/stockfish/
 public/demo.mov
 public/demo.mp4
 .vercel

@@ -11,6 +11,7 @@ import chess
 import pytest
 from fastapi.testclient import TestClient
 
+from g6explanation.api import create_app
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
     ColorName,
@@ -39,7 +40,6 @@ from g6explanation.security import (
     InMemoryFixedWindowRateLimiter,
     TurnstileVerificationError,
 )
-from g6explanation.visualization.http_api import create_app
 
 GAME_ID = "168193636078"
 LICHESS_GAME_ID = "fY44h4OY"
@@ -401,9 +401,9 @@ def test_study_import_without_ratings_requires_explicit_player_levels() -> None:
     )
 
     assert response.status_code == 422
-    assert (
-        "Lichess study chapter import did not include a white rating" in response.json()["detail"]
-    )
+    detail = response.json()["detail"]
+    assert detail["code"] == "import_player_level_required"
+    assert "Lichess study chapter import did not include a white rating" in detail["message"]
 
 
 def test_import_api_rejects_pgn_without_ratings_instead_of_defaulting() -> None:
@@ -423,7 +423,9 @@ def test_import_api_rejects_pgn_without_ratings_instead_of_defaulting() -> None:
     )
 
     assert response.status_code == 422
-    assert "PGN import did not include a white rating" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["code"] == "import_player_level_required"
+    assert "PGN import did not include a white rating" in detail["message"]
 
 
 def test_import_api_accepts_explicit_side_ratings_for_unrated_pgn() -> None:

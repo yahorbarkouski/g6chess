@@ -30,7 +30,7 @@ The frontend turns that into a usable review surface: import a real game,
 navigate the move list, inspect critical moments, preview verified lines on the
 board, and explore alternatives without losing the main game.
 
-## What Is In This Repo
+## What Is In The Frontend
 
 - Vite + React + TypeScript frontend.
 - Chess.com URL, Lichess URL, Lichess study chapter URL, and PGN import UI.
@@ -42,8 +42,8 @@ board, and explore alternatives without losing the main game.
 - Browser Stockfish as an exploration fallback for positions not covered by the
   server snapshot.
 
-The repository is useful for working on the public UI and API contract. It is
-not enough to run the full g6 analysis product without the private backend.
+The complete backend and generated API contract live beside this project at
+`../backend` and `../contracts`.
 
 ## Related Work
 
@@ -53,14 +53,12 @@ not enough to run the full g6 analysis product without the private backend.
 - [`ultrachess-react`](https://github.com/yahorbarkouski/ultrachess-react):
   React chessboard subsystem used by this app, with external board state,
   byte-scoped square subscriptions, WAAPI piece animation, and canvas arrows.
-- Private g6 explanation engine: evidence packets, move labels, verified
+- [`../backend`](../backend): evidence packets, move labels, verified
   explanation generation, source-rights policy, and eval infrastructure.
 - Older `g6chess-*` repos: product lineage around imports, live-game sync,
   narratives, puzzles, and the broader g6 application.
 
 ## Local Development
-
-If you're interested in the collaboration and contribution, please contact me for private backend repository access. I'm planning to opensource it anyway eventually, but the current state is not ready for public review.
 
 Install dependencies:
 
@@ -80,8 +78,7 @@ The app runs at:
 http://127.0.0.1:5173/
 ```
 
-Point it at an analysis API with
-[If you're interested in the collaboration and contribution, please contact me for private repository access]:
+Point it at a local analysis API with:
 ```bash
 VITE_G6_API_BASE_URL=http://127.0.0.1:8001
 ```

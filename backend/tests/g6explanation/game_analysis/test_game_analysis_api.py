@@ -11,6 +11,7 @@ import chess
 import pytest
 from fastapi.testclient import TestClient
 
+from g6explanation.api import create_app
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import (
     ColorName,
@@ -32,7 +33,6 @@ from g6explanation.game_analysis import (
     game_ply_requests,
 )
 from g6explanation.game_analysis.contracts import BookLine, BookLineMove, OpeningBookMetadata
-from g6explanation.visualization.http_api import create_app
 
 TINY_PGN = """
 [Event "Tiny"]

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import importlib
+
 import chess
 import pytest
 from fastapi.testclient import TestClient
 
+from g6explanation.api import app, create_app
 from g6explanation.context_engine import MoveContextBuilder
 from g6explanation.context_engine.contracts import MoveContextRequest, PlayerLevel
 from g6explanation.visualization.contracts import VisualizationMoveContext
 from g6explanation.visualization.example_catalog import visualization_examples
-from g6explanation.visualization.http_api import app, create_app
 from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider, analysis
 
 
@@ -78,10 +80,8 @@ def test_visualization_http_api_builds_context_on_context_endpoint(
         )
         return VisualizationMoveContext(ply=ply, result=result)
 
-    monkeypatch.setattr(
-        "g6explanation.visualization.http_api.build_visualization_context",
-        fake_context,
-    )
+    api_app_module = importlib.import_module("g6explanation.api.app")
+    monkeypatch.setattr(api_app_module, "build_visualization_context", fake_context)
     client = TestClient(app)
 
     response = client.get("/api/visualization/examples/morphy-opera-1858/contexts/1")

@@ -31,7 +31,7 @@ export G6EXPLANATION_REDIS_URL="${G6EXPLANATION_REDIS_URL:-redis://localhost:637
 export G6EXPLANATION_API_HOST="${G6EXPLANATION_API_HOST:-127.0.0.1}"
 export G6EXPLANATION_API_PORT="${G6EXPLANATION_API_PORT:-8001}"
 
-exec uv run uvicorn g6explanation.visualization.http_api:app \
+exec uv run uvicorn g6explanation.api:app \
   --host "$G6EXPLANATION_API_HOST" \
   --port "$G6EXPLANATION_API_PORT" \
   --reload

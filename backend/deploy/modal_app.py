@@ -155,13 +155,15 @@ def run_game_analysis_job(analysis_id: str, request_json: str) -> None:
 )
 def fastapi_app() -> object:
     _configure_logging()
+    if _bool_env("G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH", False):
+        os.environ["G6EXPLANATION_TRUST_PROXY_HEADERS"] = "true"
+    from g6explanation.api import create_app
     from g6explanation.game_analysis import (
         GameAnalysisRunner,
         GameAnalysisService,
         ModalSpawnGameAnalysisExecutor,
         RedisGameAnalysisStore,
     )
-    from g6explanation.visualization.http_api import create_app
 
     analysis_service = GameAnalysisService(
         store=_redis_store(RedisGameAnalysisStore),

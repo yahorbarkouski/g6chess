@@ -1,10 +1,18 @@
-name: CI
+name: Backend CI
 
 on:
   pull_request:
+    paths:
+      - "backend/**"
+      - "contracts/**"
+      - ".github/workflows/backend-ci.yml"
   push:
     branches:
       - main
+    paths:
+      - "backend/**"
+      - "contracts/**"
+      - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +38,9 @@ jobs:
           --health-retries 10
     env:
       G6EXPLANATION_REDIS_URL: redis://localhost:6379/0
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -63,6 +74,9 @@ jobs:
   deployment-entrypoint:
     name: Deployment Entrypoint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

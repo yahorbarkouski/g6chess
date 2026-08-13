@@ -1,7 +1,7 @@
 [project]
 name = "g6explanation"
 version = "0.1.0"
-description = "Evidence-grounded context engine for single-move chess explanations."
+description = "Evidence-grounded chess analysis and verified coaching API."
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 dependencies = [
