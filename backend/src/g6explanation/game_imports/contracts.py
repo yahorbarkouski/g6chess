@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from g6explanation.context_engine.contracts import (
     ContextContract,
@@ -13,8 +13,12 @@ from g6explanation.context_engine.contracts import (
 )
 from g6explanation.game_analysis.contracts import GameAnalysisGame
 
-GameImportSource: TypeAlias = Literal["chess_com_live_url", "lichess_game_url", "pgn"]
-URL_GAME_IMPORT_SOURCES = frozenset({"chess_com_live_url", "lichess_game_url"})
+GameImportSource: TypeAlias = Literal[
+    "chess_com_live_url",
+    "lichess_game_url",
+    "lichess_study_chapter_url",
+    "pgn",
+]
 
 
 def _default_critical_significance() -> list[SignificanceLabel]:
@@ -48,12 +52,9 @@ class ImportedGame(ContextContract):
     metadata: ImportedGameMetadata
 
 
-class GameAnalysisImportRequest(ContextContract):
-    """Request for resolving/importing a game and starting analysis."""
+class GameAnalysisImportOptions(ContextContract):
+    """Options shared by every imported-analysis request variant."""
 
-    source: GameImportSource
-    url: str | None = Field(default=None, max_length=8192)
-    pgn: str | None = Field(default=None, max_length=131072)
     player_level: PlayerLevel | None = None
     white_player_level: PlayerLevel | None = None
     black_player_level: PlayerLevel | None = None
@@ -65,17 +66,42 @@ class GameAnalysisImportRequest(ContextContract):
     use_baseline_fallback: bool = False
     turnstile_token: str | None = Field(default=None, max_length=4096)
 
-    @model_validator(mode="after")
-    def _validate_source_payload(self) -> GameAnalysisImportRequest:
-        if not self.explain_significance:
-            raise ValueError("explain_significance must include at least one label.")
-        if self.source in URL_GAME_IMPORT_SOURCES:
-            if self.url is None or not self.url.strip():
-                raise ValueError(f"url is required for {self.source} imports.")
-            return self
-        if self.pgn is None or not self.pgn.strip():
-            raise ValueError("pgn is required for pgn imports.")
-        return self
+
+class ChessComLiveImportRequest(GameAnalysisImportOptions):
+    """Import one finished Chess.com live-game URL."""
+
+    source: Literal["chess_com_live_url"]
+    url: str = Field(min_length=1, max_length=8192)
+
+
+class LichessGameImportRequest(GameAnalysisImportOptions):
+    """Import one finished public Lichess game URL."""
+
+    source: Literal["lichess_game_url"]
+    url: str = Field(min_length=1, max_length=8192)
+
+
+class LichessStudyChapterImportRequest(GameAnalysisImportOptions):
+    """Import one public Lichess study chapter URL."""
+
+    source: Literal["lichess_study_chapter_url"]
+    url: str = Field(min_length=1, max_length=8192)
+
+
+class PgnImportRequest(GameAnalysisImportOptions):
+    """Import one caller-supplied PGN."""
+
+    source: Literal["pgn"]
+    pgn: str = Field(min_length=1, max_length=131072)
+
+
+GameAnalysisImportRequest: TypeAlias = Annotated[
+    ChessComLiveImportRequest
+    | LichessGameImportRequest
+    | LichessStudyChapterImportRequest
+    | PgnImportRequest,
+    Field(discriminator="source"),
+]
 
 
 class GameAnalysisImportResponse(ContextContract):

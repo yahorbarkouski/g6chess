@@ -28,6 +28,10 @@ from g6explanation.game_imports.lichess_games import (
     LichessGameResolver,
     extract_lichess_game_id,
 )
+from g6explanation.game_imports.lichess_study_chapters import (
+    LichessStudyChapterResolver,
+    extract_lichess_study_chapter_identity,
+)
 
 DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS = 24 * 60 * 60
 
@@ -130,6 +134,10 @@ class GameImportError(ValueError):
     """Raised when an imported game cannot be normalized for analysis."""
 
 
+class ImportPlayerLevelRequiredError(GameImportError):
+    """Raised when source metadata cannot establish a side's player level."""
+
+
 class GameImportService:
     """Resolve user-provided game sources and start game analysis."""
 
@@ -141,6 +149,7 @@ class GameImportService:
         analysis_index_ttl_seconds: int = DEFAULT_IMPORTED_GAME_ANALYSIS_CACHE_TTL_SECONDS,
         chess_com_resolver: ChessComLiveGameResolver | None = None,
         lichess_resolver: LichessGameResolver | None = None,
+        lichess_study_resolver: LichessStudyChapterResolver | None = None,
     ) -> None:
         if analysis_index_ttl_seconds <= 0:
             raise ValueError("analysis_index_ttl_seconds must be positive.")
@@ -149,6 +158,9 @@ class GameImportService:
         self._analysis_index_ttl_seconds = analysis_index_ttl_seconds
         self._chess_com_resolver = chess_com_resolver or ChessComLiveGameResolver.from_env()
         self._lichess_resolver = lichess_resolver or LichessGameResolver.from_env()
+        self._lichess_study_resolver = (
+            lichess_study_resolver or LichessStudyChapterResolver.from_env()
+        )
 
     def start(self, request: GameAnalysisImportRequest) -> GameAnalysisImportResponse:
         cached_response = self._cached_response_for_request(request)
@@ -192,14 +204,30 @@ class GameImportService:
             return None
         return self._cached_index_response(_lichess_analysis_key(normalized))
 
+    def cached_lichess_study_chapter_analysis(
+        self,
+        study_id: str,
+        chapter_id: str,
+    ) -> GameAnalysisImportResponse | None:
+        """Return an existing non-failed analysis pointer for one study chapter."""
+
+        try:
+            identity = extract_lichess_study_chapter_identity(
+                f"https://lichess.org/study/{study_id}/{chapter_id}"
+            )
+        except ValueError:
+            return None
+        return self._cached_index_response(
+            _lichess_study_chapter_analysis_key(identity.external_game_id)
+        )
+
     def _imported_game(self, request: GameAnalysisImportRequest) -> ImportedGame:
         if request.source == "chess_com_live_url":
-            assert request.url is not None
             return self._chess_com_resolver.resolve(request.url)
         if request.source == "lichess_game_url":
-            assert request.url is not None
             return self._lichess_resolver.resolve(request.url)
-        assert request.pgn is not None
+        if request.source == "lichess_study_chapter_url":
+            return self._lichess_study_resolver.resolve(request.url)
         return imported_game_from_pgn(request.pgn)
 
     def _cached_response_for_request(
@@ -338,9 +366,14 @@ def _level_for_imported_side(
         return _validated_explicit_import_level(explicit_side_level, side)
     if import_request.player_level is not None:
         return _validated_explicit_import_level(import_request.player_level, side)
-    raise GameImportError(
-        f"PGN import did not include a {side} rating. Add WhiteElo and BlackElo headers "
-        "or provide explicit player levels."
+    source_name = (
+        "Lichess study chapter"
+        if imported_game.metadata.source == "lichess_study_chapter_url"
+        else "PGN"
+    )
+    raise ImportPlayerLevelRequiredError(
+        f"{source_name} import did not include a {side} rating. Add WhiteElo and BlackElo "
+        "headers or provide explicit player levels."
     )
 
 
@@ -349,7 +382,7 @@ def _level_from_source_rating(value: int, source: str) -> PlayerLevel:
         raise GameImportError("Imported ratings must be positive integers.")
     if source == "chess_com_live_url":
         system = "chess.com"
-    elif source == "lichess_game_url":
+    elif source == "lichess_game_url" or source == "lichess_study_chapter_url":
         system = "lichess"
     else:
         system = "pgn"
@@ -404,17 +437,18 @@ def _lichess_analysis_key(external_game_id: str) -> str:
     return f"lichess_game:{external_game_id}"
 
 
+def _lichess_study_chapter_analysis_key(external_game_id: str) -> str:
+    return f"lichess_study_chapter:{external_game_id}"
+
+
 def _analysis_key_for_request(request: GameAnalysisImportRequest) -> str | None:
     if request.source == "chess_com_live_url":
-        if request.url is None:
-            return None
         return _chess_com_live_analysis_key(extract_chess_com_live_game_id(request.url))
     if request.source == "lichess_game_url":
-        if request.url is None:
-            return None
         return _lichess_analysis_key(extract_lichess_game_id(request.url))
-    if request.pgn is None:
-        return None
+    if request.source == "lichess_study_chapter_url":
+        identity = extract_lichess_study_chapter_identity(request.url)
+        return _lichess_study_chapter_analysis_key(identity.external_game_id)
     payload = {
         "pgn": _normalized_pgn(request.pgn),
         "player_level": _contract_key(request.player_level),

@@ -14,6 +14,9 @@ from g6explanation.game_analysis.contracts import GameAnalysisStartRequest
 from g6explanation.game_imports.chess_com_live_games import extract_chess_com_live_game_id
 from g6explanation.game_imports.contracts import GameAnalysisImportRequest
 from g6explanation.game_imports.lichess_games import extract_lichess_game_id
+from g6explanation.game_imports.lichess_study_chapters import (
+    extract_lichess_study_chapter_identity,
+)
 from g6explanation.security.client_identity import ClientIdentity, client_identity
 from g6explanation.security.rate_limiter import (
     FixedWindowRateLimiter,
@@ -336,20 +339,23 @@ class ApiProtection:
 
 def _source_key_for_import(request: GameAnalysisImportRequest) -> str:
     if request.source == "chess_com_live_url":
-        assert request.url is not None
         try:
             external_game_id = extract_chess_com_live_game_id(request.url)
         except ValueError:
             return f"chess_com_live:invalid:{_short_hash(request.url)}"
         return f"chess_com_live:{external_game_id}"
     if request.source == "lichess_game_url":
-        assert request.url is not None
         try:
             external_game_id = extract_lichess_game_id(request.url)
         except ValueError:
             return f"lichess_game:invalid:{_short_hash(request.url)}"
         return f"lichess_game:{external_game_id}"
-    assert request.pgn is not None
+    if request.source == "lichess_study_chapter_url":
+        try:
+            identity = extract_lichess_study_chapter_identity(request.url)
+        except ValueError:
+            return f"lichess_study_chapter:invalid:{_short_hash(request.url)}"
+        return f"lichess_study_chapter:{identity.external_game_id}"
     return f"pgn:{_short_hash(_normalized_pgn(request.pgn))}"
 
 

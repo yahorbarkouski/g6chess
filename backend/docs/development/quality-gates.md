@@ -193,6 +193,13 @@ The real Lichess smoke does not use Stockfish or OpenRouter. It does use
 Lichess's public export API, so failures can reflect network, rate-limit, or
 upstream availability issues.
 
+Run the chapter-specific smoke when changing Lichess study acquisition:
+
+```text
+G6EXPLANATION_RUN_LICHESS_STUDY_IMPORT=1 \
+uv run pytest tests/g6explanation/game_imports/test_lichess_study_chapters.py -q -s
+```
+
 ## Completion Note
 
 Report checks run, gates passed, skipped gates with reasons, and residual risk.

@@ -30,6 +30,9 @@ from g6explanation.game_imports import (
     LichessGameNotFinishedError,
     LichessGameNotFoundError,
     LichessGameUnavailableError,
+    LichessStudyChapterInvalidPgnError,
+    LichessStudyChapterNotFoundError,
+    LichessStudyChapterUnavailableError,
     game_import_service_from_env,
 )
 from g6explanation.security import AdmissionDenied, ApiProtection
@@ -129,6 +132,19 @@ def create_app(
             protection,
         )
 
+    def read_cached_lichess_study_chapter_analysis(
+        study_id: str,
+        chapter_id: str,
+        http_request: Request,
+    ) -> GameAnalysisImportResponse:
+        return cached_lichess_study_chapter_analysis(
+            study_id,
+            chapter_id,
+            http_request,
+            import_service,
+            protection,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins_from_env(),
@@ -174,6 +190,12 @@ def create_app(
     app.add_api_route(
         "/api/game-analysis/import/chess-com/live/{external_game_id}",
         read_cached_imported_game_analysis,
+        methods=["GET"],
+        response_model=GameAnalysisImportResponse,
+    )
+    app.add_api_route(
+        "/api/game-analysis/import/lichess/study/{study_id}/{chapter_id}",
+        read_cached_lichess_study_chapter_analysis,
         methods=["GET"],
         response_model=GameAnalysisImportResponse,
     )
@@ -274,18 +296,28 @@ def start_imported_game_analysis(
         return service.start(request)
     except AdmissionDenied as exc:
         raise _admission_http_exception(exc) from exc
-    except (ChessComLiveGameNotFoundError, LichessGameNotFoundError) as exc:
+    except (
+        ChessComLiveGameNotFoundError,
+        LichessGameNotFoundError,
+        LichessStudyChapterNotFoundError,
+    ) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ChessComLiveGameNotFinishedError, LichessGameNotFinishedError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (
         ChessComLiveGameUnavailableError,
         LichessGameUnavailableError,
+        LichessStudyChapterUnavailableError,
         GameAnalysisSetupError,
         GameAnalysisStoreError,
     ) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except (GameImportError, LichessGameInvalidPgnError, ValueError) as exc:
+    except (
+        GameImportError,
+        LichessGameInvalidPgnError,
+        LichessStudyChapterInvalidPgnError,
+        ValueError,
+    ) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -316,6 +348,27 @@ def cached_lichess_imported_game_analysis(
     except AdmissionDenied as exc:
         raise _admission_http_exception(exc) from exc
     response = service.cached_lichess_game_analysis(external_game_id)
+    if response is None:
+        raise HTTPException(status_code=404, detail="Cached game analysis not found.")
+    return response
+
+
+def cached_lichess_study_chapter_analysis(
+    study_id: str,
+    chapter_id: str,
+    http_request: Request,
+    service: GameImportService,
+    protection: ApiProtectionBoundary,
+) -> GameAnalysisImportResponse:
+    external_game_id = f"{study_id}/{chapter_id}"
+    try:
+        protection.protect_cached_lookup(
+            request=http_request,
+            external_game_id=external_game_id,
+        )
+    except AdmissionDenied as exc:
+        raise _admission_http_exception(exc) from exc
+    response = service.cached_lichess_study_chapter_analysis(study_id, chapter_id)
     if response is None:
         raise HTTPException(status_code=404, detail="Cached game analysis not found.")
     return response

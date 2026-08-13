@@ -7,7 +7,11 @@ from fastapi import Request
 
 from g6explanation.context_engine.contracts import PlayerLevel
 from g6explanation.game_analysis.contracts import GameAnalysisStartRequest
-from g6explanation.game_imports.contracts import GameAnalysisImportRequest
+from g6explanation.game_imports.contracts import (
+    ChessComLiveImportRequest,
+    LichessGameImportRequest,
+    PgnImportRequest,
+)
 from g6explanation.security import (
     ApiProtection,
     DisabledTurnstileVerifier,
@@ -86,7 +90,7 @@ def test_api_protection_default_rate_limits_are_five_times_larger() -> None:
 
     protection.protect_import_start(
         request=_request(),
-        payload=GameAnalysisImportRequest(
+        payload=PgnImportRequest(
             source="pgn",
             pgn=TINY_PGN,
         ),
@@ -102,7 +106,7 @@ def test_api_protection_default_rate_limits_are_five_times_larger() -> None:
 
     protection.protect_import_start(
         request=_request(),
-        payload=GameAnalysisImportRequest(
+        payload=ChessComLiveImportRequest(
             source="chess_com_live_url",
             url="https://www.chess.com/game/live/168193636078",
         ),
@@ -119,7 +123,7 @@ def test_api_protection_default_rate_limits_are_five_times_larger() -> None:
 
     protection.protect_import_start(
         request=_request(),
-        payload=GameAnalysisImportRequest(
+        payload=LichessGameImportRequest(
             source="lichess_game_url",
             url="https://lichess.org/fY44h4OY",
         ),

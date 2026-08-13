@@ -8,7 +8,7 @@ without making the user wait for a long synchronous request.
 The intended product flow is:
 
 ```text
-Frontend submits Chess.com URL, Lichess URL, or PGN
+Frontend submits Chess.com URL, Lichess game/study URL, or PGN
   -> backend import layer resolves canonical PGN + source metadata
   -> backend starts analysis
   -> API returns analysis_id immediately
@@ -21,7 +21,7 @@ This API is not a separate chess engine. It repeats the verified one-move
 pipeline for every ply and stores the latest job snapshot in Redis.
 
 URL import belongs in the Python API, not the browser. The browser starts from a
-user-provided Chess.com or Lichess URL, but the API owns URL validation,
+user-provided Chess.com or Lichess game/study URL, but the API owns URL validation,
 provider resolution, PGN parsing, cache policy, retry/backoff, and source-rights
 metadata. The frontend must keep a PGN paste fallback for cases where a provider
 cannot be reached, rate-limits the import, the game is unfinished, or the
@@ -90,6 +90,7 @@ G6EXPLANATION_LICHESS_USER_AGENT=g6explanation-local/0.1
 G6EXPLANATION_LICHESS_TIMEOUT_SECONDS=20
 G6EXPLANATION_LICHESS_MAX_RETRIES=2
 G6EXPLANATION_LICHESS_RETRY_BACKOFF_SECONDS=0.5
+G6EXPLANATION_LICHESS_STUDY_MAX_RESPONSE_BYTES=1048576
 G6EXPLANATION_GAME_IMPORT_REDIS_PREFIX=g6:game_import
 G6EXPLANATION_GAME_IMPORT_CACHE_TTL_SECONDS=86400
 ```
@@ -211,6 +212,33 @@ The response mirrors the Chess.com import response, with source metadata such as
 Lichess imports use the public one-game export API, request JSON with a full PGN
 field and clock comments, and accept only finished standard games. They use the
 same import cache and analysis pipeline as other import sources.
+
+## Import A Lichess Study Chapter
+
+Use the chapter URL as its own request variant:
+
+```text
+curl -X POST http://127.0.0.1:8001/api/game-analysis/import \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source": "lichess_study_chapter_url",
+    "url": "https://lichess.org/study/ybdiAVdQ/2pHkbFS9",
+    "explain_significance": ["critical"],
+    "include_context": false
+  }'
+```
+
+The backend requests that one public chapter as PGN, retaining clock comments
+but excluding study comments and variations. The source metadata uses
+`external_game_id: "{study_id}/{chapter_id}"`. When the exported PGN omits a
+side rating, provide explicit `white_player_level` and `black_player_level`;
+the backend never invents a study rating.
+
+An existing chapter analysis can be resumed through:
+
+```text
+GET /api/game-analysis/import/lichess/study/{study_id}/{chapter_id}
+```
 
 If URL import fails, reveal the PGN paste fallback and submit the same endpoint
 with `source: "pgn"`:

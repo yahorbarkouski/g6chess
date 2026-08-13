@@ -30,6 +30,7 @@ from g6explanation.game_imports import (
     GameImportService,
     InMemoryGameAnalysisImportIndex,
     LichessGameResolver,
+    LichessStudyChapterResolver,
 )
 from g6explanation.security import (
     ApiProtection,
@@ -42,6 +43,8 @@ from g6explanation.visualization.http_api import create_app
 
 GAME_ID = "168193636078"
 LICHESS_GAME_ID = "fY44h4OY"
+LICHESS_STUDY_ID = "ybdiAVdQ"
+LICHESS_CHAPTER_ID = "2pHkbFS9"
 TINY_PGN = """
 [Event "Tiny"]
 [Site "Chess.com"]
@@ -74,6 +77,11 @@ LICHESS_TINY_PGN = """
 
 1. e4 {[%clk 0:03:01]} 1... e5 {[%clk 0:02:59]} 2. Nf3 {[%clk 0:02:58]} 1-0
 """.strip()
+
+LICHESS_STUDY_TINY_PGN = LICHESS_TINY_PGN.replace(
+    f"https://lichess.org/{LICHESS_GAME_ID}",
+    f"https://lichess.org/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}",
+)
 
 
 def test_import_api_starts_analysis_from_chess_com_url() -> None:
@@ -306,6 +314,98 @@ def test_cached_import_lookup_returns_existing_lichess_analysis() -> None:
     assert lookup_response.json()["source"]["external_game_id"] == LICHESS_GAME_ID
 
 
+def test_import_api_starts_and_caches_lichess_study_chapter() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        lichess_study_resolver=LichessStudyChapterResolver(
+            transport=FakeLichessStudyTransport(),
+            sleep=lambda _: None,
+        ),
+        analysis_index=InMemoryGameAnalysisImportIndex(),
+    )
+
+    import_response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "lichess_study_chapter_url",
+            "url": (f"https://lichess.org/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}"),
+            "explain_significance": ["critical"],
+            "include_context": True,
+        },
+    )
+    lookup_response = client.get(
+        f"/api/game-analysis/import/lichess/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}"
+    )
+
+    assert import_response.status_code == 200
+    payload = import_response.json()
+    assert payload["source"]["source"] == "lichess_study_chapter_url"
+    assert payload["source"]["external_game_id"] == (f"{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}")
+    assert payload["source"]["allows_global_training"] is False
+    snapshot = client.get(payload["status_url"]).json()
+    assert snapshot["status"] == "succeeded"
+    assert [
+        move["context"]["evidence"]["request"]["player_level"]["system"]
+        for move in snapshot["moves"]
+    ] == ["lichess", "lichess", "lichess"]
+    assert lookup_response.status_code == 200
+    assert lookup_response.json()["analysis_id"] == payload["analysis_id"]
+
+
+def test_import_request_rejects_fields_from_the_wrong_source_variant() -> None:
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        )
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "lichess_study_chapter_url",
+            "url": f"https://lichess.org/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}",
+            "pgn": TINY_PGN,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_study_import_without_ratings_requires_explicit_player_levels() -> None:
+    resolver = LichessStudyChapterResolver(
+        transport=FakeLichessStudyTransport(
+            pgn=LICHESS_STUDY_TINY_PGN.replace('[WhiteElo "1600"]\n', "").replace(
+                '[BlackElo "1500"]\n', ""
+            )
+        ),
+        sleep=lambda _: None,
+    )
+    client = _client(
+        ChessComLiveGameResolver(
+            transport=FakeChessComTransport(),
+            sleep=lambda _: None,
+        ),
+        lichess_study_resolver=resolver,
+    )
+
+    response = client.post(
+        "/api/game-analysis/import",
+        json={
+            "source": "lichess_study_chapter_url",
+            "url": f"https://lichess.org/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}",
+        },
+    )
+
+    assert response.status_code == 422
+    assert (
+        "Lichess study chapter import did not include a white rating" in response.json()["detail"]
+    )
+
+
 def test_import_api_rejects_pgn_without_ratings_instead_of_defaulting() -> None:
     client = _client(
         ChessComLiveGameResolver(
@@ -457,6 +557,7 @@ def _client(
     resolver: ChessComLiveGameResolver,
     *,
     lichess_resolver: LichessGameResolver | None = None,
+    lichess_study_resolver: LichessStudyChapterResolver | None = None,
     analysis_index: InMemoryGameAnalysisImportIndex | None = None,
     api_protection: ApiProtection | None = None,
 ) -> TestClient:
@@ -476,6 +577,7 @@ def _client(
         analysis_service=analysis_service,
         chess_com_resolver=resolver,
         lichess_resolver=lichess_resolver,
+        lichess_study_resolver=lichess_study_resolver,
     )
     return TestClient(
         create_app(
@@ -563,6 +665,25 @@ class FakeLichessTransport:
                 }
             )
         return 404, b"{}"
+
+
+class FakeLichessStudyTransport:
+    def __init__(self, *, pgn: str = LICHESS_STUDY_TINY_PGN) -> None:
+        self.pgn = pgn
+
+    def __call__(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout_seconds: float,
+    ) -> tuple[int, bytes]:
+        del timeout_seconds
+        assert headers["Accept"] == "application/x-chess-pgn"
+        if url.startswith(
+            f"https://lichess.org/api/study/{LICHESS_STUDY_ID}/{LICHESS_CHAPTER_ID}.pgn?"
+        ):
+            return 200, self.pgn.encode("utf-8")
+        return 404, b""
 
 
 class RequiredTurnstileVerifier:

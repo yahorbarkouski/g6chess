@@ -8,7 +8,7 @@ blocking the request for the full Stockfish, Maia, and OpenRouter runtime.
 It is an orchestration layer over the existing one-move truth pipeline:
 
 ```text
-Chess.com URL, Lichess URL, or PGN -> canonical PGN + source metadata -> per-ply context
+Chess.com URL, Lichess game/study URL, or PGN -> canonical PGN + source metadata -> per-ply context
 packets -> deterministic classifications -> verified critical-move explanations
 -> Redis snapshot -> polling frontend
 ```
@@ -49,15 +49,19 @@ The request provides either:
 - `source: "lichess_game_url"` with `url` matching a public standard Lichess
   game such as `https://lichess.org/{id}` or
   `https://lichess.org/game/export/{id}`
+- `source: "lichess_study_chapter_url"` with `url` matching one public chapter
+  such as `https://lichess.org/study/{study_id}/{chapter_id}`
 - `source: "pgn"` with pasted `pgn`
 
 It also accepts the same analysis knobs as `POST /api/game-analysis`:
 `time_control`, `explain_significance`, `include_context`, and
 `use_baseline_fallback`. Imported games derive player levels from source
-ratings: Chess.com and Lichess imports require both side ratings from source
-data, and pasted PGNs use `WhiteElo` and `BlackElo` headers when present. Only
-unrated pasted PGNs may provide explicit `white_player_level` and
-`black_player_level`; the import endpoint must not invent a default rating.
+ratings: Chess.com and standalone Lichess games require both side ratings from
+source data. Study chapters and pasted PGNs use `WhiteElo` and `BlackElo`
+headers when present and otherwise require explicit `white_player_level` and
+`black_player_level`. The import endpoint must not invent a default rating.
+Each source is a discriminated request variant, so URL requests cannot contain
+PGN fields and PGN requests cannot contain URL fields.
 
 The response returns the normal `analysis_id`, `status`, and `status_url` plus
 source metadata such as source kind, external game id when known, title,
@@ -142,16 +146,22 @@ prefix. Useful Lichess configuration:
 - `G6EXPLANATION_LICHESS_TIMEOUT_SECONDS`
 - `G6EXPLANATION_LICHESS_MAX_RETRIES`
 - `G6EXPLANATION_LICHESS_RETRY_BACKOFF_SECONDS`
+- `G6EXPLANATION_LICHESS_STUDY_MAX_RESPONSE_BYTES`
+
+Study-chapter import resolves one public chapter through Lichess's chapter PGN
+API. It keeps clock comments for timing evidence, removes study comments and
+variations from the acquisition response, rejects non-standard or empty PGN,
+and uses a cache identity containing both study and chapter ids.
 
 The current local runner is single-process. Redis persists the latest snapshot,
 but in-flight work is owned by the Python process that accepted the job.
 
 ## Source Rights
 
-Chess.com URL imports, Lichess URL imports, and manual PGN imports are accepted
-only as user-requested analysis inputs. They must not enter global eval or
-training manifests unless a future explicit source-rights policy authorizes
-that source. Import source metadata always marks these jobs with
+Chess.com URL imports, Lichess game and study imports, and manual PGN imports
+are accepted only as user-requested analysis inputs. They must not enter global
+eval or training manifests unless a future explicit source-rights policy
+authorizes that source. Import source metadata always marks these jobs with
 `allows_global_training=false`.
 
 ## Failure Policy
@@ -175,6 +185,7 @@ Import failures happen before the job starts:
   temporary unavailability
 - invalid or unsupported Lichess URLs are rejected
 - unfinished or non-standard Lichess games are rejected
+- missing, empty, oversized, or non-standard Lichess study chapters are rejected
 - Lichess timeout, rate-limit, or export unavailability is reported as
   temporary unavailability
 - unresolved archive records and invalid PGN are rejected
