@@ -38,6 +38,10 @@ def test_real_explanation_eval_catalog_targets_expected_moves() -> None:
             assert board.san(chess.Move.from_uci(case.played_move)) == case.expected_san
 
 
+def test_published_eval_catalog_contains_only_redistributable_sources() -> None:
+    assert all(case.source.allows_global_training for case in REAL_EXPLANATION_EVAL_CASES)
+
+
 def test_select_real_explanation_eval_cases_preserves_requested_order() -> None:
     selected = select_real_explanation_eval_cases(["fools-mate-g4-blunder", "opera-final-mate"])
 
