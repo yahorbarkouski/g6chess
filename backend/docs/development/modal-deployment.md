@@ -57,11 +57,15 @@ Optional GitHub environment variable:
 
 ```text
 G6EXPLANATION_CORS_ORIGINS=https://your-frontend.example
-G6EXPLANATION_MODAL_CUSTOM_DOMAINS=api.your-frontend.example
 G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true
 ```
 
 Use a comma-separated list for multiple frontend origins.
+
+Set `G6EXPLANATION_MODAL_CUSTOM_DOMAINS` only when the hostname is registered
+in Modal and points directly at the Modal Web Function. Leave it unset when a
+Cloudflare Worker owns the public hostname and forwards to the generated
+`.modal.run` origin.
 
 Provision runtime values directly in Modal's `g6explanation-runtime` secret:
 
@@ -80,18 +84,23 @@ trusted reviewers.
 
 ## Cloudflare Gateway
 
-For public traffic, put the API hostname behind Cloudflare and enable Modal
-proxy auth:
+The provided Worker is the recommended public gateway. In this mode,
+Cloudflare owns the API hostname and forwards to Modal's generated origin:
 
 ```text
-G6EXPLANATION_MODAL_CUSTOM_DOMAINS=api.your-frontend.example
 G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true
+G6EXPLANATION_MODAL_CUSTOM_DOMAINS=<unset>
 ```
 
 The generated `.modal.run` URL remains reachable unless proxy auth is enabled.
 With proxy auth on, Cloudflare must add `Modal-Key` and `Modal-Secret` as origin
 request headers. A Worker template is provided at
 `deploy/cloudflare/modal-proxy-worker.js`.
+
+Do not set the Cloudflare-owned hostname as a Modal custom domain in this mode.
+Modal rejects deployment when a requested domain is not registered in the
+workspace, and the Worker does not need that registration because its origin is
+the generated `.modal.run` URL.
 
 Forwarding headers are ignored by default. The Modal entrypoint enables them
 only when `G6EXPLANATION_MODAL_REQUIRES_PROXY_AUTH=true`, so direct clients
@@ -104,6 +113,12 @@ MODAL_ORIGIN_HOST=<workspace>--g6explanation-fastapi-app.modal.run
 MODAL_KEY=<Modal proxy auth key>
 MODAL_SECRET=<Modal proxy auth secret>
 ```
+
+The alternative is a Modal-registered custom domain behind Cloudflare DNS or
+an origin-header transform. For that topology, register and validate the
+hostname in Modal first, then set
+`G6EXPLANATION_MODAL_CUSTOM_DOMAINS=api.your-frontend.example`. Do not deploy
+the Worker template at the same hostname.
 
 After deployment, verify:
 
