@@ -28,7 +28,7 @@ Completed foundation:
 - deterministic baseline renderer
 - explanation verifier
 - static provider tests
-- OpenRouter `openai/gpt-5.5` adapter
+- OpenRouter `openai/gpt-5.6-terra` adapter with high reasoning
 - retry/fallback orchestration
 - public `explain_move(request) -> str`
 - no-mock Stockfish + Maia + OpenRouter eval harness
@@ -65,6 +65,14 @@ accept seed records, then prepare training manifests
 
 ## Checkpoint Log
 
+- 2026-08-13: changed the default OpenRouter model to
+  `openai/gpt-5.6-terra` with high reasoning. Initial prompt v23 and v24 runs
+  each passed 23/24 cases and exposed unsupported positional wording plus an
+  omitted played-move SAN. Prompt v25 now requires the exact played SAN and
+  gives evidence-only retry instructions. Generation permits three verified
+  attempts. The final no-mock promotion run passed 24/24 with Stockfish depth
+  16, real Maia, 0 failures, 0 fallbacks, and 6 cases resolved on a second
+  attempt.
 - 2026-05-03: expanded the real no-mock eval suite from 8 to 12 cases with
   castling, en passant, promotion, low-time, rating-ladder, Black-perspective,
   and missed-win coverage. Added typed concept claims and verifier support for

@@ -375,7 +375,7 @@ class FailingCoachProvider:
 
     @property
     def model(self) -> str:
-        return "openai/gpt-5.5"
+        return "openai/gpt-5.6-terra"
 
     def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
         del prompt

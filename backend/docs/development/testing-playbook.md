@@ -68,7 +68,7 @@ Maia:
 OpenRouter:
 
 - Keep `OPENROUTER_API_KEY` in `.env` or the environment.
-- The default model adapter uses `openai/gpt-5.5`.
+- The default model adapter uses `openai/gpt-5.6-terra` with high reasoning.
 - Override model or reasoning effort with `G6EXPLANATION_OPENROUTER_MODEL` and
   `G6EXPLANATION_OPENROUTER_REASONING_EFFORT`.
 - Tune provider resilience with `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,

@@ -19,7 +19,7 @@ from g6explanation.explanation_generation.contracts import (
 from g6explanation.explanation_generation.exceptions import CoachModelError
 
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.5"
+DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.6-terra"
 DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_MAX_RETRIES = 1

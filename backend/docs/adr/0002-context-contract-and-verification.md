@@ -101,6 +101,10 @@ product-ready.
   call an idea "better" unless verified better-move evidence supports that label.
 - Model adapters cannot change context-engine truth. They may only produce raw
   schema-shaped explanation output for the generation layer to verify.
+- The production OpenRouter adapter defaults to `openai/gpt-5.6-terra` with
+  high reasoning. Generation allows at most three model attempts, and every
+  attempt must pass deterministic verification. Changing the default model
+  requires the no-mock real-provider gate before release.
 - Game-analysis snapshots expose compact per-move board, engine, label, and
   explanation fields for frontend polling. Full `ContextResult` packets are
   optional debug payloads gated by `include_context=true`, not required for the

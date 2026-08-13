@@ -23,7 +23,7 @@ Implemented pieces:
 - explanation-text verifier
 - static coach provider tests
 - generation service with retry and fallback behavior
-- OpenRouter adapter defaulting to `openai/gpt-5.5`
+- OpenRouter adapter defaulting to `openai/gpt-5.6-terra` with high reasoning
 - public `explain_move(...) -> str` wrapper for FEN + UCI move input, explicit
   PGN ply input, or an existing `MoveContextRequest`
 
@@ -55,15 +55,16 @@ API still returns only the verified joined `explanation` string, while
 `ExplanationInputError` exceptions instead of silently guessing.
 
 The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
-`.env`, uses `openai/gpt-5.5` by default, and can be overridden with
-`G6EXPLANATION_OPENROUTER_MODEL`. Provider resilience settings are explicit:
+`.env`, uses `openai/gpt-5.6-terra` with high reasoning by default, and can be
+overridden with `G6EXPLANATION_OPENROUTER_MODEL`. Provider resilience settings
+are explicit:
 `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
 `G6EXPLANATION_OPENROUTER_MAX_RETRIES`,
 `G6EXPLANATION_OPENROUTER_RETRY_BACKOFF_SECONDS`, and optional
 `G6EXPLANATION_OPENROUTER_MAX_TOKENS`. The default completion-token cap is 4096;
 set the env var only for constrained experiments.
 
-Current prompt version: `single_move_coach.v23`. Current explanation schema
+Current prompt version: `single_move_coach.v25`. Current explanation schema
 version: `explanation_output.v5`.
 
 Prompt Version 2 made
@@ -144,6 +145,12 @@ orange for why an apparent idea or capture cannot work, green for best moves or
 better alternatives, and blue for brilliant, great, beautiful, or very strong
 played ideas. The color is presentation metadata for the verified anchor, not a
 new chess-truth signal.
+Version 24 makes opponent-reply explanations conditional on supplied evidence
+and tells retries to delete unsupported purpose or positional wording. This
+blocks pressure, initiative, development, and similar embellishments when the
+context supplies only the reply move.
+Version 25 requires the exact played-move SAN in visible prose and adds a
+specific repair when the model replaces it with a natural-language description.
 
 Schema Version 5 adds
 the nullable `highlight_color` field to segments. New provider output should
@@ -203,8 +210,9 @@ Public `explain_move` accepts either:
 PGN input requires an explicit ply. FEN input requires a played move. Ambiguous
 mixed input is rejected.
 
-Schema failures are hard failures. The verifier may retry once with concrete
-issue codes, but invalid output must never be returned directly.
+Schema failures are hard failures. The verifier may make up to three bounded
+model attempts with concrete issue codes, but invalid output must never be
+returned directly.
 
 ## Deterministic Baseline
 
@@ -295,7 +303,7 @@ render baseline candidate
 call provider for strict JSON
 validate schema
 verify explanation text
-retry once with verifier failures if needed
+make up to three model attempts with verifier failures if needed
 return verified model segments plus joined string, verified baseline fallback, or
 controlled failure
 ```

@@ -34,6 +34,8 @@ from g6explanation.explanation_generation.explanation_verification import (
 from g6explanation.explanation_generation.openrouter_chat import OpenRouterCoachModelProvider
 from g6explanation.explanation_generation.prompt_builder import build_coach_prompt
 
+DEFAULT_MAX_MODEL_ATTEMPTS = 3
+
 
 class ExplanationService:
     """Generate and verify one explanation from verified context evidence."""
@@ -43,7 +45,7 @@ class ExplanationService:
         context_builder: MoveContextBuilder,
         coach_provider: CoachModelProvider,
         explanation_verifier: ExplanationVerifier | None = None,
-        max_model_attempts: int = 2,
+        max_model_attempts: int = DEFAULT_MAX_MODEL_ATTEMPTS,
         use_baseline_fallback: bool = True,
     ) -> None:
         if max_model_attempts < 1:

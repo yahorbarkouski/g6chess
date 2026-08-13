@@ -84,6 +84,10 @@ def build_coach_prompt(
                 "diagonal, or the king is left exposed."
             ),
             (
+                "Include the exact SAN string from llm_context.played at least once. "
+                "Do not replace it with only a natural-language description of the move."
+            ),
+            (
                 "Do not describe a variation as 'after MOVE, MOVE...' in visible text "
                 "or card prose. Avoid generic capture/takes wording in line-card prose; "
                 "use follow-up, pressure, idea, or mating pattern unless a supplied "
@@ -193,8 +197,10 @@ def build_coach_prompt(
                 "player actually made it."
             ),
             (
-                "When a bad move allows a key reply, explain why that reply is good for "
-                "the opponent and bad for the player. Do not stop at 'it allowed MOVE'."
+                "When a bad move allows a key reply, explain why that reply works only "
+                "when a supplied concept_claim or line_evidence states the reason. "
+                "Otherwise state the reply as the consequence and stop. Do not invent "
+                "pressure, initiative, development, king safety, or positional purpose."
             ),
             (
                 "For good high-WDL or good-not-best moves, explain why the played move "
@@ -359,10 +365,21 @@ def _retry_repair_instructions(
             "supports that direction and names the material; recapture, recovery, trade, "
             "or exchange claims must keep that exact material relationship."
         )
+    if "unsupported_concept_claim" in codes:
+        instructions.append(
+            "Remove every purpose, effect, or positional description that is not stated "
+            "in a supplied concept_claim or allowed_claim. Copy the supported claim "
+            "directly when paraphrasing would add a new concept."
+        )
     if "mentioned_move_unsupported" in codes or "unsupported_pv" in codes:
         instructions.append(
             "Mention only the played move, supplied candidate moves, and explicitly "
             "allowed replies."
+        )
+    if "played_move_missing" in codes:
+        instructions.append(
+            "Include the exact SAN string from llm_context.played. Do not replace it "
+            "with a description such as 'the queen capture' or 'the checking move'."
         )
     if not instructions:
         instructions.append("Rewrite using only the supplied allowed_claims and concept_claims.")

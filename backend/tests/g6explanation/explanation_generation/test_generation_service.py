@@ -7,13 +7,18 @@ from typing import cast
 import pytest
 
 from g6explanation.context_engine import ContextResult, MoveContextBuilder, MoveContextRequest
-from g6explanation.explanation_generation.contracts import CoachModelResponse, CoachPrompt
+from g6explanation.explanation_generation.contracts import (
+    CoachModelResponse,
+    CoachPrompt,
+    ExplanationVerificationIssue,
+)
 from g6explanation.explanation_generation.exceptions import (
     CoachModelError,
     ExplanationInputError,
     ExplanationVerificationError,
 )
 from g6explanation.explanation_generation.generation_service import ExplanationService, explain_move
+from g6explanation.explanation_generation.prompt_builder import build_coach_prompt
 from tests.g6explanation.context_engine.helpers import StaticAnalysisProvider
 from tests.g6explanation.explanation_generation.helpers import (
     mistake_context_with_practical_alternative,
@@ -98,7 +103,7 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     result = service.explain_context(context)
     prompt_payload = provider.prompts[0].messages[1]["content"]
 
-    assert result.prompt_version == "single_move_coach.v23"
+    assert result.prompt_version == "single_move_coach.v25"
     assert "segments and line_cards" in prompt_payload
     assert "line_card_anchor" in prompt_payload
     assert "highlight_color" in prompt_payload
@@ -110,11 +115,13 @@ def test_prompt_spells_out_style_and_recommendation_policy_contract() -> None:
     assert "do not repeat the visible segment" in prompt_payload
     assert "Do not shorten long supplied move sequences" in prompt_payload
     assert "Avoid notation-heavy prose" in prompt_payload
+    assert "Include the exact SAN string from llm_context.played" in prompt_payload
     assert "The moves array is for board visualization" in prompt_payload
     assert "Do not describe a variation as 'after MOVE, MOVE...'" in prompt_payload
     assert "Copy the supplied line_evidence title and why exactly" in prompt_payload
     assert "roughly 35 to 90 visible words" in prompt_payload
-    assert "why that reply is good for" in prompt_payload
+    assert "explain why that reply works only" in prompt_payload
+    assert "Do not invent pressure, initiative, development" in prompt_payload
     assert "Use a neutral explanatory voice" in prompt_payload
     assert "Write like a compact game-review note" in prompt_payload
     assert "Avoid rigid templates" in prompt_payload
@@ -201,12 +208,54 @@ def test_service_retries_with_verifier_failures() -> None:
     assert "retry_repair_instructions" in provider.prompts[1].messages[1]["content"]
 
 
+def test_prompt_retry_removes_unsupported_concept_language() -> None:
+    prompt = build_coach_prompt(
+        mistake_context_with_practical_alternative(),
+        retry_issues=[
+            ExplanationVerificationIssue(
+                code="unsupported_concept_claim",
+                message="Explanation used an unsupported positional claim.",
+                path="segments.0.text",
+            )
+        ],
+    )
+
+    payload = json.loads(prompt.messages[1]["content"])
+
+    assert payload["retry_repair_instructions"] == [
+        "Remove every purpose, effect, or positional description that is not stated "
+        "in a supplied concept_claim or allowed_claim. Copy the supported claim "
+        "directly when paraphrasing would add a new concept."
+    ]
+
+
+def test_prompt_retry_restores_exact_played_move_san() -> None:
+    prompt = build_coach_prompt(
+        mistake_context_with_practical_alternative(),
+        retry_issues=[
+            ExplanationVerificationIssue(
+                code="played_move_missing",
+                message="Explanation omitted the played move.",
+                path="segments",
+            )
+        ],
+    )
+
+    payload = json.loads(prompt.messages[1]["content"])
+
+    assert payload["retry_repair_instructions"] == [
+        "Include the exact SAN string from llm_context.played. Do not replace it "
+        "with a description such as 'the queen capture' or 'the checking move'."
+    ]
+
+
 def test_service_uses_verified_fallback_after_unverified_model_attempts() -> None:
     context = mistake_context_with_practical_alternative()
     provider = StaticCoachProvider(
         [
             _response("g4 was a mistake, and a3 was the better move."),
             _response("g4 was a mistake because it loses a queen."),
+            _response("g4 was a mistake because it wins a rook."),
         ]
     )
     service = ExplanationService(
@@ -219,7 +268,11 @@ def test_service_uses_verified_fallback_after_unverified_model_attempts() -> Non
     assert result.finish_reason == "fallback"
     assert result.used_fallback
     assert result.verification.passed
-    assert [attempt.verification_passed for attempt in result.attempts] == [False, False]
+    assert [attempt.verification_passed for attempt in result.attempts] == [
+        False,
+        False,
+        False,
+    ]
 
 
 def test_service_exposes_attempts_on_controlled_verification_failure() -> None:
@@ -379,7 +432,7 @@ def _unused_builder() -> MoveContextBuilder:
 class FailingCoachProvider:
     error: str
     provider_name: str = "openrouter"
-    model: str = "openai/gpt-5.5"
+    model: str = "openai/gpt-5.6-terra"
 
     def generate(self, prompt: CoachPrompt) -> CoachModelResponse:
         del prompt

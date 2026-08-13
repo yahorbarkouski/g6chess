@@ -109,7 +109,8 @@ Production-shaped local game analysis uses:
 
 - Stockfish depth 16 or deeper
 - Maia2 when available through the project Maia extra
-- OpenRouter `openai/gpt-5.5` through the existing provider adapter
+- OpenRouter `openai/gpt-5.6-terra` with high reasoning through the existing
+  provider adapter
 - Redis for local job snapshots
 - parallel context workers configured by
   `G6EXPLANATION_GAME_ANALYSIS_CONTEXT_WORKERS`, defaulting to `8` in Modal

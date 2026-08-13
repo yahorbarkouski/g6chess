@@ -19,7 +19,7 @@ Implemented:
   `LLMContext` objects.
 - `g6explanation.explanation_generation`: turns verified context into one
   schema-valid, deterministically verified explanation string. The OpenRouter
-  adapter defaults to `openai/gpt-5.5`.
+  adapter defaults to `openai/gpt-5.6-terra` with high reasoning.
 - `g6explanation.game_analysis`: starts Redis-backed asynchronous full-game
   jobs, classifies every completed ply, and adds verified GPT explanations for
   configured criticality labels.
