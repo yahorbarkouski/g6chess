@@ -23,3 +23,6 @@ bun run build
 
 cd "$repository_root"
 git diff --exit-code -- contracts/openapi.json frontend/src/generated/g6-api.ts
+
+cd "$repository_root/backend"
+uv run python ../tools/check_readme_prose.py

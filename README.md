@@ -1,79 +1,61 @@
-# g6: Free Chess Analysis
-
-[Try g6](https://g6chess.com)
+# [g6](https://g6chess.com): Free Chess Analysis
 
 https://github.com/user-attachments/assets/983c9ebf-1496-47e1-a61a-580f2b8c7dca
 
-g6 reviews a real chess game one move at a time. Paste a Chess.com game,
-Lichess game, Lichess study chapter, or PGN. g6 reconstructs the game, analyzes
-each position, and turns the important moments into explanations you can use.
+Paste a Chess.com game, Lichess game, Lichess study chapter, or PGN. g6 opens
+the board and builds a move-by-move review with engine lines, move labels,
+opening information, and plain-English explanations.
 
-The point is not to make an LLM play chess. The point is to build a coach whose
-words stay tied to chess evidence.
+[Try g6](https://g6chess.com)
 
-```text
-Stockfish + Maia + deterministic rules + verifiers = truth and diagnosis
-LLM or deterministic renderer = wording for verified explanations
-```
+## Game review
 
-## What you get
+- Follow every move on an interactive board.
+- Jump between critical moments from the move list.
+- Preview Stockfish lines directly on the board.
+- Compare the played move with stronger alternatives.
+- See opening names, book moves, evaluation, and clock context.
+- Read explanations written for the player's level.
+- Share Chess.com, Lichess, study, and analysis routes.
 
-- A board-first review with move quality, critical moments, and evaluation.
-- Verified engine lines that can be previewed directly on the board.
-- Human move-likelihood evidence from Maia, kept separate from objective move
-  quality.
-- Coach-style explanations checked against the supplied chess evidence.
-- Imports from Chess.com, Lichess, Lichess studies, and pasted PGN.
-- Shareable game routes and progressive results while deeper analysis runs.
+The board appears as soon as the game imports. Labels and explanations arrive
+as the backend finishes each part of the analysis.
 
-The review is built to answer one question:
+## How analysis runs
 
-> At this move in my game, what happened, how good was my move, and what should
-> I understand?
+1. The backend imports the game and reconstructs every legal position.
+2. Stockfish evaluates the played move and its alternatives.
+3. Maia estimates which moves players at a similar rating tend to choose.
+4. Deterministic rules assign quality, significance, and beauty labels.
+5. GPT-5.6 Terra writes explanations for selected moves.
+6. The explanation verifier checks move references and chess claims.
+7. Redis stores partial results while the frontend polls for updates.
 
-## How it works
+## Repository
 
-```text
-Game URL or PGN
-  -> canonical game and legal move reconstruction
-  -> Redis-backed analysis job
-  -> Stockfish evaluation and Maia move likelihoods
-  -> deterministic move labels and evidence packets
-  -> explanation generation
-  -> deterministic explanation verification
-  -> progressive results in the React client
-```
-
-Stockfish decides objective strength. Maia estimates how likely a human is to
-find a move. Rules and verifiers decide which claims the explanation may make.
-The language model only phrases those supported claims. If verification fails,
-g6 rejects the explanation instead of returning plausible-sounding chess.
-
-## Repository layout
-
-| Path | What lives there |
+| Path | Contents |
 | --- | --- |
 | [`frontend/`](frontend/README.md) | React, Vite, UltraChess, the analysis workspace, and browser Stockfish |
-| [`backend/`](backend/README.md) | FastAPI, Stockfish and Maia analysis, Redis jobs, imports, explanation generation, and verification |
-| [`contracts/`](contracts/README.md) | Committed OpenAPI schema and generated frontend transport types |
-| [`tools/`](tools) | Repository-wide release and contract checks |
+| [`backend/`](backend/README.md) | FastAPI, Stockfish, Maia, Redis snapshots, imports, explanations, and verification |
+| [`contracts/`](contracts/README.md) | OpenAPI schema and generated frontend transport types |
+| [`tools/`](tools) | Repository-wide checks |
 
-The backend Pydantic models own the API contract. The repository exports them
-as [`contracts/openapi.json`](contracts/openapi.json) and generates TypeScript
-transport types for the frontend. UI-specific mapping remains handwritten at
-the network boundary.
+Backend Pydantic models define the API contract. The repository exports them to
+[`contracts/openapi.json`](contracts/openapi.json) and generates matching
+TypeScript types for the frontend.
 
-## Run g6 locally
+## Run locally
 
 You need:
 
 - Bun 1.3
-- Python 3.11 or newer and [uv](https://docs.astral.sh/uv/)
+- Python 3.11 or newer
+- [uv](https://docs.astral.sh/uv/)
 - Docker
-- Stockfish available on `PATH`
-- An OpenRouter API key for generated explanations
+- Stockfish on `PATH`
+- An OpenRouter API key
 
-Install both applications and create the local backend environment:
+Install the backend and frontend:
 
 ```sh
 (cd backend && uv sync --locked --dev --extra maia)
@@ -81,21 +63,21 @@ Install both applications and create the local backend environment:
 cp backend/.env.example backend/.env
 ```
 
-Add your key to `backend/.env`:
+Add the OpenRouter key to `backend/.env`:
 
 ```text
 OPENROUTER_API_KEY=...
 ```
 
-Start the API in one terminal:
+Start the API:
 
 ```sh
 cd backend
 ./run.sh
 ```
 
-`run.sh` starts the local Redis container and serves the API at
-`http://127.0.0.1:8001`. The first real analysis downloads the Maia model.
+`run.sh` starts Redis and serves the API at `http://127.0.0.1:8001`. The first
+real analysis downloads the Maia model.
 
 Start the frontend in another terminal:
 
@@ -106,64 +88,53 @@ bun run dev
 
 Open `http://127.0.0.1:5173`.
 
-If Stockfish is not discoverable on `PATH`, set its absolute path in
-`backend/.env`:
+Set the Stockfish path in `backend/.env` when the executable is outside
+`PATH`:
 
 ```text
 G6EXPLANATION_GAME_ANALYSIS_STOCKFISH_BINARY=/absolute/path/to/stockfish
 ```
 
-## Verify a change
-
-Run the complete deterministic release proof from the repository root:
+## Run the checks
 
 ```sh
 ./tools/prove.sh
 ```
 
-This checks backend formatting, linting, static types, and tests. It also audits,
-generates contracts, type-checks, lints, tests, and builds the frontend. These
-checks use deterministic providers and do not spend OpenRouter credits.
+This command checks backend formatting, lint, types, and tests. It also audits,
+generates contracts, type-checks, lints, tests, and builds the frontend. The
+deterministic test suite does not spend OpenRouter credits.
 
-Provider-facing backend changes also need the real Stockfish, Maia, Redis, and
-OpenRouter gate described in the
+Changes to providers, prompts, or model behavior also require the real
+Stockfish, Maia, Redis, and OpenRouter checks in the
 [`backend testing playbook`](backend/docs/development/testing-playbook.md).
 
 ## Deployment
 
-Frontend and backend releases have different safety rules.
+Vercel deploys the frontend from `main`. GitHub runs frontend, backend, contract,
+and secret checks on each relevant push.
 
-- Vercel builds a preview when a branch is pushed. A merge or direct push to
-  `main` deploys the frontend to production automatically.
-- GitHub runs frontend and backend quality checks for pull requests and relevant
-  changes on `main`.
-- Publishing source does not deploy the backend. A reviewed commit must pass the
-  protected, manually dispatched `Deploy Modal` workflow.
-
-The root [`vercel.json`](vercel.json) builds `frontend/` for the existing Vercel
-project. Backend infrastructure, required secrets, runtime settings, and smoke
-tests are documented in the
-[`Modal deployment guide`](backend/docs/development/modal-deployment.md).
+Modal backend releases use the protected `Deploy Modal` workflow. The
+[`Modal deployment guide`](backend/docs/development/modal-deployment.md) covers
+secrets, runtime settings, Cloudflare routing, and production smoke tests.
 
 ## Related projects
 
-- [`ultrachess`](https://github.com/yahorbarkouski/ultrachess) provides the
-  Rust and WebAssembly chess library used for legal moves, FEN, SAN, PGN,
-  perft, and hashing.
+- [`ultrachess`](https://github.com/yahorbarkouski/ultrachess) provides legal
+  move generation, FEN, SAN, PGN, perft, and hashing through Rust and WebAssembly.
 - [`ultrachess-react`](https://github.com/yahorbarkouski/ultrachess-react)
   provides the React chessboard, piece animation, and canvas arrows.
 
 ## Contributing
 
-Start with [`AGENTS.md`](AGENTS.md) for repository rules. Backend product and
-development documentation begins at
-[`backend/docs/README.md`](backend/docs/README.md). Keep chess truth outside the
-language model, regenerate the contract after schema changes, and run
-`./tools/prove.sh` before opening a pull request.
+Read [`AGENTS.md`](AGENTS.md) and the relevant application guide before making
+changes. Backend product and development documentation starts at
+[`backend/docs/README.md`](backend/docs/README.md).
+
+Run `./tools/prove.sh` before opening a pull request.
 
 ## License and security
 
-G6 is licensed under
-[`GPL-3.0-or-later`](LICENSE). Third-party components retain their own terms;
-see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Report vulnerabilities
-privately according to [`SECURITY.md`](SECURITY.md).
+g6 uses the [`GPL-3.0-or-later`](LICENSE) license. Third-party components keep
+their original terms in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Report security issues through [`SECURITY.md`](SECURITY.md).
