@@ -8,7 +8,7 @@ dependencies = [
   "chess>=1.10,<2",
   "fastapi>=0.115,<1",
   "pydantic>=2,<3",
-  "redis>=5,<6",
+  "redis>=5,<9",
   "uvicorn[standard]>=0.30,<1",
 ]
 
@@ -22,7 +22,7 @@ deployment = [
 maia = [
   "einops>=0.8",
   "gdown>=5",
-  "maia2==0.9",
+  "maia2==0.11.0",
   "numpy>=1.26",
   "pandas>=2",
   "pyyaml>=6",
