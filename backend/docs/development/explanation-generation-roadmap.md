@@ -28,7 +28,7 @@ Completed foundation:
 - deterministic baseline renderer
 - explanation verifier
 - static provider tests
-- OpenRouter `openai/gpt-5.6-terra` adapter with high reasoning
+- OpenRouter `openai/gpt-6.1-terra` adapter with high reasoning
 - retry/fallback orchestration
 - public `explain_move(request) -> str`
 - no-mock Stockfish + Maia + OpenRouter eval harness
@@ -65,6 +65,15 @@ accept seed records, then prepare training manifests
 
 ## Checkpoint Log
 
+- 2026-11-03: promoted the default OpenRouter model to
+  `openai/gpt-6.1-terra` with high reasoning, retaining prompt v25 and the
+  existing verification policy. The full 24-case no-mock comparison used real
+  Stockfish depth 16 and real Maia with fallback disabled. Both models passed
+  24/24; 6.1 Terra needed 3 retries versus 5 for 5.6 Terra, with no increased
+  failure-code counts. Manual review accepted all three repaired explanations:
+  two removed bishop-square wording rejected by the move scanner, and one
+  supplied the required missed-win label. The promotion gate passed, as did
+  the Redis-backed Opera Game API gate across all 33 plies.
 - 2026-08-13: changed the default OpenRouter model to
   `openai/gpt-5.6-terra` with high reasoning. Initial prompt v23 and v24 runs
   each passed 23/24 cases and exposed unsupported positional wording plus an

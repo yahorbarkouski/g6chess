@@ -76,6 +76,22 @@ def test_openrouter_provider_loads_api_key_from_dotenv(
     assert openrouter_api_key(dotenv) == "dotenv-key"
 
 
+def test_openrouter_provider_defaults_to_terra_6_1_with_model_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("G6EXPLANATION_OPENROUTER_MODEL", raising=False)
+    monkeypatch.delenv("G6EXPLANATION_OPENROUTER_REASONING_EFFORT", raising=False)
+
+    provider = OpenRouterCoachModelProvider.from_env(tmp_path / ".env")
+
+    assert provider.model == "openai/gpt-6.1-terra"
+    assert provider.reasoning_effort == "high"
+
+    monkeypatch.setenv("G6EXPLANATION_OPENROUTER_MODEL", "custom/model")
+    assert OpenRouterCoachModelProvider.from_env().model == "custom/model"
+
+
 def test_openrouter_provider_loads_resilience_settings_from_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

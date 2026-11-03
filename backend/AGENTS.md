@@ -95,7 +95,7 @@ The explanation-generation layer is implemented downstream of
 `g6explanation.context_engine`. It owns strict explanation output contracts,
 prompt construction, deterministic explanation-text verification, a deterministic
 fallback renderer, retry behavior, and an OpenRouter model adapter that defaults
-to `openai/gpt-5.6-terra` with high reasoning. The fallback renderer is not a
+to `openai/gpt-6.1-terra` with high reasoning. The fallback renderer is not a
 judge for model quality; raw
 model output must pass deterministic verification against the context packet.
 
