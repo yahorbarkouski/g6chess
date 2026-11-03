@@ -11,7 +11,7 @@ Implemented:
   `LLMContext` objects.
 - `g6explanation.explanation_generation`: turns verified context into one
   schema-valid, deterministically verified explanation string. The OpenRouter
-  adapter defaults to `openai/gpt-5.6-terra` with high reasoning.
+  adapter defaults to `openai/gpt-6.1-terra` with high reasoning.
 - `g6explanation.game_analysis`: submits asynchronous full-game analysis to a
   local thread or Modal worker, stores progressive snapshots in Redis,
   classifies every completed ply, and adds verified explanations for configured
@@ -34,7 +34,7 @@ Implemented:
 | python-chess | Parses PGN, reconstructs legal positions, converts UCI and SAN, and communicates with Stockfish. |
 | Stockfish | Produces objective evaluations and principal variations at depth 16 or deeper. |
 | Maia2 0.9 | Estimates move likelihoods by player rating and time control. |
-| OpenRouter | Sends structured explanation requests to `openai/gpt-5.6-terra` with high reasoning by default. |
+| OpenRouter | Sends structured explanation requests to `openai/gpt-6.1-terra` with high reasoning by default. |
 | Redis | Stores expiring analysis snapshots, resolved-import caches, import-to-analysis indexes, and fixed-window rate-limit counters. |
 | Modal | Runs a lightweight FastAPI container and separate Stockfish/Maia analysis workers in production. |
 | Cloudflare | Forwards the public API hostname to Modal and validates Turnstile tokens for protected imports. |

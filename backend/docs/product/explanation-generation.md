@@ -23,7 +23,7 @@ Implemented pieces:
 - explanation-text verifier
 - static coach provider tests
 - generation service with retry and fallback behavior
-- OpenRouter adapter defaulting to `openai/gpt-5.6-terra` with high reasoning
+- OpenRouter adapter defaulting to `openai/gpt-6.1-terra` with high reasoning
 - public `explain_move(...) -> str` wrapper for FEN + UCI move input, explicit
   PGN ply input, or an existing `MoveContextRequest`
 
@@ -55,7 +55,7 @@ API still returns only the verified joined `explanation` string, while
 `ExplanationInputError` exceptions instead of silently guessing.
 
 The OpenRouter provider reads `OPENROUTER_API_KEY` from the environment or
-`.env`, uses `openai/gpt-5.6-terra` with high reasoning by default, and can be
+`.env`, uses `openai/gpt-6.1-terra` with high reasoning by default, and can be
 overridden with `G6EXPLANATION_OPENROUTER_MODEL`. Provider resilience settings
 are explicit:
 `G6EXPLANATION_OPENROUTER_TIMEOUT_SECONDS`,
