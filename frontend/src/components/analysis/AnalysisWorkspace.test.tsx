@@ -291,7 +291,7 @@ describe("AnalysisWorkspace imports", () => {
     apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
     const user = userEvent.setup();
     const view = render(<AnalysisWorkspace />);
-    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "150");
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "90");
     await user.click(screen.getByRole("button", { name: "Board settings" }));
     expect(screen.getByRole("button", { name: "Animation speed: Normal" })).toHaveAttribute(
       "aria-pressed",
@@ -300,8 +300,8 @@ describe("AnalysisWorkspace imports", () => {
 
     for (const [label, duration] of [
       ["Fast", "45"],
-      ["Normal", "150"],
-      ["Slow", "300"],
+      ["Normal", "90"],
+      ["Slow", "150"],
     ]) {
       await user.click(screen.getByRole("button", { name: `Animation speed: ${label}` }));
       expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-animation-ms", duration);
@@ -314,7 +314,7 @@ describe("AnalysisWorkspace imports", () => {
 
     view.unmount();
     render(<AnalysisWorkspace />);
-    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "300");
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "150");
     await user.click(screen.getByRole("button", { name: "Board settings" }));
     expect(screen.getByRole("button", { name: "Animation speed: Slow" })).toHaveAttribute(
       "aria-pressed",
@@ -329,7 +329,7 @@ describe("AnalysisWorkspace imports", () => {
 
     render(<AnalysisWorkspace />);
 
-    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "150");
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "90");
   });
 
   it("starts a Chess.com route import from a production-domain game path", async () => {

@@ -1,4 +1,4 @@
-export const BOARD_ANIMATION_MS = { slow: 300, normal: 150, fast: 45 } as const;
+export const BOARD_ANIMATION_MS = { slow: 150, normal: 90, fast: 45 } as const;
 export type BoardAnimationSpeed = keyof typeof BOARD_ANIMATION_MS;
 export const DEFAULT_BOARD_ANIMATION_MS = BOARD_ANIMATION_MS.normal;
 
