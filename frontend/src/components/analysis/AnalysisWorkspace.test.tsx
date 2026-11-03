@@ -190,6 +190,8 @@ describe("AnalysisWorkspace imports", () => {
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(await screen.findByText("1. a4")).toBeTruthy();
+    expect(screen.getByLabelText("White game accuracy unavailable")).toBeTruthy();
+    expect(screen.getByLabelText("Black game accuracy unavailable")).toBeTruthy();
     expect(screen.queryByLabelText("Game URL")).toBeNull();
     expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
     await waitFor(() =>
@@ -201,6 +203,42 @@ describe("AnalysisWorkspace imports", () => {
     await waitForNoBrowserEngineTick();
     expect(stockfishMocks.analyze).toHaveBeenCalledWith(mainlineMove(1).fen_after);
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
+  });
+
+  it("updates accuracy after polling and keeps it with each side when the board flips", async () => {
+    let resolveSnapshot: (snapshot: GameAnalysisSnapshot) => void = () => {};
+    apiMocks.pollGameAnalysis.mockReturnValue(
+      new Promise<GameAnalysisSnapshot>((resolve) => {
+        resolveSnapshot = resolve;
+      }),
+    );
+    apiMocks.startImportedGameAnalysis.mockResolvedValue({
+      analysis_id: "analysis-1",
+      status: "pending",
+      status_url: "/api/game-analysis/analysis-1",
+      source: importedSource(),
+      game: gameSkeleton(2),
+    });
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace />);
+    await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    expect(await screen.findByLabelText("White game accuracy unavailable")).toBeTruthy();
+
+    await act(async () => {
+      resolveSnapshot({
+        ...snapshotWithMoves(2),
+        accuracy: { method: "mean_move_accuracy.v1", white: 92.3, black: 0 },
+      });
+    });
+
+    expect(await screen.findByLabelText("White game accuracy 92.3%")).toBeTruthy();
+    expect(screen.getByLabelText("Black game accuracy 0.0%")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Board settings" }));
+    await user.click(screen.getByRole("button", { name: /Flip board/ }));
+    expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
+    expect(screen.getByLabelText("White game accuracy 92.3%")).toBeTruthy();
+    expect(screen.getByLabelText("Black game accuracy 0.0%")).toBeTruthy();
   });
 
   it("does not restore a previous analysis from the homepage", async () => {

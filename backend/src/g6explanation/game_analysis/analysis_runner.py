@@ -37,6 +37,7 @@ from g6explanation.game_analysis.contracts import (
     GameMoveAnalysis,
     OpeningBookMetadata,
 )
+from g6explanation.game_analysis.game_accuracy import game_accuracy
 from g6explanation.game_analysis.opening_book import OpeningBookPly, run_opening_book_pass
 from g6explanation.game_analysis.provider_setup import real_game_analysis_context_builder
 from g6explanation.game_analysis.state_store import GameAnalysisStore
@@ -710,6 +711,7 @@ def _snapshot_with_recomputed_counts(
         update={
             "moves": moves,
             "context_completed": len(moves),
+            "accuracy": game_accuracy(moves, snapshot.total_plies),
             "explanation_required": sum(move.requires_explanation for move in moves),
             "explanation_completed": sum(move.explanation is not None for move in moves),
             "explanation_failed": sum(move.explanation_error is not None for move in moves),

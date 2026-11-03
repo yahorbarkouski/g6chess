@@ -16,6 +16,7 @@ interface PlayerBarProps {
   captured: CapturedPieces;
   materialAdvantage: number;
   clockSeconds?: number | null | undefined;
+  accuracyPercent?: number | null;
   className?: string;
 }
 
@@ -26,6 +27,7 @@ export function PlayerBar({
   captured,
   materialAdvantage,
   clockSeconds,
+  accuracyPercent,
   className,
 }: PlayerBarProps) {
   const capturedSide = side === "white" ? "black" : "white";
@@ -44,7 +46,7 @@ export function PlayerBar({
           </span>
         </div>
       </div>
-      <div className="flex min-h-5 min-w-0 max-w-[42%] shrink items-center gap-px overflow-hidden sm:max-w-none">
+      <div className="flex min-h-5 min-w-0 max-w-[25%] shrink items-center gap-px overflow-hidden sm:max-w-none">
         {capturedPieceTokens(captured).map(({ id, piece }) => (
           <span
             className="text-sm leading-none text-stone-500 dark:text-stone-400 sm:text-base"
@@ -59,6 +61,20 @@ export function PlayerBar({
           </span>
         ) : null}
       </div>
+      <output
+        aria-label={`${side === "white" ? "White" : "Black"} game accuracy${accuracyPercent == null ? " unavailable" : ` ${accuracyPercent.toFixed(1)}%`}`}
+        className="flex shrink-0 flex-col items-end text-xs leading-tight text-stone-500 dark:text-stone-400"
+        title={
+          accuracyPercent == null
+            ? "Accuracy is available after every move has been analysed."
+            : "Average move accuracy across the whole game, based on Stockfish winning-chance loss."
+        }
+      >
+        <span className="text-[10px]">Accuracy</span>
+        <span className="font-medium text-stone-700 tabular-nums dark:text-stone-200">
+          {accuracyPercent == null ? "—" : `${accuracyPercent.toFixed(1)}%`}
+        </span>
+      </output>
       <div className="shrink-0 rounded border-stone-300 bg-stone-100/80 px-2 py-1 font-mono text-sm text-stone-700 tabular-nums dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
         {formatClock(clockSeconds)}
       </div>

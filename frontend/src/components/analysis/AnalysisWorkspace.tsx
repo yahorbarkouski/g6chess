@@ -1385,6 +1385,7 @@ function arePlayerBarPropsEqual(
     previous.side === next.side &&
     previous.materialAdvantage === next.materialAdvantage &&
     previous.clockSeconds === next.clockSeconds &&
+    previous.accuracyPercent === next.accuracyPercent &&
     previous.className === next.className &&
     previous.captured.q === next.captured.q &&
     previous.captured.r === next.captured.r &&
@@ -1468,6 +1469,7 @@ function DesktopLayout({
             />
             <div className="relative flex min-w-0 flex-1 flex-col gap-2">
               <MemoizedPlayerBar
+                accuracyPercent={analysis.summary.accuracy?.[topSide] ?? null}
                 captured={playerMeta[topSide].captured}
                 clockSeconds={playerMeta[topSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1500,6 +1502,7 @@ function DesktopLayout({
                 transitionMove={boardTransitionMove}
               />
               <MemoizedPlayerBar
+                accuracyPercent={analysis.summary.accuracy?.[bottomSide] ?? null}
                 captured={playerMeta[bottomSide].captured}
                 clockSeconds={playerMeta[bottomSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1635,6 +1638,7 @@ function MobileLayout({
         />
         <div className="space-y-2.5 border-stone-200  dark:border-stone-800">
           <MemoizedPlayerBar
+            accuracyPercent={analysis.summary.accuracy?.[topSide] ?? null}
             captured={playerMeta[topSide].captured}
             clockSeconds={playerMeta[topSide].clock}
             materialAdvantage={materialAdvantage}
@@ -1667,6 +1671,7 @@ function MobileLayout({
             transitionMove={boardTransitionMove}
           />
           <MemoizedPlayerBar
+            accuracyPercent={analysis.summary.accuracy?.[bottomSide] ?? null}
             captured={playerMeta[bottomSide].captured}
             clockSeconds={playerMeta[bottomSide].clock}
             materialAdvantage={materialAdvantage}

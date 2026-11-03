@@ -93,6 +93,12 @@ def test_game_analysis_http_api_starts_job_and_returns_completed_snapshot() -> N
     assert snapshot["status"] == "succeeded"
     assert snapshot["total_plies"] == 3
     assert snapshot["context_completed"] == 3
+    assert snapshot["accuracy"] == {
+        "method": "mean_move_accuracy.v1",
+        "white": 100.0,
+        "black": 100.0,
+    }
+    assert all(saved.accuracy is None for saved in store.saved if saved.context_completed < 3)
     assert snapshot["explanation_required"] == 3
     assert snapshot["explanation_completed"] == 3
     assert [move["san"] for move in snapshot["moves"]] == ["e4", "e5", "Nf3"]
@@ -292,6 +298,8 @@ def test_game_analysis_logs_explanation_provider_failures(caplog: pytest.LogCapt
         "3 requested explanation(s) failed. See per-move explanation_error fields and server logs."
     )
     assert snapshot["explanation_failed"] == 3
+    assert snapshot["accuracy"]["white"] == 100.0
+    assert snapshot["accuracy"]["black"] == 100.0
     assert all(
         move["explanation_error"] == "Explanation generation failed. See server logs."
         for move in snapshot["moves"]

@@ -16,7 +16,7 @@ from g6explanation.game_analysis import (
     GameAnalysisStartRequest,
     RedisGameAnalysisStore,
 )
-from g6explanation.game_analysis.contracts import GameAnalysisSnapshot
+from g6explanation.game_analysis.contracts import GameAccuracy, GameAnalysisSnapshot
 from g6explanation.game_analysis.state_store import GameAnalysisStoreError
 from g6explanation.real_game_evaluation.real_games import OPERA_GAME
 
@@ -37,6 +37,7 @@ def test_redis_game_analysis_store_round_trips_snapshot_when_redis_is_available(
         explain_significance=["critical"],
         created_at=now,
         updated_at=now,
+        accuracy=GameAccuracy(white=0, black=100),
     )
 
     store.save(snapshot)
@@ -78,6 +79,10 @@ def test_real_game_analysis_endpoint_runs_opera_game_with_real_providers() -> No
     assert snapshot["status"] == "succeeded"
     assert snapshot["total_plies"] == 33
     assert snapshot["context_completed"] == 33
+    accuracy = cast(dict[str, Any], snapshot["accuracy"])
+    assert accuracy["method"] == "mean_move_accuracy.v1"
+    assert 0 <= accuracy["white"] <= 100
+    assert 0 <= accuracy["black"] <= 100
     assert cast(int, snapshot["explanation_required"]) > 0
     assert snapshot["explanation_completed"] == snapshot["explanation_required"]
     assert snapshot["explanation_failed"] == 0

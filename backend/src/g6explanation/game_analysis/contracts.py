@@ -26,7 +26,7 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationSegment,
 )
 
-GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v2"
+GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v3"
 
 GameAnalysisStatus: TypeAlias = Literal["pending", "running", "succeeded", "failed"]
 GameMoveAnalysisState: TypeAlias = Literal[
@@ -174,6 +174,14 @@ class GameMoveAnalysis(ContextContract):
     context: ContextResult | None = None
 
 
+class GameAccuracy(ContextContract):
+    """Mean move accuracy for each side, on a 0..100 percentage scale."""
+
+    method: Literal["mean_move_accuracy.v1"] = "mean_move_accuracy.v1"
+    white: float | None = Field(default=None, ge=0, le=100)
+    black: float | None = Field(default=None, ge=0, le=100)
+
+
 class GameAnalysisSnapshot(ContextContract):
     """Redis-persisted snapshot returned by the polling endpoint."""
 
@@ -193,6 +201,7 @@ class GameAnalysisSnapshot(ContextContract):
     error: str | None = None
     game: GameAnalysisGame | None = None
     moves: list[GameMoveAnalysis] = Field(default_factory=list[GameMoveAnalysis])
+    accuracy: GameAccuracy | None = None
 
 
 class GameAnalysisStartResponse(ContextContract):

@@ -88,6 +88,7 @@ Each snapshot includes:
 - job status: `pending`, `running`, `succeeded`, or `failed`
 - total plies
 - context completion count
+- optional whole-game `accuracy` percentages for White and Black
 - explanation required, completed, and failed counts
 - one `GameMoveAnalysis` per completed context
 - per-move quality, significance, beauty, SAN, UCI, color, and latency
@@ -102,6 +103,38 @@ Each snapshot includes:
   inspection
 
 The move list is sorted by ply even though work completes in parallel.
+
+### Game accuracy
+
+Snapshot version `game_analysis_snapshot.v3` adds nullable `accuracy` with
+`method: "mean_move_accuracy.v1"`, `white`, and `black`. It appears after all
+plies have verified contexts, including when explanation generation fails.
+Current snapshots return `accuracy: null` until then. The `white` and `black`
+fields are nullable numbers on a 0..100 scale. Earlier cached snapshots without
+this field have no accuracy.
+A side with no moves or missing engine evidence has a null percentage.
+
+The context engine computes each move's accuracy from the best and played
+Stockfish scores, both in the moving player's perspective. Centipawns become
+winning-chance percentages using `50 + 50 * tanh(0.00368208 * cp / 2)`.
+Mate for the player is 100%; mate against the player is 0%. Mate distance stays
+separate from centipawns. A non-positive winning-chance loss scores 100%.
+Loss is the best line's winning-chance percentage minus the played line's
+winning-chance percentage, measured in percentage points.
+Otherwise, move accuracy is
+`clamp(103.1668 * exp(-0.04354 * loss) - 3.1669, 0, 100)`.
+These curves come from the [Lichess accuracy metric](https://lichess.org/page/accuracy).
+
+Game analysis takes the arithmetic mean of every move accuracy for each side,
+including opening-book and forced moves, and rounds once to one decimal place.
+For example, move accuracies of 100% and 50% produce 75.0% for that player.
+This aggregation is specific to g6; Lichess uses volatility and harmonic means
+for its game score. Accuracy uses existing verified engine evidence and adds
+no provider calls. Move labels and explanation policy remain independent.
+
+The frontend displays these whole-game percentages beside each player. Board
+navigation and orientation do not change them. Until accuracy is available,
+each player bar displays a placeholder.
 
 ## Runtime Policy
 

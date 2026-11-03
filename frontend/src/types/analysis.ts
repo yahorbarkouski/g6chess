@@ -130,6 +130,7 @@ export interface AnalysisResponse {
   timeline: AnalysisTimelinePoint[];
   move_markers: AnalysisMoveMarker[];
   summary: {
+    accuracy?: { white: number | null; black: number | null } | null;
     engine_version: string;
     context_version: string;
     verifier_version: string;

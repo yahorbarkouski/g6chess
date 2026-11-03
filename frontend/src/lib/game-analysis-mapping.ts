@@ -55,6 +55,10 @@ export function mapGameAnalysisSnapshot(
     timeline,
     move_markers: moveMarkers,
     summary: {
+      accuracy:
+        snapshot.accuracy == null
+          ? null
+          : { white: snapshot.accuracy.white ?? null, black: snapshot.accuracy.black ?? null },
       engine_version:
         firstContext?.evidence.engine.engine_version ??
         firstAnalyzedMove?.engine_version ??

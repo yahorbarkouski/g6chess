@@ -498,6 +498,22 @@ export interface components {
       text: string;
     };
     /**
+     * GameAccuracy
+     * @description Mean move accuracy for each side, on a 0..100 percentage scale.
+     */
+    GameAccuracy: {
+      /** Black */
+      black?: number | null;
+      /**
+       * Method
+       * @default mean_move_accuracy.v1
+       * @constant
+       */
+      method: "mean_move_accuracy.v1";
+      /** White */
+      white?: number | null;
+    };
+    /**
      * GameAnalysisGame
      * @description Board-renderable game skeleton for an analysis job.
      */
@@ -529,6 +545,7 @@ export interface components {
      * @description Redis-persisted snapshot returned by the polling endpoint.
      */
     GameAnalysisSnapshot: {
+      accuracy?: components["schemas"]["GameAccuracy"] | null;
       /** Analysis Id */
       analysis_id: string;
       /** Completed At */
@@ -552,7 +569,7 @@ export interface components {
       moves?: components["schemas"]["GameMoveAnalysis"][];
       /**
        * Snapshot Version
-       * @default game_analysis_snapshot.v2
+       * @default game_analysis_snapshot.v3
        */
       snapshot_version: string;
       /** Started At */

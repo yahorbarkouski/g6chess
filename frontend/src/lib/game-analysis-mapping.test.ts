@@ -43,6 +43,7 @@ describe("mapGameAnalysisSnapshot", () => {
       started_at: "2026-05-04T10:00:00Z",
       completed_at: "2026-05-04T10:00:01Z",
       error: null,
+      accuracy: { method: "mean_move_accuracy.v1", white: 92.3, black: 0 },
       moves: [
         moveAnalysis({
           ply: 1,
@@ -111,6 +112,7 @@ describe("mapGameAnalysisSnapshot", () => {
     const mapped = mapGameAnalysisSnapshot(snapshot, source);
 
     expect(mapped.title).toBe("Alpha vs Beta");
+    expect(mapped.summary.accuracy).toMatchObject({ white: 92.3, black: 0 });
     expect(mapped.headers).toMatchObject({
       White: "Alpha",
       Black: "Beta",

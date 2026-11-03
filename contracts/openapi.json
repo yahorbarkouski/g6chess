@@ -882,6 +882,46 @@
         "title": "ExplanationSegment",
         "type": "object"
       },
+      "GameAccuracy": {
+        "additionalProperties": false,
+        "description": "Mean move accuracy for each side, on a 0..100 percentage scale.",
+        "properties": {
+          "black": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Black"
+          },
+          "method": {
+            "const": "mean_move_accuracy.v1",
+            "default": "mean_move_accuracy.v1",
+            "title": "Method",
+            "type": "string"
+          },
+          "white": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "White"
+          }
+        },
+        "title": "GameAccuracy",
+        "type": "object"
+      },
       "GameAnalysisGame": {
         "additionalProperties": false,
         "description": "Board-renderable game skeleton for an analysis job.",
@@ -948,6 +988,16 @@
         "additionalProperties": false,
         "description": "Redis-persisted snapshot returned by the polling endpoint.",
         "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GameAccuracy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "analysis_id": {
             "title": "Analysis Id",
             "type": "string"
@@ -1029,7 +1079,7 @@
             "type": "array"
           },
           "snapshot_version": {
-            "default": "game_analysis_snapshot.v2",
+            "default": "game_analysis_snapshot.v3",
             "title": "Snapshot Version",
             "type": "string"
           },

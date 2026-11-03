@@ -109,6 +109,11 @@ product-ready.
   explanation fields for frontend polling. Full `ContextResult` packets are
   optional debug payloads gated by `include_context=true`, not required for the
   public review UI.
+- Whole-game accuracy aggregates the context engine's deterministic move
+  accuracy from verified player-perspective best/played scores. Publish the
+  versioned mean for each side after all plies have verified contexts. Mate uses outcome
+  endpoints; missing evidence stays unavailable. See the game-analysis product
+  doc for the formula. Accuracy does not change move labels or model behavior.
 - Real eval records used for future training manifests must store source-rights
   metadata, verified `LLMContext`, prompt/schema/context/verifier versions, and
   the verified explanation text. Training manifests admit only manually accepted
