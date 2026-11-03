@@ -1442,8 +1442,10 @@ function DesktopLayout({
   onOpenImport,
   onExitPreview,
 }: WorkspaceLayoutProps) {
+  // Reserve 13rem for player rows, navigation, and page padding. The board column
+  // adds 3.5rem for its side controls and horizontal padding.
   return (
-    <div className="grid gap-0 min-[1100px]:grid-cols-[minmax(0,832px)_420px]">
+    <div className="grid justify-center gap-0 min-[1100px]:grid-cols-[minmax(0,min(832px,calc(100dvh-9.5rem)))_420px]">
       <section className="flex min-h-0 min-w-0 flex-col">
         <div className="flex min-h-0 max-w-[822px] flex-col items-center px-2 pt-1">
           <div className="relative flex w-full items-stretch gap-3">
@@ -1528,7 +1530,7 @@ function DesktopLayout({
         </div>
       </section>
 
-      <div className="flex max-h-[87vh] min-w-0 flex-col pl-5">
+      <div className="flex max-h-[87vh] min-w-0 flex-col overflow-y-auto overscroll-contain pl-5">
         <aside className="shrink-0 space-y-4 pr-1">
           <MemoizedPositionInfo
             boardOrientation={boardOrientation}
@@ -1567,7 +1569,7 @@ function DesktopLayout({
           />
         </aside>
         <MoveList
-          className="min-h-0 flex-1 rounded-none border-0 bg-transparent"
+          className="min-h-32 flex-1 rounded-none border-0 bg-transparent"
           currentPly={currentPly}
           markerDisplayMode={markerDisplayMode}
           moveMarkers={analysis.move_markers}

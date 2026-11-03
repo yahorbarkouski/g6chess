@@ -82,6 +82,7 @@ describe("MoveList", () => {
     );
 
     expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(scrollContainer.scrollTop).toBe(0);
 
     const hiddenMove = screen.getByRole("button", { name: /2\. M3/ });
     setRect(hiddenMove, { top: 120, bottom: 148 });
@@ -90,7 +91,36 @@ describe("MoveList", () => {
       <MoveList currentPly={3} moveMarkers={moveMarkers} moves={moves} onSelectPly={onSelectPly} />,
     );
 
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    expect(scrollContainer.scrollTop).toBe(52);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    setRect(visibleMove, { top: -16, bottom: 12 });
+    view.rerender(
+      <MoveList currentPly={2} moveMarkers={moveMarkers} moves={moves} onSelectPly={onSelectPly} />,
+    );
+
+    expect(scrollContainer.scrollTop).toBe(32);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("never uses the document as the move list scroll container", () => {
+    vi.spyOn(document.body, "clientHeight", "get").mockReturnValue(100);
+    vi.spyOn(document.body, "scrollHeight", "get").mockReturnValue(1200);
+    const moves = buildMoves(4);
+    const onSelectPly = vi.fn();
+    const view = render(
+      <MoveList currentPly={1} moveMarkers={[]} moves={moves} onSelectPly={onSelectPly} />,
+    );
+    const hiddenMove = screen.getByRole("button", { name: /1\.\.\. M2/ });
+    setRect(hiddenMove, { top: 120, bottom: 148 });
+    vi.mocked(Element.prototype.scrollIntoView).mockClear();
+
+    view.rerender(
+      <MoveList currentPly={2} moveMarkers={[]} moves={moves} onSelectPly={onSelectPly} />,
+    );
+
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    expect(document.body.scrollTop).toBe(0);
   });
 
   it("renders brilliant moves like great moves but with a purple double-exclamation badge", () => {
