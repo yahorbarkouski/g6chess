@@ -1,7 +1,6 @@
-"""Aggregate verified move accuracy for each side of a complete game."""
+"""Aggregate verified move accuracy for each side through each game position."""
 
 from collections.abc import Sequence
-from statistics import fmean
 
 from g6explanation.context_engine.contracts import ColorName
 from g6explanation.context_engine.signals.move_accuracy import move_accuracy_percent
@@ -13,22 +12,37 @@ def game_accuracy(moves: Sequence[GameMoveAnalysis], total_plies: int) -> GameAc
 
     if total_plies == 0 or len(moves) != total_plies:
         return None
-    if {move.ply for move in moves} != set(range(1, total_plies + 1)):
-        return None
-    return GameAccuracy(
-        white=_side_accuracy(moves, "white"),
-        black=_side_accuracy(moves, "black"),
-    )
+    return running_game_accuracy(moves).get(total_plies)
 
 
-def _side_accuracy(moves: Sequence[GameMoveAnalysis], color: ColorName) -> float | None:
-    accuracies: list[float] = []
-    for move in moves:
-        if move.player_color != color:
-            continue
+def running_game_accuracy(moves: Sequence[GameMoveAnalysis]) -> dict[int, GameAccuracy]:
+    """Return per-side means through each ply of the contiguous analysed prefix."""
+
+    totals: dict[ColorName, float] = {"white": 0.0, "black": 0.0}
+    counts: dict[ColorName, int] = {"white": 0, "black": 0}
+    missing: set[ColorName] = set()
+    by_ply: dict[int, GameAccuracy] = {}
+    for expected_ply, move in enumerate(sorted(moves, key=lambda item: item.ply), start=1):
+        if move.ply != expected_ply:
+            break
+        color = move.player_color
         if not move.engine_top_lines or move.engine_played_line is None:
-            return None
-        accuracies.append(
-            move_accuracy_percent(move.engine_top_lines[0].score, move.engine_played_line.score)
+            missing.add(color)
+        else:
+            totals[color] += move_accuracy_percent(
+                move.engine_top_lines[0].score, move.engine_played_line.score
+            )
+            counts[color] += 1
+        by_ply[move.ply] = GameAccuracy(
+            white=(
+                round(totals["white"] / counts["white"], 1)
+                if counts["white"] and "white" not in missing
+                else None
+            ),
+            black=(
+                round(totals["black"] / counts["black"], 1)
+                if counts["black"] and "black" not in missing
+                else None
+            ),
         )
-    return round(fmean(accuracies), 1) if accuracies else None
+    return by_ply

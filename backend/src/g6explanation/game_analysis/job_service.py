@@ -18,10 +18,12 @@ from g6explanation.game_analysis.analysis_runner import (
     game_analysis_openrouter_concurrency_from_env,
 )
 from g6explanation.game_analysis.contracts import (
+    GAME_ANALYSIS_SNAPSHOT_VERSION,
     GameAnalysisSnapshot,
     GameAnalysisStartRequest,
     GameAnalysisStartResponse,
 )
+from g6explanation.game_analysis.game_accuracy import game_accuracy, running_game_accuracy
 from g6explanation.game_analysis.state_store import (
     GameAnalysisStore,
     RedisGameAnalysisStore,
@@ -120,7 +122,20 @@ class GameAnalysisService:
         )
 
     def get(self, analysis_id: str) -> GameAnalysisSnapshot | None:
-        return self._store.get(analysis_id)
+        snapshot = self._store.get(analysis_id)
+        if snapshot is None or snapshot.snapshot_version == GAME_ANALYSIS_SNAPSHOT_VERSION:
+            return snapshot
+        accuracy_by_ply = running_game_accuracy(snapshot.moves)
+        return snapshot.model_copy(
+            update={
+                "snapshot_version": GAME_ANALYSIS_SNAPSHOT_VERSION,
+                "moves": [
+                    move.model_copy(update={"accuracy": accuracy_by_ply.get(move.ply)})
+                    for move in snapshot.moves
+                ],
+                "accuracy": game_accuracy(snapshot.moves, snapshot.total_plies),
+            }
+        )
 
 
 def game_analysis_service_from_env() -> GameAnalysisService:

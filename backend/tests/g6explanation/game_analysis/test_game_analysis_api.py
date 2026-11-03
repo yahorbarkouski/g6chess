@@ -99,6 +99,14 @@ def test_game_analysis_http_api_starts_job_and_returns_completed_snapshot() -> N
         "black": 100.0,
     }
     assert all(saved.accuracy is None for saved in store.saved if saved.context_completed < 3)
+    assert snapshot["moves"][0]["accuracy"]["white"] == 100
+    assert snapshot["moves"][0]["accuracy"]["black"] is None
+    assert snapshot["moves"][-1]["accuracy"] == snapshot["accuracy"]
+    for saved in store.saved:
+        present = {move.ply for move in saved.moves}
+        for move in saved.moves:
+            if move.accuracy is not None:
+                assert set(range(1, move.ply + 1)) <= present
     assert snapshot["explanation_required"] == 3
     assert snapshot["explanation_completed"] == 3
     assert [move["san"] for move in snapshot["moves"]] == ["e4", "e5", "Nf3"]
@@ -119,6 +127,21 @@ def test_game_analysis_http_api_starts_job_and_returns_completed_snapshot() -> N
     assert first_move["legal_move_count"] > 0
     assert first_move["player_level"] == "1500"
     assert any(saved.status == "running" and saved.context_completed > 0 for saved in store.saved)
+
+    # Polling also enriches cached snapshots without starting another analysis job.
+    latest = store.get(analysis_id)
+    assert latest is not None
+    cached = latest.model_copy(
+        update={
+            "snapshot_version": "game_analysis_snapshot.v3",
+            "moves": [move.model_copy(update={"accuracy": None}) for move in latest.moves],
+        }
+    )
+    store.save(cached)
+    cached_response = client.get(f"/api/game-analysis/{analysis_id}").json()
+    assert cached_response["snapshot_version"] == "game_analysis_snapshot.v4"
+    assert cached_response["moves"] == snapshot["moves"]
+    assert store.get(analysis_id) == cached
 
 
 def test_game_analysis_http_api_returns_404_for_unknown_job() -> None:

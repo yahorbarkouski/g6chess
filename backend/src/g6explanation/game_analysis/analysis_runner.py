@@ -37,7 +37,7 @@ from g6explanation.game_analysis.contracts import (
     GameMoveAnalysis,
     OpeningBookMetadata,
 )
-from g6explanation.game_analysis.game_accuracy import game_accuracy
+from g6explanation.game_analysis.game_accuracy import game_accuracy, running_game_accuracy
 from g6explanation.game_analysis.opening_book import OpeningBookPly, run_opening_book_pass
 from g6explanation.game_analysis.provider_setup import real_game_analysis_context_builder
 from g6explanation.game_analysis.state_store import GameAnalysisStore
@@ -707,6 +707,8 @@ def _snapshot_with_recomputed_counts(
     *,
     updated_at: str,
 ) -> GameAnalysisSnapshot:
+    accuracy_by_ply = running_game_accuracy(moves)
+    moves = [move.model_copy(update={"accuracy": accuracy_by_ply.get(move.ply)}) for move in moves]
     return snapshot.model_copy(
         update={
             "moves": moves,

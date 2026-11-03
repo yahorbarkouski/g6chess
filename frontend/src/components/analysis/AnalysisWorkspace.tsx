@@ -1469,7 +1469,7 @@ function DesktopLayout({
             />
             <div className="relative flex min-w-0 flex-1 flex-col gap-2">
               <MemoizedPlayerBar
-                accuracyPercent={analysis.summary.accuracy?.[topSide] ?? null}
+                accuracyPercent={playerMeta[topSide].accuracy}
                 captured={playerMeta[topSide].captured}
                 clockSeconds={playerMeta[topSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1502,7 +1502,7 @@ function DesktopLayout({
                 transitionMove={boardTransitionMove}
               />
               <MemoizedPlayerBar
-                accuracyPercent={analysis.summary.accuracy?.[bottomSide] ?? null}
+                accuracyPercent={playerMeta[bottomSide].accuracy}
                 captured={playerMeta[bottomSide].captured}
                 clockSeconds={playerMeta[bottomSide].clock}
                 materialAdvantage={materialAdvantage}
@@ -1638,7 +1638,7 @@ function MobileLayout({
         />
         <div className="space-y-2.5 border-stone-200  dark:border-stone-800">
           <MemoizedPlayerBar
-            accuracyPercent={analysis.summary.accuracy?.[topSide] ?? null}
+            accuracyPercent={playerMeta[topSide].accuracy}
             captured={playerMeta[topSide].captured}
             clockSeconds={playerMeta[topSide].clock}
             materialAdvantage={materialAdvantage}
@@ -1671,7 +1671,7 @@ function MobileLayout({
             transitionMove={boardTransitionMove}
           />
           <MemoizedPlayerBar
-            accuracyPercent={analysis.summary.accuracy?.[bottomSide] ?? null}
+            accuracyPercent={playerMeta[bottomSide].accuracy}
             captured={playerMeta[bottomSide].captured}
             clockSeconds={playerMeta[bottomSide].clock}
             materialAdvantage={materialAdvantage}
@@ -2377,6 +2377,7 @@ interface PlayerMeta {
 }
 
 interface PlayerMetaSide {
+  accuracy: number | null;
   name: string;
   rating: number | null;
   captured: ReturnType<typeof computeCapturedMaterial>["white"];
@@ -2911,6 +2912,7 @@ function buildPlayerMeta(
   currentPly: number,
   material: ReturnType<typeof computeCapturedMaterial>,
 ): PlayerMeta {
+  const accuracy = indexes.timelineByPly.get(currentPly)?.accuracy;
   let whiteClock: number | undefined;
   let blackClock: number | undefined;
   for (let ply = 1; ply <= currentPly; ply += 1) {
@@ -2924,12 +2926,14 @@ function buildPlayerMeta(
   }
   return {
     white: {
+      accuracy: accuracy?.white ?? null,
       name: analysis.headers.White ?? "White",
       rating: toRating(analysis.headers.WhiteElo),
       captured: material.white,
       clock: whiteClock,
     },
     black: {
+      accuracy: accuracy?.black ?? null,
       name: analysis.headers.Black ?? "Black",
       rating: toRating(analysis.headers.BlackElo),
       captured: material.black,

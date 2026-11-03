@@ -87,6 +87,9 @@ def test_real_game_analysis_endpoint_runs_opera_game_with_real_providers() -> No
     assert snapshot["explanation_completed"] == snapshot["explanation_required"]
     assert snapshot["explanation_failed"] == 0
     moves = cast(list[dict[str, Any]], snapshot["moves"])
+    assert moves[0]["accuracy"]["black"] is None
+    assert moves[-1]["accuracy"] == snapshot["accuracy"]
+    assert all(move["accuracy"] is not None for move in moves)
     explained = [move for move in moves if move["requires_explanation"]]
     assert all(move["explanation"] for move in explained)
     assert all(cast(str, move["explanation_model"]).startswith("openai/gpt") for move in explained)

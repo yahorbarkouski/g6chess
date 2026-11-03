@@ -109,10 +109,19 @@ describe("mapGameAnalysisSnapshot", () => {
       ],
     };
 
+    snapshot.moves?.forEach((move, index) => {
+      move.accuracy = {
+        method: "mean_move_accuracy.v1",
+        white: 92.3,
+        black: index === 0 ? null : 0,
+      };
+    });
     const mapped = mapGameAnalysisSnapshot(snapshot, source);
 
     expect(mapped.title).toBe("Alpha vs Beta");
     expect(mapped.summary.accuracy).toMatchObject({ white: 92.3, black: 0 });
+    expect(mapped.timeline[0]?.accuracy).toEqual({ white: 92.3, black: null });
+    expect(mapped.timeline[1]?.accuracy).toEqual({ white: 92.3, black: 0 });
     expect(mapped.headers).toMatchObject({
       White: "Alpha",
       Black: "Beta",

@@ -79,6 +79,11 @@ export interface ExplanationLineCard {
   why: string;
 }
 
+export interface PlayerAccuracy {
+  white: number | null;
+  black: number | null;
+}
+
 export interface AnalysisTimelinePoint {
   ply: number;
   san: string;
@@ -86,6 +91,7 @@ export interface AnalysisTimelinePoint {
   eval_cp: number | null;
   fen_before: string;
   best_lines: BestLine[];
+  accuracy?: PlayerAccuracy | null;
   is_book_move?: boolean;
   is_novelty?: boolean;
   book_lines?: BookLine[];
@@ -130,7 +136,7 @@ export interface AnalysisResponse {
   timeline: AnalysisTimelinePoint[];
   move_markers: AnalysisMoveMarker[];
   summary: {
-    accuracy?: { white: number | null; black: number | null } | null;
+    accuracy?: PlayerAccuracy | null;
     engine_version: string;
     context_version: string;
     verifier_version: string;

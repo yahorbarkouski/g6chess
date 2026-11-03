@@ -3,7 +3,7 @@ from pydantic import ValidationError
 
 from g6explanation.context_engine.contracts import EngineLine, MoveBeauty, MoveSignificance, Score
 from g6explanation.game_analysis.contracts import GameAccuracy, GameMoveAnalysis
-from g6explanation.game_analysis.game_accuracy import game_accuracy
+from g6explanation.game_analysis.game_accuracy import game_accuracy, running_game_accuracy
 
 
 def _move(ply: int, best: Score, played: Score) -> GameMoveAnalysis:
@@ -42,6 +42,35 @@ def test_incomplete_duplicate_and_empty_games_have_no_global_accuracy() -> None:
     assert game_accuracy([move], 2) is None
     assert game_accuracy([move, move], 2) is None
     assert game_accuracy([], 0) is None
+
+
+def test_running_accuracy_uses_only_moves_through_each_ply() -> None:
+    moves = [
+        _move(3, Score.mate(1, "player"), Score.mate(1, "opponent")),
+        _move(1, Score.cp(0), Score.cp(0)),
+        _move(2, Score.cp(0), Score.cp(-100)),
+    ]
+
+    assert running_game_accuracy(moves) == {
+        1: GameAccuracy(white=100, black=None),
+        2: GameAccuracy(white=100, black=66.2),
+        3: GameAccuracy(white=50, black=66.2),
+    }
+
+
+def test_running_accuracy_waits_for_gaps_and_keeps_missing_evidence_unavailable() -> None:
+    first = _move(1, Score.cp(0), Score.cp(0))
+    third = _move(3, Score.cp(0), Score.cp(-100))
+
+    assert running_game_accuracy([third]) == {}
+    assert running_game_accuracy([first, third]) == {1: GameAccuracy(white=100, black=None)}
+    second = _move(2, Score.cp(0), Score.cp(0))
+    missing = first.model_copy(update={"engine_top_lines": []})
+    assert running_game_accuracy([missing, second, third]) == {
+        1: GameAccuracy(white=None, black=None),
+        2: GameAccuracy(white=None, black=100),
+        3: GameAccuracy(white=None, black=100),
+    }
 
 
 def test_side_without_moves_or_complete_engine_evidence_is_unavailable() -> None:

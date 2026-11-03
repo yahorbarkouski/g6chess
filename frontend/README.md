@@ -11,7 +11,7 @@ review as the backend completes each move.
 - Chess.com, Lichess, Lichess study, and PGN import.
 - Shareable routes with selected-move state.
 - Move list, evaluation bar, player clocks, and opening information.
-- Whole-game accuracy for both players after every move has been analysed.
+- Running accuracy for both players through the selected move.
 - Stockfish line previews drawn on the board.
 - Progressive move labels and explanations from the analysis API.
 - UltraChess React board with animated pieces and canvas arrows.

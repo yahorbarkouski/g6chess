@@ -1079,7 +1079,7 @@
             "type": "array"
           },
           "snapshot_version": {
-            "default": "game_analysis_snapshot.v3",
+            "default": "game_analysis_snapshot.v4",
             "title": "Snapshot Version",
             "type": "string"
           },
@@ -1338,6 +1338,16 @@
         "additionalProperties": false,
         "description": "Current analysis state for one ply.",
         "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GameAccuracy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "allowed_claims": {
             "items": {
               "type": "string"

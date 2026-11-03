@@ -569,7 +569,7 @@ export interface components {
       moves?: components["schemas"]["GameMoveAnalysis"][];
       /**
        * Snapshot Version
-       * @default game_analysis_snapshot.v3
+       * @default game_analysis_snapshot.v4
        */
       snapshot_version: string;
       /** Started At */
@@ -664,6 +664,7 @@ export interface components {
      * @description Current analysis state for one ply.
      */
     GameMoveAnalysis: {
+      accuracy?: components["schemas"]["GameAccuracy"] | null;
       /** Allowed Claims */
       allowed_claims?: string[];
       beauty: components["schemas"]["MoveBeauty"];

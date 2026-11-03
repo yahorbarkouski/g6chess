@@ -8,6 +8,7 @@ import type {
   ExplanationSegment,
   GameMove,
   MovePrimaryClass,
+  PlayerAccuracy,
 } from "../types/analysis";
 import type {
   ExplanationLineCard as ApiExplanationLineCard,
@@ -55,10 +56,7 @@ export function mapGameAnalysisSnapshot(
     timeline,
     move_markers: moveMarkers,
     summary: {
-      accuracy:
-        snapshot.accuracy == null
-          ? null
-          : { white: snapshot.accuracy.white ?? null, black: snapshot.accuracy.black ?? null },
+      accuracy: mapAccuracy(snapshot.accuracy),
       engine_version:
         firstContext?.evidence.engine.engine_version ??
         firstAnalyzedMove?.engine_version ??
@@ -203,6 +201,7 @@ function mapTimelinePoint(move: GameMoveAnalysis): AnalysisTimelinePoint {
     eval_cp: playedLine === null ? null : scoreToWhitePovCp(playedLine.score, move.player_color),
     fen_before: fenBefore(move),
     best_lines: engineTopLines(move).map((line) => mapBestLine(line, move.player_color)),
+    accuracy: mapAccuracy(move.accuracy),
     ...(openingBook === null
       ? {}
       : {
@@ -213,6 +212,10 @@ function mapTimelinePoint(move: GameMoveAnalysis): AnalysisTimelinePoint {
           eco: openingBook.eco,
         }),
   };
+}
+
+function mapAccuracy(accuracy: GameAnalysisSnapshot["accuracy"]): PlayerAccuracy | null {
+  return accuracy == null ? null : { white: accuracy.white ?? null, black: accuracy.black ?? null };
 }
 
 function mapMoveMarker(move: GameMoveAnalysis, index: number): AnalysisMoveMarker {

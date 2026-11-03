@@ -26,7 +26,7 @@ from g6explanation.explanation_generation.contracts import (
     ExplanationSegment,
 )
 
-GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v3"
+GAME_ANALYSIS_SNAPSHOT_VERSION = "game_analysis_snapshot.v4"
 
 GameAnalysisStatus: TypeAlias = Literal["pending", "running", "succeeded", "failed"]
 GameMoveAnalysisState: TypeAlias = Literal[
@@ -126,6 +126,14 @@ class GameAnalysisGame(ContextContract):
     moves: list[GameMainlineMove] = Field(default_factory=list[GameMainlineMove])
 
 
+class GameAccuracy(ContextContract):
+    """Mean move accuracy for each side, on a 0..100 percentage scale."""
+
+    method: Literal["mean_move_accuracy.v1"] = "mean_move_accuracy.v1"
+    white: float | None = Field(default=None, ge=0, le=100)
+    black: float | None = Field(default=None, ge=0, le=100)
+
+
 class GameMoveAnalysis(ContextContract):
     """Current analysis state for one ply."""
 
@@ -172,14 +180,7 @@ class GameMoveAnalysis(ContextContract):
     explanation_model: str | None = None
     explanation_error: str | None = None
     context: ContextResult | None = None
-
-
-class GameAccuracy(ContextContract):
-    """Mean move accuracy for each side, on a 0..100 percentage scale."""
-
-    method: Literal["mean_move_accuracy.v1"] = "mean_move_accuracy.v1"
-    white: float | None = Field(default=None, ge=0, le=100)
-    black: float | None = Field(default=None, ge=0, le=100)
+    accuracy: GameAccuracy | None = None
 
 
 class GameAnalysisSnapshot(ContextContract):

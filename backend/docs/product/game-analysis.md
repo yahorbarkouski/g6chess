@@ -92,6 +92,7 @@ Each snapshot includes:
 - explanation required, completed, and failed counts
 - one `GameMoveAnalysis` per completed context
 - per-move quality, significance, beauty, SAN, UCI, color, and latency
+- per-move running `accuracy` percentages through that ply
 - per-move compact board, engine, main-point, candidate, and metadata fields
   needed by the frontend without requiring full context packets
 - per-move clock-before, remaining-clock, and think-time fields when PGN clock
@@ -106,13 +107,20 @@ The move list is sorted by ply even though work completes in parallel.
 
 ### Game accuracy
 
-Snapshot version `game_analysis_snapshot.v3` adds nullable `accuracy` with
-`method: "mean_move_accuracy.v1"`, `white`, and `black`. It appears after all
-plies have verified contexts, including when explanation generation fails.
-Current snapshots return `accuracy: null` until then. The `white` and `black`
-fields are nullable numbers on a 0..100 scale. Earlier cached snapshots without
-this field have no accuracy.
-A side with no moves or missing engine evidence has a null percentage.
+Snapshot version `game_analysis_snapshot.v4` exposes nullable `accuracy` on each
+analysed move. It contains `method: "mean_move_accuracy.v1"`, `white`, and
+`black`. The percentages average each side's moves from the start through that
+ply, excluding later moves. Running accuracy appears once every ply up to that
+move has a verified context. Out-of-order results beyond a gap have null
+accuracy until the gap is filled. The `white` and `black` fields are nullable
+numbers on a 0..100 scale. A side with no moves or missing engine evidence has
+a null percentage.
+
+The snapshot-level `accuracy` contains the whole-game means after all plies
+have verified contexts, including when explanation generation fails. It is
+null until then. Polling older cached snapshots derives running accuracy from
+their stored engine evidence and returns the current snapshot version without
+new provider calls or changes to the persisted cache.
 
 The context engine computes each move's accuracy from the best and played
 Stockfish scores, both in the moving player's perspective. Centipawns become
@@ -124,6 +132,8 @@ winning-chance percentage, measured in percentage points.
 Otherwise, move accuracy is
 `clamp(103.1668 * exp(-0.04354 * loss) - 3.1669, 0, 100)`.
 These curves come from the [Lichess accuracy metric](https://lichess.org/page/accuracy).
+This individual move score is the input to the cumulative averages exposed in
+each move's `accuracy` object.
 
 Game analysis takes the arithmetic mean of every move accuracy for each side,
 including opening-book and forced moves, and rounds once to one decimal place.
@@ -132,9 +142,12 @@ This aggregation is specific to g6; Lichess uses volatility and harmonic means
 for its game score. Accuracy uses existing verified engine evidence and adds
 no provider calls. Move labels and explanation policy remain independent.
 
-The frontend displays these whole-game percentages beside each player. Board
-navigation and orientation do not change them. Until accuracy is available,
-each player bar displays a placeholder.
+The frontend displays each player's running percentage through the selected
+move. Stepping backward or forward changes the displayed averages; flipping the
+board keeps each percentage with its player. Only the percentage is visible,
+with its meaning in tooltip and accessibility text. Until accuracy is available,
+each player bar displays a placeholder. The last ply matches the whole-game means.
+Before any moves have been analysed, both bars show placeholders.
 
 ## Runtime Policy
 

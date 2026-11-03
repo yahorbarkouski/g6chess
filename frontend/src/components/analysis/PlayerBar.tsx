@@ -62,18 +62,15 @@ export function PlayerBar({
         ) : null}
       </div>
       <output
-        aria-label={`${side === "white" ? "White" : "Black"} game accuracy${accuracyPercent == null ? " unavailable" : ` ${accuracyPercent.toFixed(1)}%`}`}
-        className="flex shrink-0 flex-col items-end text-xs leading-tight text-stone-500 dark:text-stone-400"
+        aria-label={`${side === "white" ? "White" : "Black"} accuracy through this move${accuracyPercent == null ? " unavailable" : ` ${accuracyPercent.toFixed(1)}%`}`}
+        className="shrink-0 text-xs font-medium text-stone-700 tabular-nums dark:text-stone-200"
         title={
           accuracyPercent == null
-            ? "Accuracy is available after every move has been analysed."
-            : "Average move accuracy across the whole game, based on Stockfish winning-chance loss."
+            ? "Accuracy is unavailable for this player at this move."
+            : "Average move accuracy through the selected move, based on Stockfish winning-chance loss."
         }
       >
-        <span className="text-[10px]">Accuracy</span>
-        <span className="font-medium text-stone-700 tabular-nums dark:text-stone-200">
-          {accuracyPercent == null ? "—" : `${accuracyPercent.toFixed(1)}%`}
-        </span>
+        {accuracyPercent == null ? "—" : `${accuracyPercent.toFixed(1)}%`}
       </output>
       <div className="shrink-0 rounded border-stone-300 bg-stone-100/80 px-2 py-1 font-mono text-sm text-stone-700 tabular-nums dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
         {formatClock(clockSeconds)}

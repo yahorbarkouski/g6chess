@@ -190,8 +190,8 @@ describe("AnalysisWorkspace imports", () => {
     await user.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(await screen.findByText("1. a4")).toBeTruthy();
-    expect(screen.getByLabelText("White game accuracy unavailable")).toBeTruthy();
-    expect(screen.getByLabelText("Black game accuracy unavailable")).toBeTruthy();
+    expect(screen.getByLabelText("White accuracy through this move unavailable")).toBeTruthy();
+    expect(screen.getByLabelText("Black accuracy through this move unavailable")).toBeTruthy();
     expect(screen.queryByLabelText("Game URL")).toBeNull();
     expect(screen.getByTestId("analysis-board")).toHaveTextContent("0 1");
     await waitFor(() =>
@@ -205,7 +205,7 @@ describe("AnalysisWorkspace imports", () => {
     expect(stockfishMocks.preAnalyze).not.toHaveBeenCalled();
   });
 
-  it("updates accuracy after polling and keeps it with each side when the board flips", async () => {
+  it("updates running accuracy with the selected move and keeps it with each side when flipped", async () => {
     let resolveSnapshot: (snapshot: GameAnalysisSnapshot) => void = () => {};
     apiMocks.pollGameAnalysis.mockReturnValue(
       new Promise<GameAnalysisSnapshot>((resolve) => {
@@ -217,28 +217,51 @@ describe("AnalysisWorkspace imports", () => {
       status: "pending",
       status_url: "/api/game-analysis/analysis-1",
       source: importedSource(),
-      game: gameSkeleton(2),
+      game: gameSkeleton(3),
     });
     const user = userEvent.setup();
     render(<AnalysisWorkspace />);
     await user.type(screen.getByLabelText("Game URL"), "https://www.chess.com/game/168193636078");
     await user.click(screen.getByRole("button", { name: "Analyze" }));
-    expect(await screen.findByLabelText("White game accuracy unavailable")).toBeTruthy();
+    expect(
+      await screen.findByLabelText("White accuracy through this move unavailable"),
+    ).toBeTruthy();
 
     await act(async () => {
       resolveSnapshot({
-        ...snapshotWithMoves(2),
-        accuracy: { method: "mean_move_accuracy.v1", white: 92.3, black: 0 },
+        ...snapshotWithMoves(3),
+        accuracy: { method: "mean_move_accuracy.v1", white: 50, black: 0 },
+        moves: [
+          {
+            ...moveAnalysis({ ply: 1 }),
+            accuracy: { method: "mean_move_accuracy.v1", white: 92.3, black: null },
+          },
+          {
+            ...moveAnalysis({ ply: 2 }),
+            accuracy: { method: "mean_move_accuracy.v1", white: 92.3, black: 0 },
+          },
+          {
+            ...moveAnalysis({ ply: 3 }),
+            accuracy: { method: "mean_move_accuracy.v1", white: 50, black: 0 },
+          },
+        ],
       });
     });
 
-    expect(await screen.findByLabelText("White game accuracy 92.3%")).toBeTruthy();
-    expect(screen.getByLabelText("Black game accuracy 0.0%")).toBeTruthy();
+    expect(await screen.findByLabelText("White accuracy through this move 92.3%")).toBeTruthy();
+    expect(screen.getByLabelText("Black accuracy through this move unavailable")).toBeTruthy();
+    expect(screen.queryByText("Accuracy")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Next move" }));
+    expect(screen.getByLabelText("Black accuracy through this move 0.0%")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Next move" }));
+    expect(screen.getByLabelText("White accuracy through this move 50.0%")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Previous move" }));
+    expect(screen.getByLabelText("White accuracy through this move 92.3%")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Board settings" }));
     await user.click(screen.getByRole("button", { name: /Flip board/ }));
     expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-orientation", "black");
-    expect(screen.getByLabelText("White game accuracy 92.3%")).toBeTruthy();
-    expect(screen.getByLabelText("Black game accuracy 0.0%")).toBeTruthy();
+    expect(screen.getByLabelText("White accuracy through this move 92.3%")).toBeTruthy();
+    expect(screen.getByLabelText("Black accuracy through this move 0.0%")).toBeTruthy();
   });
 
   it("does not restore a previous analysis from the homepage", async () => {
