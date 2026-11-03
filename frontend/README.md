@@ -15,6 +15,7 @@ review as the backend completes each move.
 - Stockfish line previews drawn on the board.
 - Progressive move labels and explanations from the analysis API.
 - UltraChess React board with animated pieces and canvas arrows.
+- Saved Slow, Normal, and Fast animation speeds in Board settings.
 - Browser Stockfish for exploring additional positions.
 
 The board renders from the PGN-derived game skeleton immediately after import.

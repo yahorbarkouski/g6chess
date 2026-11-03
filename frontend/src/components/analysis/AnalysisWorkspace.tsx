@@ -53,6 +53,12 @@ import {
   startImportedGameAnalysis,
 } from "../../lib/api";
 import {
+  BOARD_ANIMATION_MS,
+  type BoardAnimationSpeed,
+  readBoardAnimationSpeed,
+  saveBoardAnimationSpeed,
+} from "../../lib/board-animation-preference";
+import {
   computeCapturedMaterial,
   ENGINE_ARROW_COLORS,
   MAIA_ARROW_COLOR,
@@ -769,6 +775,11 @@ function AnalysisGameWorkspace({
     clampPly(initialPly ?? 1, analysis.moves.length),
   );
   const [flippedBoard, setFlippedBoard] = useState(false);
+  const [animationSpeed, setAnimationSpeed] = useState(readBoardAnimationSpeed);
+  const handleAnimationSpeedChange = useCallback((speed: BoardAnimationSpeed) => {
+    setAnimationSpeed(speed);
+    saveBoardAnimationSpeed(speed);
+  }, []);
   const [arrowCount, setArrowCount] = useState(1);
   const [engineLineCount, setEngineLineCount] = useState(2);
   const [showMaiaArrow, setShowMaiaArrow] = useState(false);
@@ -1081,6 +1092,8 @@ function AnalysisGameWorkspace({
         <main className="mx-auto max-w-[1320px] px-3 pt-3 pb-7 sm:px-6 min-[1100px]:pt-5 min-[1100px]:pb-7">
           {isDesktopLayout ? (
             <DesktopLayout
+              animationSpeed={animationSpeed}
+              onAnimationSpeedChange={handleAnimationSpeedChange}
               analysis={displayAnalysis}
               analysisFen={analysisFen}
               arrowCount={arrowCount}
@@ -1129,6 +1142,8 @@ function AnalysisGameWorkspace({
             />
           ) : (
             <MobileLayout
+              animationSpeed={animationSpeed}
+              onAnimationSpeedChange={handleAnimationSpeedChange}
               analysis={displayAnalysis}
               analysisFen={analysisFen}
               arrowCount={arrowCount}
@@ -1396,6 +1411,8 @@ function arePlayerBarPropsEqual(
 }
 
 function DesktopLayout({
+  animationSpeed,
+  onAnimationSpeedChange,
   analysis,
   analysisFen,
   currentPly,
@@ -1442,13 +1459,17 @@ function DesktopLayout({
   onOpenImport,
   onExitPreview,
 }: WorkspaceLayoutProps) {
+  // Reserve 13rem for player rows, navigation, and page padding. The board column
+  // adds 3.5rem for its side controls and horizontal padding.
   return (
-    <div className="grid gap-0 min-[1100px]:grid-cols-[minmax(0,832px)_420px]">
+    <div className="grid justify-center gap-0 min-[1100px]:grid-cols-[minmax(0,min(832px,calc(100dvh-9.5rem)))_420px]">
       <section className="flex min-h-0 min-w-0 flex-col">
         <div className="flex min-h-0 max-w-[822px] flex-col items-center px-2 pt-1">
           <div className="relative flex w-full items-stretch gap-3">
             <BackToImportButton className="-left-7 top-0.5 absolute" onClick={onOpenImport} />
             <EngineBoardSidebar
+              animationSpeed={animationSpeed}
+              onAnimationSpeedChange={onAnimationSpeedChange}
               analysisFen={analysisFen}
               arrowCount={arrowCount}
               className="flex flex-col items-center gap-2.5 py-0.5"
@@ -1478,6 +1499,7 @@ function DesktopLayout({
                 side={topSide}
               />
               <MemoizedEngineAwareUltraAnalysisBoard
+                animationMs={BOARD_ANIMATION_MS[animationSpeed]}
                 allowDragging
                 analysisFen={analysisFen}
                 arrowCount={arrowCount}
@@ -1528,7 +1550,7 @@ function DesktopLayout({
         </div>
       </section>
 
-      <div className="flex max-h-[87vh] min-w-0 flex-col pl-5">
+      <div className="flex max-h-[87vh] min-w-0 flex-col overflow-y-auto overscroll-contain pl-5">
         <aside className="shrink-0 space-y-4 pr-1">
           <MemoizedPositionInfo
             boardOrientation={boardOrientation}
@@ -1567,7 +1589,7 @@ function DesktopLayout({
           />
         </aside>
         <MoveList
-          className="min-h-0 flex-1 rounded-none border-0 bg-transparent"
+          className="min-h-32 flex-1 rounded-none border-0 bg-transparent"
           currentPly={currentPly}
           markerDisplayMode={markerDisplayMode}
           moveMarkers={analysis.move_markers}
@@ -1580,6 +1602,8 @@ function DesktopLayout({
 }
 
 function MobileLayout({
+  animationSpeed,
+  onAnimationSpeedChange,
   analysis,
   analysisFen,
   currentPly,
@@ -1647,6 +1671,7 @@ function MobileLayout({
             side={topSide}
           />
           <MemoizedEngineAwareUltraAnalysisBoard
+            animationMs={BOARD_ANIMATION_MS[animationSpeed]}
             allowDragging
             analysisFen={analysisFen}
             arrowCount={arrowCount}
@@ -1737,6 +1762,8 @@ function MobileLayout({
         </div>
       )}
       <MobileFloatingLeftControls
+        animationSpeed={animationSpeed}
+        onAnimationSpeedChange={onAnimationSpeedChange}
         arrowCount={arrowCount}
         engineLineCount={engineLineCount}
         flippedBoard={flippedBoard}
@@ -1791,6 +1818,8 @@ function MobileBoardControls({
 const MemoizedMobileBoardControls = memo(MobileBoardControls);
 
 function MobileFloatingLeftControls({
+  animationSpeed,
+  onAnimationSpeedChange,
   arrowCount,
   engineLineCount,
   flippedBoard,
@@ -1806,6 +1835,8 @@ function MobileFloatingLeftControls({
   showMoveMarkersOnBoard,
   onShowMoveMarkersOnBoardChange,
 }: {
+  animationSpeed: BoardAnimationSpeed;
+  onAnimationSpeedChange: (value: BoardAnimationSpeed) => void;
   arrowCount: number;
   engineLineCount: number;
   flippedBoard: boolean;
@@ -1824,6 +1855,8 @@ function MobileFloatingLeftControls({
   return (
     <div className="pointer-events-auto fixed bottom-[1px] left-3 z-30 flex items-center gap-2">
       <AnalysisSettingsPopover
+        animationSpeed={animationSpeed}
+        onAnimationSpeedChange={onAnimationSpeedChange}
         arrowCount={arrowCount}
         buttonClassName={MOBILE_FLOATING_BUTTON_CLASS}
         engineLineCount={engineLineCount}
@@ -1949,6 +1982,8 @@ function EngineBoardSidebar({
   fallbackEvalCp: number | null;
   preferBrowserEval: boolean;
   orientation: BoardSide;
+  animationSpeed: BoardAnimationSpeed;
+  onAnimationSpeedChange: (value: BoardAnimationSpeed) => void;
   flippedBoard: boolean;
   onFlipBoard: () => void;
   arrowCount: number;
@@ -1987,6 +2022,7 @@ function EngineAwareUltraAnalysisBoard({
   serverEngineLines: EngineLineSet | null;
   showMaiaArrow: boolean;
   showMoveMarkers: boolean;
+  animationMs: number;
   allowDragging?: boolean;
   dimmed?: boolean;
   fen: string;
@@ -2059,6 +2095,7 @@ function areEngineAwareBoardPropsEqual(
 ): boolean {
   return (
     previous.analysisFen === next.analysisFen &&
+    previous.animationMs === next.animationMs &&
     previous.arrowCount === next.arrowCount &&
     previous.currentMarker === next.currentMarker &&
     previous.discoveryActive === next.discoveryActive &&
@@ -2315,6 +2352,8 @@ function areBoardArrowsEqual(previous: BoardArrow[], next: BoardArrow[]): boolea
 }
 
 interface WorkspaceLayoutProps {
+  animationSpeed: BoardAnimationSpeed;
+  onAnimationSpeedChange: (value: BoardAnimationSpeed) => void;
   analysis: AnalysisResponse;
   analysisFen: string;
   currentPly: number;

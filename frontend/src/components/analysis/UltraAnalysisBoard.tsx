@@ -26,12 +26,13 @@ import {
 import { parseSquare } from "ultrachess";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { qualityToken } from "../../lib/analysis-format";
+import { DEFAULT_BOARD_ANIMATION_MS } from "../../lib/board-animation-preference";
 import { pieceCodeAtSquare, squareName, uciToSquares } from "../../lib/chess";
 import { cn } from "../../lib/utils";
 import type { AnalysisMoveMarker } from "../../types/analysis";
 
 const BOARD_ANIMATION = {
-  durationMs: 45,
+  durationMs: DEFAULT_BOARD_ANIMATION_MS,
   easing: "cubic-bezier(0.22, 0.61, 0.36, 1)",
 } as const;
 
@@ -82,7 +83,7 @@ function UltraAnalysisBoardBase({
   allowDragging = false,
   allowDrawingArrows = true,
   onPieceDrop,
-  animationMs = 45,
+  animationMs = DEFAULT_BOARD_ANIMATION_MS,
   shadowed = true,
   dimmed = false,
   showCoordinates = true,
@@ -194,7 +195,8 @@ function areUltraAnalysisBoardPropsEqual(
     (previous.allowDragging ?? false) === (next.allowDragging ?? false) &&
     (previous.allowDrawingArrows ?? true) === (next.allowDrawingArrows ?? true) &&
     previous.onPieceDrop === next.onPieceDrop &&
-    (previous.animationMs ?? 45) === (next.animationMs ?? 45) &&
+    (previous.animationMs ?? DEFAULT_BOARD_ANIMATION_MS) ===
+      (next.animationMs ?? DEFAULT_BOARD_ANIMATION_MS) &&
     (previous.shadowed ?? true) === (next.shadowed ?? true) &&
     (previous.dimmed ?? false) === (next.dimmed ?? false) &&
     (previous.showCoordinates ?? true) === (next.showCoordinates ?? true) &&

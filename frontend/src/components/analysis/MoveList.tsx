@@ -78,7 +78,7 @@ export function MoveList({
           Black
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto px-1.5 py-1">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-1.5 py-1">
         {rows.map((row) => (
           <MoveRow
             blackIsActive={row.black?.ply === currentPly}
@@ -318,12 +318,14 @@ function scrollIntoViewIfNeeded(element: HTMLElement | null): void {
     return;
   }
 
-  element.scrollIntoView({ block: "nearest" });
+  container.scrollTop += isAbove
+    ? elementRect.top - containerRect.top - ACTIVE_MOVE_SCROLL_MARGIN_PX
+    : elementRect.bottom - containerRect.bottom + ACTIVE_MOVE_SCROLL_MARGIN_PX;
 }
 
 function nearestScrollContainer(element: HTMLElement): HTMLElement | null {
   let current = element.parentElement;
-  while (current !== null) {
+  while (current !== null && current !== document.body && current !== document.documentElement) {
     if (current.scrollHeight > current.clientHeight) {
       return current;
     }

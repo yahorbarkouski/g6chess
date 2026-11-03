@@ -2,11 +2,14 @@ import { triggerHaptic } from "@ultrachess/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpDown, Settings2 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import type { BoardAnimationSpeed } from "../../lib/board-animation-preference";
 import { cn } from "../../lib/utils";
 import { AnimatedIconButton } from "../ui/animated-icon-button";
 import type { MarkerDisplayMode } from "./MoveList";
 
 interface AnalysisSettingsPopoverProps {
+  animationSpeed: BoardAnimationSpeed;
+  onAnimationSpeedChange: (value: BoardAnimationSpeed) => void;
   arrowCount: number;
   onArrowCountChange: (value: number) => void;
   engineLineCount: number;
@@ -33,6 +36,12 @@ const ARROW_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 3, label: "3" },
 ];
 
+const ANIMATION_OPTIONS: ReadonlyArray<{ value: BoardAnimationSpeed; label: string }> = [
+  { value: "slow", label: "Slow" },
+  { value: "normal", label: "Normal" },
+  { value: "fast", label: "Fast" },
+];
+
 const ENGINE_LINE_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: "1" },
   { value: 2, label: "2" },
@@ -50,6 +59,8 @@ const MARKER_OPTIONS: ReadonlyArray<{ value: MarkerDisplayMode; label: string }>
 ];
 
 export function AnalysisSettingsPopover({
+  animationSpeed,
+  onAnimationSpeedChange,
   arrowCount,
   buttonClassName,
   className,
@@ -145,7 +156,20 @@ export function AnalysisSettingsPopover({
               prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <SectionCaption>Board hints</SectionCaption>
+            <SectionCaption>Board</SectionCaption>
+            <SettingsRow label="Animation">
+              <SegmentedControl
+                ariaLabel="Animation speed"
+                layoutId={`${popoverId}-animation`}
+                options={ANIMATION_OPTIONS.map((option) => ({
+                  key: option.value,
+                  label: option.label,
+                  active: option.value === animationSpeed,
+                  onSelect: () => onAnimationSpeedChange(option.value),
+                }))}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </SettingsRow>
             <SettingsRow label="Engine arrows">
               <SegmentedControl
                 ariaLabel="Best line arrows"
