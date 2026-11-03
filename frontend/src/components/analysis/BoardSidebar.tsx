@@ -1,10 +1,13 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpDown } from "lucide-react";
+import type { BoardAnimationSpeed } from "../../lib/board-animation-preference";
 import { AnalysisSettingsPopover } from "./AnalysisSettingsPopover";
 import { EvalBar } from "./EvalBar";
 import type { MarkerDisplayMode } from "./MoveList";
 
 interface BoardSidebarProps {
+  animationSpeed: BoardAnimationSpeed;
+  onAnimationSpeedChange: (value: BoardAnimationSpeed) => void;
   evalCp: number | null;
   orientation: "white" | "black";
   flippedBoard: boolean;
@@ -23,6 +26,8 @@ interface BoardSidebarProps {
 }
 
 export function BoardSidebar({
+  animationSpeed,
+  onAnimationSpeedChange,
   evalCp,
   orientation,
   flippedBoard,
@@ -44,6 +49,8 @@ export function BoardSidebar({
   return (
     <div className={className}>
       <AnalysisSettingsPopover
+        animationSpeed={animationSpeed}
+        onAnimationSpeedChange={onAnimationSpeedChange}
         arrowCount={arrowCount}
         buttonClassName="relative after:absolute after:-inset-2"
         engineLineCount={engineLineCount}

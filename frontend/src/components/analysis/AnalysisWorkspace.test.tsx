@@ -56,18 +56,21 @@ vi.mock("./UltraAnalysisBoard", () => ({
     orientation,
     marker,
     showMoveMarkers,
+    animationMs,
   }: {
     fen: string | null;
     onWheel?: (event: WheelEvent) => void;
     orientation?: string;
     marker?: { primary_class: string } | null;
     showMoveMarkers?: boolean;
+    animationMs?: number;
   }) => (
     <div
       data-orientation={orientation}
       data-testid="analysis-board"
       data-marker={marker ? marker.primary_class : "none"}
       data-show-move-markers={String(showMoveMarkers)}
+      data-animation-ms={animationMs}
       onWheel={(event) => onWheel?.(event.nativeEvent)}
     >
       {fen}
@@ -281,6 +284,52 @@ describe("AnalysisWorkspace imports", () => {
     expect(apiMocks.pollGameAnalysis).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
+  });
+
+  it("applies all three animation speeds immediately and restores the saved choice", async () => {
+    window.history.replaceState(null, "", "/analysis/analysis-1");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+    const user = userEvent.setup();
+    const view = render(<AnalysisWorkspace />);
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "150");
+    await user.click(screen.getByRole("button", { name: "Board settings" }));
+    expect(screen.getByRole("button", { name: "Animation speed: Normal" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    for (const [label, duration] of [
+      ["Fast", "45"],
+      ["Normal", "150"],
+      ["Slow", "300"],
+    ]) {
+      await user.click(screen.getByRole("button", { name: `Animation speed: ${label}` }));
+      expect(screen.getByTestId("analysis-board")).toHaveAttribute("data-animation-ms", duration);
+      expect(screen.getByRole("button", { name: `Animation speed: ${label}` })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    }
+    expect(window.localStorage.getItem("g6explanation.boardAnimationSpeed")).toBe("slow");
+
+    view.unmount();
+    render(<AnalysisWorkspace />);
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "300");
+    await user.click(screen.getByRole("button", { name: "Board settings" }));
+    expect(screen.getByRole("button", { name: "Animation speed: Slow" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("uses Normal animation speed when the stored preference is invalid", async () => {
+    window.history.replaceState(null, "", "/analysis/analysis-1");
+    window.localStorage.setItem("g6explanation.boardAnimationSpeed", "invalid");
+    apiMocks.pollGameAnalysis.mockResolvedValue(snapshotWithMove());
+
+    render(<AnalysisWorkspace />);
+
+    expect(await screen.findByTestId("analysis-board")).toHaveAttribute("data-animation-ms", "150");
   });
 
   it("starts a Chess.com route import from a production-domain game path", async () => {
